@@ -9,13 +9,11 @@ import (
 	"sync"
 
 	"go-dbms/pkg/index"
-	"go-dbms/pkg/pager"
-
-	"github.com/sirupsen/logrus"
+	pager "go-dbms/pkg/overflow_pager"
 )
 
 // bin is the byte order used for all marshals/unmarshals.
-var bin = binary.LittleEndian
+var bin = binary.BigEndian
 
 // Open opens the named file as a data file and returns an instance
 // DataFile for use. Use ":memory:" for an in-memory DataFile instance for quick
@@ -62,7 +60,7 @@ type DataFile struct {
 
 // Get fetches the record from the given pointer. Returns error if record not found.
 func (df *DataFile) Get(id int) ([][]byte, error) {
-	if id == 0 {
+	if id <= 0 {
 		return nil, index.ErrEmptyKey
 	}
 
@@ -77,8 +75,7 @@ func (df *DataFile) Get(id int) ([][]byte, error) {
 	return r.data, nil
 }
 
-// Put puts the key-value pair into the B+ df. If the key already exists,
-// its value will be updated.
+// Put puts the value into the df and returns its id
 func (df *DataFile) Put(val [][]byte) (int, error) {
 	if len(val) != len(df.meta.columns) {
 		return 0, index.ErrKeyTooLarge
@@ -87,12 +84,7 @@ func (df *DataFile) Put(val [][]byte) (int, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	r := record{
-		data: val,
-		meta: df.meta,
-	}
-
-	rec, err := df.put(r)
+	rec, err := df.put(val)
 	if err != nil {
 		return 0, err
 	}
@@ -100,8 +92,27 @@ func (df *DataFile) Put(val [][]byte) (int, error) {
 	df.meta.size++
 	df.meta.dirty = true
 
-	logrus.Debug("id ==> ", rec.id)
 	return rec.id, df.writeAll()
+}
+
+// Put puts the value into the memory and returns its id
+func (df *DataFile) PutMem(val [][]byte) (int, error) {
+	if len(val) != len(df.meta.columns) {
+		return 0, index.ErrKeyTooLarge
+	}
+
+	df.mu.Lock()
+	defer df.mu.Unlock()
+
+	rec, err := df.put(val)
+	if err != nil {
+		return 0, err
+	}
+
+	df.meta.size++
+	df.meta.dirty = true
+
+	return rec.id, nil
 }
 
 // Del removes the key-value entry from the B+ df. If the key does not
@@ -110,13 +121,18 @@ func (df *DataFile) Del(id int) ([][]byte, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	r, err := df.Get(id)
+	r, err := df.fetch(id)
 	if err != nil {
 		return nil, err
 	}
 
 	df.meta.freeList = append(df.meta.freeList, id)
-	return r, nil
+	df.meta.freeList = append(df.meta.freeList, r.overflow...)
+	return r.data, nil
+}
+
+func (df *DataFile) WriteAll() error {
+	return df.writeAll()
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -212,36 +228,31 @@ func (df *DataFile) Close() error {
 }
 
 func (df *DataFile) String() string {
-	// df.meta.columns = []column{
-	// 	{"id", TYPE_INT},
-	// 	{"name", TYPE_STRING},
-	// }
-	// df.pager.Marshal(0, df.meta)
-
-	// fmt.Print(
-	// 	"dirty ", df.meta.dirty, "\n",
-	// 	"magic ", df.meta.magic, "\n",
-	// 	"version ", df.meta.version, "\n",
-	// 	"flags ", df.meta.flags, "\n",
-	// 	"pageSz ", df.meta.pageSz, "\n",
-	// 	"columns ", df.meta.columns, "\n",
-	// 	// "freeList ", df.meta.freeList, "\n",
-	// 	"size ", df.meta.size, "\n",
-	// )
-
 	return fmt.Sprintf(
 		"DataFile{file='%s', size=%d}",
 		df.file, df.Size(),
 	)
 }
 
-func (df *DataFile) put(r record) (*record, error) {
-	records, err := df.alloc(1)
+func (df *DataFile) put(val [][]byte) (*record, error) {
+	headRecord, err := df.allocOne()
 	if err != nil {
 		return nil, err 
 	}
-	records[0].data = r.data
-	return records[0], nil
+
+	headRecord.data = val
+
+	for i := headRecord.pageCount() - 1; i > 0; i-- {
+		ovflRecord, err := df.allocOne()
+		if err != nil {
+			return nil, err
+		}
+
+		headRecord.overflow = append(headRecord.overflow, ovflRecord.id)
+		delete(df.records, ovflRecord.id)
+	}
+
+	return headRecord, nil
 }
 
 // fetch returns the record from given pointer. underlying file is accessed
@@ -260,6 +271,14 @@ func (df *DataFile) fetch(id int) (*record, error) {
 	df.records[r.id] = r
 
 	return r, nil
+}
+
+func (df *DataFile) allocOne() (*record, error) {
+	rec, err := df.alloc(1)
+	if err != nil {
+		return nil, err
+	}
+	return rec[0], nil
 }
 
 // alloc allocates pages required for 'n' new nodes. alloc will reuse
@@ -291,12 +310,17 @@ func (df *DataFile) alloc(n int) ([]*record, error) {
 	return records, nil
 }
 
-// open opens the B+ df stored on disk using the pager. If the pager
-// has no pages, a new B+ df will be initialized.
+// open opens the df stored on disk using the pager. If the pager
+// has no pages, a new df will be initialized.
 func (df *DataFile) open(opts Options) error {
 	if df.pager.Count() == 0 {
 		// pager has no pages. initialize a new index.
-		return df.init(opts)
+		err := df.init(opts)
+		if err != nil {
+			return err
+		}
+
+		return df.pager.Marshal(0, df.meta)
 	}
 
 	// we are opening an initialized index file. read page 0 as metadata.
@@ -323,12 +347,21 @@ func (df *DataFile) init(opts Options) error {
 		return err
 	}
 
+	columns := []column{}
+	for k, v := range opts.Columns {
+		columns = append(columns, column{
+			name: k,
+			typ: uint8(v),
+		})
+	}
+
 	df.meta = metadata{
 		dirty:   true,
 		version: version,
 		flags:   0,
 		size:    0,
 		pageSz:  uint32(df.pager.PageSize()),
+		columns: columns,
 	}
 
 	df.meta.freeList = make([]int, opts.PreAlloc)
@@ -339,7 +372,7 @@ func (df *DataFile) init(opts Options) error {
 	return nil
 }
 
-// writeAll writes all the nodes marked dirty to the underlying pager.
+// writeAll writes all the records marked dirty to the underlying pager.
 func (df *DataFile) writeAll() error {
 	if df.pager.ReadOnly() {
 		return nil

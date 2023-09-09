@@ -110,3 +110,11 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 
 	return nil
 }
+
+func (m metadata) Overflows() []int {
+	return []int{}
+}
+
+func (m *metadata) Next(data []byte) (next int, err error) {
+	return 0, nil
+}

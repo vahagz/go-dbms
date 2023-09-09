@@ -4,9 +4,10 @@ import "os"
 
 // defaultOptions to be used by New().
 var defaultOptions = Options{
-	ReadOnly:   false,
-	FileMode:   0644,
-	PageSize:   os.Getpagesize(),
+	ReadOnly: false,
+	FileMode: 0644,
+	PageSize: os.Getpagesize(),
+	Columns:  map[string]int{},
 }
 
 // Options represents the configuration options for the B+ tree index.
@@ -27,4 +28,8 @@ type Options struct {
 	// index is initialized. This helps avoid mmap/unmap and truncate
 	// overheads during insertions.
 	PreAlloc int
+
+	// list of columns to distinguish data in records, this general for
+	// all records, and is stored in metadata page of df
+	Columns map[string]int
 }

@@ -87,10 +87,15 @@ func main() {
 	logrus.Debugf("using file '%s'...\n", fileName)
 
 	df, err := data.Open(fileName, &data.Options{
-		ReadOnly:   false,
-		FileMode:   0664,
-		PageSize:   os.Getpagesize(),
-		PreAlloc:   100,
+		ReadOnly: false,
+		FileMode: 0664,
+		PageSize: os.Getpagesize(),
+		// PageSize: 64,
+		PreAlloc: 100,
+		Columns:  map[string]int{
+			"id": data.TYPE_INT,
+			"name": data.TYPE_STRING,
+		},
 	})
 	if err != nil {
 		logrus.Fatalf("failed to init B+ tree: %v", err)
@@ -100,24 +105,64 @@ func main() {
 		// _ = os.Remove(fileName)
 	}()
 
-
-	// logrus.Debug(df)
-
 	// idBytes := make([]byte, 4)
-	// binary.LittleEndian.PutUint32(idBytes, 2)
+	// binary.BigEndian.PutUint32(idBytes, uint32(17))
 	// id, err := df.Put([][]byte{
 	// 	idBytes,
-	// 	[]byte("second"),
+	// 	[]byte(strings.Repeat("J", 9000)),
 	// })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 	// logrus.Debug("id => ", id)
 
-	data, err := df.Get(100)
+	id := 88 // 91
+	data, err := df.Get(id)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	logrus.Debug("got id => ", binary.LittleEndian.Uint32(data[0]))
-	logrus.Debug("got name => ", string(data[1]))
+	logrus.Debugf(
+		"[%v] got id => '%v', got name => '%v', name length => '%v'",
+		id,
+		binary.BigEndian.Uint32(data[0]),
+		string(data[1][0]),
+		len(data[1]),
+	)
+
+
+
+	// start := time.Now()
+
+	// for i := 0; i < 1000; i++ {
+	// 	idBytes := make([]byte, 4)
+	// 	binary.BigEndian.PutUint32(idBytes, uint32(i))
+	// 	id, err := df.Put([][]byte{
+	// 		idBytes,
+	// 		[]byte("second"),
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	logrus.Debug("id => ", id)
+	// }
+
+	// err = df.WriteAll()
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// logrus.Debug(time.Since(start))
+
+	// for i := 2; i < 103; i++ {
+	// 	data, err := df.Get(i)
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	logrus.Debugf(
+	// 		"[%v] got id => '%v', got name => '%v'",
+	// 		i,
+	// 		binary.BigEndian.Uint32(data[0]),
+	// 		string(data[1]),
+	// 	)
+	// }
 }
