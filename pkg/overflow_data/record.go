@@ -2,7 +2,6 @@ package data
 
 import (
 	"errors"
-	"fmt"
 	"math"
 )
 
@@ -96,7 +95,6 @@ func (r record) MarshalBinary() ([]byte, error) {
 }
 
 func (r *record) UnmarshalBinary(d []byte) error {
-	fmt.Println(d)
 	if r == nil {
 		return errors.New("cannot unmarshal into nil record")
 	}

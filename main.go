@@ -71,10 +71,11 @@
 package main
 
 import (
-	"encoding/binary"
+	"fmt"
 	"os"
+	"time"
 
-	"go-dbms/pkg/data"
+	data "go-dbms/pkg/slotted_data"
 
 	"github.com/sirupsen/logrus"
 )
@@ -86,74 +87,76 @@ func main() {
 
 	logrus.Debugf("using file '%s'...\n", fileName)
 
+	columnsOrder := []string{"id","name","surname"}
+	_ = columnsOrder
+	columns := map[string]int{
+		"id":      data.TYPE_STRING,
+		"name":    data.TYPE_STRING,
+		"surname": data.TYPE_STRING,
+	}
+
 	df, err := data.Open(fileName, &data.Options{
 		ReadOnly: false,
 		FileMode: 0664,
 		PageSize: os.Getpagesize(),
 		// PageSize: 64,
-		PreAlloc: 100,
-		Columns:  map[string]int{
-			"id": data.TYPE_INT,
-			"name": data.TYPE_STRING,
-		},
+		PreAlloc: 10,
+		Columns:  columns,
 	})
 	if err != nil {
-		logrus.Fatalf("failed to init B+ tree: %v", err)
+		logrus.Fatalf("failed to init df: %v", err)
 	}
 	defer func() {
 		_ = df.Close()
-		// _ = os.Remove(fileName)
 	}()
 
 	// idBytes := make([]byte, 4)
-	// binary.BigEndian.PutUint32(idBytes, uint32(17))
+	// binary.BigEndian.PutUint32(idBytes, uint32(7))
 	// id, err := df.Put([][]byte{
 	// 	idBytes,
-	// 	[]byte(strings.Repeat("J", 9000)),
+	// 	[]byte(strings.Repeat("M", 30)),
 	// })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 	// logrus.Debug("id => ", id)
 
-	id := 88 // 91
+	start := time.Now()
+	id := 4 // 2 3 5
 	data, err := df.Get(id)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	logrus.Debugf(
-		"[%v] got id => '%v', got name => '%v', name length => '%v'",
-		id,
-		binary.BigEndian.Uint32(data[0]),
-		string(data[1][0]),
-		len(data[1]),
-	)
+	logrus.Debug(len(data))
+	for _, d := range data {
+		str := fmt.Sprintf("[%v]", id)
+		for i, col := range columnsOrder {
+			str += fmt.Sprintf(" '%s' -> '%s'", col, string(d[i]))
+		}
+		logrus.Debug(str)
+	}
+	logrus.Debug(time.Since(start))
 
 
 
 	// start := time.Now()
-
-	// for i := 0; i < 1000; i++ {
+	// for i := 0; i < 100; i++ {
 	// 	idBytes := make([]byte, 4)
 	// 	binary.BigEndian.PutUint32(idBytes, uint32(i))
 	// 	id, err := df.Put([][]byte{
-	// 		idBytes,
-	// 		[]byte("second"),
+	// 		[]byte(fmt.Sprintf("%v", i)),
+	// 		[]byte("Vahag"),
+	// 		[]byte("Zargaryan"),
 	// 	})
 	// 	if err != nil {
 	// 		logrus.Fatal(err)
 	// 	}
 	// 	logrus.Debug("id => ", id)
 	// }
-
-	// err = df.WriteAll()
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
 	// logrus.Debug(time.Since(start))
 
-	// for i := 2; i < 103; i++ {
+	// start := time.Now()
+	// for i := 1; i < 103; i++ {
 	// 	data, err := df.Get(i)
 	// 	if err != nil {
 	// 		logrus.Fatal(err)
@@ -165,4 +168,5 @@ func main() {
 	// 		string(data[1]),
 	// 	)
 	// }
+	// logrus.Debug(time.Since(start))
 }
