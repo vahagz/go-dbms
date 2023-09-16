@@ -12,8 +12,8 @@ type Slot interface {
 	Copy() interface{}
 }
 
-// header length in page 2 (slots count)
-const pageHeaderSz = 2
+// header length in page - 1 (flags) + 2 (slots count)
+const pageHeaderSz = 3
 
 func NewPage[T Slot](id, PageSize int, dst T) *Page[T] {
 	return &Page[T]{
@@ -30,6 +30,7 @@ func NewPage[T Slot](id, PageSize int, dst T) *Page[T] {
 type Page[T Slot] struct {
 	dst T
 
+	Flags    uint8
 	Dirty    bool
 	PageSize int
 
@@ -39,14 +40,20 @@ type Page[T Slot] struct {
 	FreeSpace int
 }
 
-func (p *Page[T]) AddSlot(slot T) error {
+func (p *Page[T]) AddSlot(slot T) (int, error) {
 	// 4 is 2 + 2 (slot size + slot offset size)
 	if p.FreeSpace < slot.Size() + 4 {
-		return errors.New("not enough space for new slot")
+		return -1, errors.New("not enough space for new slot")
 	}
 	p.Slots = append(p.Slots, slot)
 	p.CalculateFreeSpace()
-	return nil
+	return len(p.Slots) - 1, nil
+}
+
+func (p *Page[T]) ClearSlots() {
+	// 4 is 2 + 2 (slot size + slot offset size)
+	p.Slots = []T{}
+	p.CalculateFreeSpace()
 }
 
 func (p *Page[T]) CalculateFreeSpace() {
@@ -65,6 +72,9 @@ func (p Page[T]) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, p.PageSize)
 	leftOffset := 0
 	rightOffset := p.PageSize
+
+	buf[leftOffset] = p.Flags
+	leftOffset++
 
 	bin.PutUint16(buf[leftOffset:leftOffset+2], uint16(len(p.Slots)))
 	leftOffset += 2
@@ -97,6 +107,10 @@ func (p *Page[T]) UnmarshalBinary(d []byte) error {
 	}
 
 	offset := 0
+
+	p.Flags = d[offset]
+	offset++
+
 	p.Slots = make([]T, bin.Uint16(d[offset:offset+2]))
 	offset += 2
 

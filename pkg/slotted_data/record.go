@@ -2,17 +2,18 @@ package data
 
 import (
 	"errors"
+	"go-dbms/pkg/types"
 )
 
 // no header in record
 const recordHeaderSz = 0
 
 // newrecord initializes an in-memory record and returns.
-func newRecord(id int, meta metadata) *record {
+func newRecord(id int, meta *metadata) *record {
 	return &record{
-		id:       id,
-		dirty:    true,
-		meta:     meta,
+		id:    id,
+		dirty: true,
+		meta:  meta,
 	}
 }
 
@@ -23,8 +24,8 @@ type record struct {
 
 	// record data
 	id   int
-	data [][]byte
-	meta metadata
+	data []types.DataType
+	meta *metadata
 }
 
 func (r *record) Copy() interface{} {
@@ -38,9 +39,9 @@ func (r record) Size() int {
 
 	for i := 0; i < len(r.data); i++ {
 		// 1 for the type size
-		sz += 1 + len(r.data[i])
+		sz += 1 + r.data[i].GetSize()
 
-		if !isFixedSize(r.meta.columns[i].typ) {
+		if !r.data[i].IsFixedSize() {
 			sz += 2
 		}
 	}
@@ -54,13 +55,15 @@ func (r record) MarshalBinary() ([]byte, error) {
 
 	for i := 0; i < len(r.data); i++ {
 		data := r.data[i]
-		if !isFixedSize(r.meta.columns[i].typ) {
-			bin.PutUint16(buf[offset:offset+2], uint16(len(data)))
+		size := data.GetSize()
+		if !data.IsFixedSize() {
+			bin.PutUint16(buf[offset:offset+2], uint16(size))
 			offset += 2
 		}
 
-		copy(buf[offset:offset+len(data)], data)
-		offset += len(data)
+		bytes, _ := data.MarshalBinary()
+		copy(buf[offset:offset+size], bytes)
+		offset += size
 	}
 
 	return buf, nil
@@ -72,19 +75,21 @@ func (r *record) UnmarshalBinary(d []byte) error {
 	}
 
 	offset := 0
-	r.data = make([][]byte, len(r.meta.columns))
+	r.data = make([]types.DataType, len(r.meta.columns))
 
 	for i, column := range r.meta.columns {
 		size := 0
-		if isFixedSize(column.typ) {
-			size, _ = getSize(column.typ)
+		v := types.Type(types.TypeCode(column.typ))
+
+		if v.IsFixedSize() {
+			size = v.GetSize()
 		} else {
 			size = int(bin.Uint16(d[offset:offset+2]))
 			offset += 2
 		}
 
-		r.data[i] = make([]byte, size)
-		copy(r.data[i], d[offset:offset+size])
+		v.UnmarshalBinary(d[offset:offset+size])
+		r.data[i] = v
 		offset += size
 	}
 

@@ -10,6 +10,7 @@ import (
 
 	"go-dbms/pkg/index"
 	pager "go-dbms/pkg/slotted_pager"
+	"go-dbms/pkg/types"
 )
 
 // bin is the byte order used for all marshals/unmarshals.
@@ -33,6 +34,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 		file:  fileName,
 		pager: p,
 		pages: map[int]*pager.Page[*record]{},
+		meta:  &metadata{},
 	}
 
 	// initialize the df if new or open the existing df and load
@@ -45,21 +47,20 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	return df, nil
 }
 
-// DataFile represents an on-disk B+ df. Each node in the df is mapped
-// to a single page in the file. Degree of the df is decided based on the
-// page size and max key size while initializing.
+// DataFile represents an on-disk df. Several records
+// in the df are mapped to a single page in the file. 
 type DataFile struct {
-	file       string
+	file string
 
 	// df state
 	mu      *sync.RWMutex
 	pager   *pager.Pager
-	pages   map[int]*pager.Page[*record] // record cache to avoid IO
-	meta    metadata                     // metadata about df structure
+	pages   map[int]*pager.Page[*record] // page cache to avoid IO
+	meta    *metadata                    // metadata about df structure
 }
 
 // Get fetches the record from the given pointer. Returns error if record not found.
-func (df *DataFile) Get(id int) ([][][]byte, error) {
+func (df *DataFile) GetPage(id int) ([][]types.DataType, error) {
 	if id <= 0 {
 		return nil, index.ErrEmptyKey
 	}
@@ -72,7 +73,7 @@ func (df *DataFile) Get(id int) ([][][]byte, error) {
 		return nil, err
 	}
 
-	result := make([][][]byte, len(p.Slots))
+	result := make([][]types.DataType, len(p.Slots))
 	for i, slot := range p.Slots {
 		result[i] = slot.data
 	}
@@ -80,8 +81,8 @@ func (df *DataFile) Get(id int) ([][][]byte, error) {
 }
 
 // Put puts the value into the df and returns its id
-func (df *DataFile) Put(val [][]byte) (int, error) {
-	id, err := df.PutMem(val)
+func (df *DataFile) InsertSlot(val []types.DataType) (int, error) {
+	id, err := df.InsertSlotMem(val)
 	if err != nil {
 		return 0, err
 	}
@@ -89,8 +90,7 @@ func (df *DataFile) Put(val [][]byte) (int, error) {
 	return id, df.writeAll()
 }
 
-// Put puts the value into the memory and returns its id
-func (df *DataFile) PutMem(val [][]byte) (int, error) {
+func (df *DataFile) InsertSlotMem(val []types.DataType) (int, error) {
 	if len(val) != len(df.meta.columns) {
 		return 0, index.ErrKeyTooLarge
 	}
@@ -98,34 +98,53 @@ func (df *DataFile) PutMem(val [][]byte) (int, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	p, err := df.put(val)
+	p, _, err := df.put(val)
 	if err != nil {
 		return 0, err
 	}
 
-	df.meta.size++
-	df.meta.dirty = true
-
-	return p.Slots[len(p.Slots) - 1].id, nil
+	return p.Id, nil
 }
 
-// Del removes the key-value entry from the B+ df. If the key does not
-// exist, returns error.
-func (df *DataFile) Del(id int) ([][]byte, error) {
+// Del removes all slots from page. If the
+// page does not exist, returns error.
+func (df *DataFile) DeletePage(id int) error {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
 	p, err := df.fetch(id)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	df.meta.freeList[id] = int(df.meta.pageSz)
-	return p.Slots[0].data, nil
+	p.ClearSlots()
+	p.Dirty = true
+	df.meta.freeList[id] = p.FreeSpace
+
+	return nil
 }
 
-func (df *DataFile) WriteAll() error {
-	return df.writeAll()
+func (df *DataFile) UpdatePage(id int, values [][]types.DataType) error {
+	df.mu.Lock()
+	defer df.mu.Unlock()
+
+	p, err := df.fetch(id)
+	if err != nil {
+		return err
+	}
+
+	p.Dirty = true
+	p.ClearSlots()
+	for _, data := range values {
+		r := newRecord(id, df.meta)
+		r.data = data
+		if _, err := p.AddSlot(r); err != nil {
+			return err
+		}
+	}
+	df.meta.freeList[id] = p.FreeSpace
+
+	return nil
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -227,27 +246,28 @@ func (df *DataFile) String() string {
 	)
 }
 
-func (df *DataFile) put(val [][]byte) (*pager.Page[*record], error) {
+func (df *DataFile) put(val []types.DataType) (*pager.Page[*record], int, error) {
 	r := newRecord(0, df.meta)
 	r.data = val
 
 	page, err := df.alloc(r.Size())
 	if err != nil {
-		return nil, err 
+		return nil, -1, err
 	}
 
 	r.id = page.Id
-	err = page.AddSlot(r)
+	index, err := page.AddSlot(r)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
 	df.meta.freeList[page.Id] = page.FreeSpace
 	
+	df.meta.size++
 	df.meta.dirty = true
 	df.pages[page.Id] = page
 
-	return page, nil
+	return page, index, nil
 }
 
 // fetch returns the record from given pointer. underlying file is accessed
@@ -255,6 +275,9 @@ func (df *DataFile) put(val [][]byte) (*pager.Page[*record], error) {
 func (df *DataFile) fetch(id int) (*pager.Page[*record], error) {
 	page, found := df.pages[id]
 	if found {
+		if page.Flags & PAGE_FLAG_DELETED != 0 {
+			return nil, errors.New("page deleted")
+		}
 		return page, nil
 	}
 
@@ -262,6 +285,11 @@ func (df *DataFile) fetch(id int) (*pager.Page[*record], error) {
 	if err := df.pager.Unmarshal(id, page); err != nil {
 		return nil, err
 	}
+
+	if page.Flags & PAGE_FLAG_DELETED != 0 {
+		return nil, errors.New("page deleted")
+	}
+
 	page.Dirty = false
 	df.pages[page.Id] = page
 
@@ -310,7 +338,7 @@ func (df *DataFile) open(opts Options) error {
 	}
 
 	// we are opening an initialized index file. read page 0 as metadata.
-	if err := df.pager.Unmarshal(0, &df.meta); err != nil {
+	if err := df.pager.Unmarshal(0, df.meta); err != nil {
 		return err
 	}
 
@@ -324,24 +352,24 @@ func (df *DataFile) open(opts Options) error {
 	return nil
 }
 
-// init initializes a new B+ df in the underlying file. allocates 2 pages
-// (1 for meta + 1 for root) and initializes the instance. metadata and the
-// root node are expected to be written to file during insertion.
+// init initializes a new df in the underlying file. allocates 1 page
+// for meta) and initializes the instance. metadata is expected to 
+// be written to file during insertion.
 func (df *DataFile) init(opts Options) error {
-	_, err := df.pager.Alloc(2 + opts.PreAlloc)
+	_, err := df.pager.Alloc(1 + opts.PreAlloc)
 	if err != nil {
 		return err
 	}
 
 	columns := []column{}
-	for k, v := range opts.Columns {
+	for name, typeCode := range opts.Columns {
 		columns = append(columns, column{
-			name: k,
-			typ: uint8(v),
+			name: name,
+			typ: typeCode,
 		})
 	}
 
-	df.meta = metadata{
+	df.meta = &metadata{
 		dirty:   true,
 		version: version,
 		flags:   0,
@@ -352,7 +380,7 @@ func (df *DataFile) init(opts Options) error {
 
 	df.meta.freeList = make(map[int]int, opts.PreAlloc)
 	for i := 0; i < opts.PreAlloc; i++ {
-		df.meta.freeList[i + 2] = int(df.meta.pageSz) // +2 since first 2 pages reserved
+		df.meta.freeList[i + 1] = int(df.meta.pageSz) // +1 since first page reserved
 	}
 
 	return nil

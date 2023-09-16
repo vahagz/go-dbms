@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"go-dbms/pkg/types"
 	"log"
 )
 
@@ -13,7 +14,7 @@ const (
 
 type column struct {
 	name string
-	typ  uint8
+	typ  types.TypeCode
 }
 
 // metadata represents the metadata for the data file stored in a file.
@@ -55,7 +56,7 @@ func (m metadata) MarshalBinary() ([]byte, error) {
 	for i := 0; i < len(m.columns); i++ {
 		colBytes := []byte(m.columns[i].name)
 
-		buf[offset] = m.columns[i].typ
+		buf[offset] = byte(m.columns[i].typ)
 		offset++
 
 		bin.PutUint16(buf[offset:offset+2], uint16(len(colBytes)))
@@ -95,7 +96,7 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	m.columns = make([]column, colLen)
 
 	for i := 0; i < int(colLen); i++ {
-		m.columns[i].typ = uint8(d[offset])
+		m.columns[i].typ = types.TypeCode(d[offset])
 		offset++
 
 		colLen := int(bin.Uint16(d[offset:offset+2]))

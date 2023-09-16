@@ -76,6 +76,7 @@ import (
 	"time"
 
 	data "go-dbms/pkg/slotted_data"
+	"go-dbms/pkg/types"
 
 	"github.com/sirupsen/logrus"
 )
@@ -89,10 +90,10 @@ func main() {
 
 	columnsOrder := []string{"id","name","surname"}
 	_ = columnsOrder
-	columns := map[string]int{
-		"id":      data.TYPE_STRING,
-		"name":    data.TYPE_STRING,
-		"surname": data.TYPE_STRING,
+	columns := map[string]types.TypeCode{
+		"id":      types.TYPE_INT32,
+		"name":    types.TYPE_STRING,
+		"surname": types.TYPE_STRING,
 	}
 
 	df, err := data.Open(fileName, &data.Options{
@@ -106,24 +107,32 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("failed to init df: %v", err)
 	}
+
+	start := time.Now()
 	defer func() {
+		logrus.Debug(time.Since(start))
 		_ = df.Close()
 	}()
 
-	// idBytes := make([]byte, 4)
-	// binary.BigEndian.PutUint32(idBytes, uint32(7))
-	// id, err := df.Put([][]byte{
-	// 	idBytes,
-	// 	[]byte(strings.Repeat("M", 30)),
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
+	// rand.Seed(time.Now().Unix())
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for i := 0; i < 100; i++ {
+	// 	idBytes := make([]byte, 4)
+	// 	binary.BigEndian.PutUint32(idBytes, uint32(i))
+	// 	v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
+	// 	v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
+	// 	v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
+	// 	id, err := df.InsertSlot([]types.DataType{v1, v2, v3})
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	logrus.Debug("id => ", id)
 	// }
-	// logrus.Debug("id => ", id)
 
-	start := time.Now()
-	id := 4 // 2 3 5
-	data, err := df.Get(id)
+
+	id := 4
+	data, err := df.GetPage(id)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -131,42 +140,31 @@ func main() {
 	for _, d := range data {
 		str := fmt.Sprintf("[%v]", id)
 		for i, col := range columnsOrder {
-			str += fmt.Sprintf(" '%s' -> '%s'", col, string(d[i]))
+			str += fmt.Sprintf(" '%s' -> '%v', ", col, d[i].Value())
 		}
 		logrus.Debug(str)
 	}
-	logrus.Debug(time.Since(start))
 
 
-
-	// start := time.Now()
-	// for i := 0; i < 100; i++ {
-	// 	idBytes := make([]byte, 4)
-	// 	binary.BigEndian.PutUint32(idBytes, uint32(i))
-	// 	id, err := df.Put([][]byte{
-	// 		[]byte(fmt.Sprintf("%v", i)),
-	// 		[]byte("Vahag"),
-	// 		[]byte("Zargaryan"),
-	// 	})
-	// 	if err != nil {
-	// 		logrus.Fatal(err)
-	// 	}
-	// 	logrus.Debug("id => ", id)
+	// id := 4
+	// data, err := df.GetPage(id)
+	// if err != nil {
+	// 	logrus.Fatal(err)
 	// }
-	// logrus.Debug(time.Since(start))
-
-	// start := time.Now()
-	// for i := 1; i < 103; i++ {
-	// 	data, err := df.Get(i)
-	// 	if err != nil {
-	// 		logrus.Fatal(err)
+	// logrus.Debug(len(data))
+	// res := [][]types.DataType{}
+	// for _, d := range data {
+	// 	if d[1].Value() != "Vahag" {
+	// 		res = append(res, d)
 	// 	}
-	// 	logrus.Debugf(
-	// 		"[%v] got id => '%v', got name => '%v'",
-	// 		i,
-	// 		binary.BigEndian.Uint32(data[0]),
-	// 		string(data[1]),
-	// 	)
 	// }
-	// logrus.Debug(time.Since(start))
+	// if err := df.UpdatePage(id, res); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+
+	// if err := df.DeletePage(8); err != nil {
+	// 	logrus.Error(err)
+	// }
+
 }

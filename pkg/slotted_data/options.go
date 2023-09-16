@@ -1,13 +1,16 @@
 package data
 
-import "os"
+import (
+	"go-dbms/pkg/types"
+	"os"
+)
 
 // defaultOptions to be used by New().
 var defaultOptions = Options{
 	ReadOnly: false,
 	FileMode: 0644,
 	PageSize: os.Getpagesize(),
-	Columns:  map[string]int{},
+	Columns:  map[string]types.TypeCode{},
 }
 
 // Options represents the configuration options for the B+ tree index.
@@ -31,5 +34,5 @@ type Options struct {
 
 	// list of columns to distinguish data in records, this general for
 	// all records, and is stored in metadata page of df
-	Columns map[string]int
+	Columns map[string]types.TypeCode
 }
