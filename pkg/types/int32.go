@@ -21,14 +21,14 @@ func (t *DataTypeINT32) Value() interface{} {
 	return t.value
 }
 
-func (t *DataTypeINT32) Set(value interface{}) error {
+func (t *DataTypeINT32) Set(value interface{}) DataType {
 	v, ok := value.(int32)
 	if !ok {
-		return fmt.Errorf("invalid set data type => %v", value)
+		panic(fmt.Errorf("invalid set data type => %v", value))
 	}
 
 	t.value = v
-	return nil
+	return t
 }
 
 func (t *DataTypeINT32) GetCode() TypeCode {

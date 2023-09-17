@@ -18,7 +18,7 @@ type DataType interface {
 	encoding.BinaryUnmarshaler
 
 	Value() interface{}
-	Set(value interface{}) error
+	Set(value interface{}) DataType
 	GetCode() TypeCode
 	GetSize() int
 	IsFixedSize() bool

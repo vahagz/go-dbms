@@ -19,14 +19,14 @@ func (t *DataTypeSTRING) Value() interface{} {
 	return t.value
 }
 
-func (t *DataTypeSTRING) Set(value interface{}) error {
+func (t *DataTypeSTRING) Set(value interface{}) DataType {
 	v, ok := value.(string)
 	if !ok {
-		return fmt.Errorf("invalid set data type => %v", value)
+		panic(fmt.Errorf("invalid set data type => %v", value))
 	}
 
 	t.value = v
-	return nil
+	return t
 }
 
 func (t *DataTypeSTRING) GetCode() TypeCode {

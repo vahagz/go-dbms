@@ -21,7 +21,7 @@ var bin = binary.BigEndian
 // testing setup. If nil options are provided, defaultOptions will be used.
 func Open(fileName string, opts *Options) (*DataFile, error) {
 	if opts == nil {
-		opts = &defaultOptions
+		opts = &DefaultOptions
 	}
 
 	p, err := pager.Open(fileName, opts.PageSize, opts.ReadOnly, opts.FileMode)
@@ -80,30 +80,31 @@ func (df *DataFile) GetPage(id int) ([][]types.DataType, error) {
 	return result, nil
 }
 
-// Put puts the value into the df and returns its id
-func (df *DataFile) InsertRecord(val []types.DataType) (int, error) {
-	id, err := df.InsertRecordMem(val)
+// InsertRecord inserts the value into the df
+// and returns page id where was inserted
+func (df *DataFile) InsertRecord(val []types.DataType) (*RecordPointer, error) {
+	recordPtr, err := df.InsertRecordMem(val)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	return id, df.writeAll()
+	return recordPtr, df.writeAll()
 }
 
-func (df *DataFile) InsertRecordMem(val []types.DataType) (int, error) {
+func (df *DataFile) InsertRecordMem(val []types.DataType) (*RecordPointer, error) {
 	if len(val) != len(df.meta.columns) {
-		return 0, index.ErrKeyTooLarge
+		return nil, index.ErrKeyTooLarge
 	}
 
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	p, _, err := df.insertRecord(val)
+	p, i, err := df.insertRecord(val)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	return p.Id, nil
+	return &RecordPointer{p.Id, i}, nil
 }
 
 // Del removes all slots from page. If the
@@ -169,7 +170,7 @@ func (df *DataFile) UpdatePage(id int, values [][]types.DataType) (map[int][]typ
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (df *DataFile) Scan(scanFn func(pageId, slotId int, row []types.DataType) bool) error {
+func (df *DataFile) Scan(scanFn func(ptr *RecordPointer, row []types.DataType) bool) error {
 	df.mu.RLock()
 	defer df.mu.RUnlock()
 
@@ -181,7 +182,7 @@ func (df *DataFile) Scan(scanFn func(pageId, slotId int, row []types.DataType) b
 		}
 
 		for slotId, record := range page.Slots {
-			if scanFn(pageId, slotId, record.data) {
+			if scanFn(&RecordPointer{pageId, slotId}, record.data) {
 				break
 			}
 		}

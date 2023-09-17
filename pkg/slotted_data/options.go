@@ -6,14 +6,14 @@ import (
 )
 
 // defaultOptions to be used by New().
-var defaultOptions = Options{
+var DefaultOptions = Options{
 	ReadOnly: false,
 	FileMode: 0644,
 	PageSize: os.Getpagesize(),
-	Columns:  map[string]types.TypeCode{},
+	PreAlloc: 10,
 }
 
-// Options represents the configuration options for the B+ tree index.
+// Options represents the configuration options for the df.
 type Options struct {
 	// ReadOnly mode for index. All mutating operations will return
 	// error in this mode.
