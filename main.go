@@ -72,7 +72,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
@@ -117,20 +116,20 @@ func main() {
 	}()
 
 
-	rand.Seed(time.Now().Unix())
-	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for i := 0; i < 100; i++ {
-		v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
-		v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
-		v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
-		id, err := df.InsertRecord([]types.DataType{v1, v2, v3})
-		if err != nil {
-			logrus.Debug(df.FreeList())
-			logrus.Fatal(err)
-		}
-		logrus.Debug("id => ", id)
-	}
+	// rand.Seed(time.Now().Unix())
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for i := 0; i < 100; i++ {
+	// 	v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
+	// 	v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
+	// 	v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
+	// 	id, err := df.InsertRecord([]types.DataType{v1, v2, v3})
+	// 	if err != nil {
+	// 		logrus.Debug(df.FreeList())
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	logrus.Debug("id => ", id)
+	// }
 
 
 	// id := 4
@@ -139,7 +138,16 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	// logrus.Debug(len(data))
-	// printData(id, columnsOrder, data)
+	// logrus.Debugf("[%v] %s", id, sprintData(columnsOrder, data))
+
+
+	// err = df.Scan(func(pageId, slotId int, row []types.DataType) bool {
+	// 	logrus.Debugf("[%v][%v] %s", pageId, slotId, sprintData(columnsOrder, [][]types.DataType{row}))
+	// 	return false
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 
 	// id := 4
@@ -166,12 +174,17 @@ func main() {
 }
 
 
-func printData(pid int, columnsOrder []string, data [][]types.DataType) {
+func sprintData(columnsOrder []string, data [][]types.DataType) string {
+	str := ""
 	for _, d := range data {
-		str := fmt.Sprintf("[%v]", pid)
 		for i, col := range columnsOrder {
 			str += fmt.Sprintf(" '%s' -> '%v', ", col, d[i].Value())
 		}
-		logrus.Debug(str)
+		str += "\n"
 	}
+	return str
+}
+
+func printData(columnsOrder []string, data [][]types.DataType) {
+	logrus.Debug(sprintData(columnsOrder, data))
 }

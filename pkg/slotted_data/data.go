@@ -169,73 +169,26 @@ func (df *DataFile) UpdatePage(id int, values [][]types.DataType) (map[int][]typ
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-// func (df *DataFile) Scan(key []byte, reverse bool, scanFn func(key []byte, v uint64) bool) error {
-// 	df.mu.RLock()
-// 	defer df.mu.RUnlock()
+func (df *DataFile) Scan(scanFn func(pageId, slotId int, row []types.DataType) bool) error {
+	df.mu.RLock()
+	defer df.mu.RUnlock()
 
-// 	if df.meta.size == 0 {
-// 		return nil
-// 	}
+	totalPages := df.pager.Count()
+	for pageId := 1; pageId < totalPages; pageId++ {
+		page, err := df.fetch(pageId)
+		if err != nil {
+			return err
+		}
 
-// 	var err error
-// 	var beginAt *node
-// 	idx := 0
+		for slotId, record := range page.Slots {
+			if scanFn(pageId, slotId, record.data) {
+				break
+			}
+		}
+	}
 
-// 	if len(key) == 0 {
-// 		// No explicit key provided by user, find the a leaf-node based on
-// 		// scan direction and start there.
-// 		if !reverse {
-// 			beginAt, err = df.leftLeaf(df.root)
-// 			idx = 0
-// 		} else {
-// 			beginAt, err = df.rightLeaf(df.root)
-// 			idx = len(beginAt.entries) - 1
-// 		}
-// 	} else {
-// 		// we have a specific key to start at. find the node containing the
-// 		// key and start the scan there.
-// 		beginAt, idx, _, err = df.searchRec(df.root, key)
-// 	}
-
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// starting at found leaf node, follow the 'next' pointer until.
-// 	var nextNode int
-
-// 	for beginAt != nil {
-// 		if !reverse {
-// 			for i := idx; i < len(beginAt.entries); i++ {
-// 				e := beginAt.entries[i]
-// 				if scanFn(e.key, e.val) {
-// 					break
-// 				}
-// 			}
-// 			nextNode = beginAt.next
-// 		} else {
-// 			for i := idx; i >= 0; i-- {
-// 				e := beginAt.entries[i]
-// 				if scanFn(e.key, e.val) {
-// 					break
-// 				}
-// 			}
-// 			nextNode = beginAt.prev
-// 		}
-// 		idx = 0
-
-// 		if nextNode == 0 {
-// 			break
-// 		}
-
-// 		beginAt, err = df.fetch(nextNode)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
+	return nil
+}
 
 // Size returns the number of entries in the entire df
 func (df *DataFile) Size() int64 { return int64(df.meta.size) }
