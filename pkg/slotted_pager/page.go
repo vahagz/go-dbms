@@ -14,6 +14,8 @@ type Slot interface {
 
 // header length in page - 1 (flags) + 2 (slots count)
 const pageHeaderSz = 3
+// 4 is 2 + 2 (slot size + slot offset size)
+const SlotHeaderSz = 4
 
 func NewPage[T Slot](id, PageSize int, dst T) *Page[T] {
 	return &Page[T]{
@@ -41,8 +43,7 @@ type Page[T Slot] struct {
 }
 
 func (p *Page[T]) AddSlot(slot T) (int, error) {
-	// 4 is 2 + 2 (slot size + slot offset size)
-	if p.FreeSpace < slot.Size() + 4 {
+	if p.FreeSpace < slot.Size() + SlotHeaderSz {
 		return -1, errors.New("not enough space for new slot")
 	}
 	p.Slots = append(p.Slots, slot)
@@ -51,7 +52,6 @@ func (p *Page[T]) AddSlot(slot T) (int, error) {
 }
 
 func (p *Page[T]) ClearSlots() {
-	// 4 is 2 + 2 (slot size + slot offset size)
 	p.Slots = []T{}
 	p.CalculateFreeSpace()
 }
@@ -61,8 +61,7 @@ func (p *Page[T]) CalculateFreeSpace() {
 	slotsSize := 0
 
 	for _, slot := range p.Slots {
-		// 4 is 2 + 2 (slot size + slot offset size)
-		slotsSize += slot.Size() + 4
+		slotsSize += slot.Size() + SlotHeaderSz
 	}
 
 	p.FreeSpace = fs - slotsSize

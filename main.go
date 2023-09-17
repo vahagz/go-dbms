@@ -72,6 +72,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -111,38 +112,24 @@ func main() {
 	start := time.Now()
 	defer func() {
 		logrus.Debug(time.Since(start))
+		logrus.Debug(df.FreeList())
 		_ = df.Close()
 	}()
 
-	// rand.Seed(time.Now().Unix())
-	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	// for i := 0; i < 100; i++ {
-	// 	idBytes := make([]byte, 4)
-	// 	binary.BigEndian.PutUint32(idBytes, uint32(i))
-	// 	v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
-	// 	v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
-	// 	v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
-	// 	id, err := df.InsertSlot([]types.DataType{v1, v2, v3})
-	// 	if err != nil {
-	// 		logrus.Fatal(err)
-	// 	}
-	// 	logrus.Debug("id => ", id)
-	// }
 
-
-	id := 4
-	data, err := df.GetPage(id)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	logrus.Debug(len(data))
-	for _, d := range data {
-		str := fmt.Sprintf("[%v]", id)
-		for i, col := range columnsOrder {
-			str += fmt.Sprintf(" '%s' -> '%v', ", col, d[i].Value())
+	rand.Seed(time.Now().Unix())
+	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	for i := 0; i < 100; i++ {
+		v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
+		v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
+		v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
+		id, err := df.InsertRecord([]types.DataType{v1, v2, v3})
+		if err != nil {
+			logrus.Debug(df.FreeList())
+			logrus.Fatal(err)
 		}
-		logrus.Debug(str)
+		logrus.Debug("id => ", id)
 	}
 
 
@@ -152,14 +139,23 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	// logrus.Debug(len(data))
-	// res := [][]types.DataType{}
-	// for _, d := range data {
-	// 	if d[1].Value() != "Vahag" {
-	// 		res = append(res, d)
-	// 	}
-	// }
-	// if err := df.UpdatePage(id, res); err != nil {
+	// printData(id, columnsOrder, data)
+
+
+	// id := 4
+	// data, err := df.GetPage(id)
+	// if err != nil {
 	// 	logrus.Fatal(err)
+	// }
+	// logrus.Debug(len(data))
+	// last := data[len(data)-1]
+	// last[2].Set(last[2].Value().(string) + "dsadsads")
+	// if moved, err := df.UpdatePage(id, data); err != nil {
+	// 	logrus.Fatal(err)
+	// } else {
+	// 	for pid, v := range moved {
+	// 		printData(pid, columnsOrder, [][]types.DataType{v})
+	// 	}
 	// }
 
 
@@ -167,4 +163,15 @@ func main() {
 	// 	logrus.Error(err)
 	// }
 
+}
+
+
+func printData(pid int, columnsOrder []string, data [][]types.DataType) {
+	for _, d := range data {
+		str := fmt.Sprintf("[%v]", pid)
+		for i, col := range columnsOrder {
+			str += fmt.Sprintf(" '%s' -> '%v', ", col, d[i].Value())
+		}
+		logrus.Debug(str)
+	}
 }

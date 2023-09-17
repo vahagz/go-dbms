@@ -9,10 +9,10 @@ import (
 const recordHeaderSz = 0
 
 // newrecord initializes an in-memory record and returns.
-func newRecord(id int, meta *metadata) *record {
+func newRecord(meta *metadata, data []types.DataType) *record {
 	return &record{
-		id:    id,
 		dirty: true,
+		data:  data,
 		meta:  meta,
 	}
 }
@@ -23,7 +23,6 @@ type record struct {
 	dirty bool
 
 	// record data
-	id   int
 	data []types.DataType
 	meta *metadata
 }

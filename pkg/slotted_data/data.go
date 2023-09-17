@@ -81,8 +81,8 @@ func (df *DataFile) GetPage(id int) ([][]types.DataType, error) {
 }
 
 // Put puts the value into the df and returns its id
-func (df *DataFile) InsertSlot(val []types.DataType) (int, error) {
-	id, err := df.InsertSlotMem(val)
+func (df *DataFile) InsertRecord(val []types.DataType) (int, error) {
+	id, err := df.InsertRecordMem(val)
 	if err != nil {
 		return 0, err
 	}
@@ -90,7 +90,7 @@ func (df *DataFile) InsertSlot(val []types.DataType) (int, error) {
 	return id, df.writeAll()
 }
 
-func (df *DataFile) InsertSlotMem(val []types.DataType) (int, error) {
+func (df *DataFile) InsertRecordMem(val []types.DataType) (int, error) {
 	if len(val) != len(df.meta.columns) {
 		return 0, index.ErrKeyTooLarge
 	}
@@ -98,7 +98,7 @@ func (df *DataFile) InsertSlotMem(val []types.DataType) (int, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	p, _, err := df.put(val)
+	p, _, err := df.insertRecord(val)
 	if err != nil {
 		return 0, err
 	}
@@ -124,27 +124,43 @@ func (df *DataFile) DeletePage(id int) error {
 	return nil
 }
 
-func (df *DataFile) UpdatePage(id int, values [][]types.DataType) error {
+func (df *DataFile) UpdatePage(id int, values [][]types.DataType) (map[int][]types.DataType, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
 	p, err := df.fetch(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	p.Dirty = true
 	p.ClearSlots()
-	for _, data := range values {
-		r := newRecord(id, df.meta)
-		r.data = data
+
+	overflowIndex := 0
+	oveflow := false
+	for i, data := range values {
+		overflowIndex = i
+		r := newRecord(df.meta, data)
 		if _, err := p.AddSlot(r); err != nil {
-			return err
+			oveflow = true
+			break
 		}
 	}
 	df.meta.freeList[id] = p.FreeSpace
 
-	return nil
+	overflowRecordsMapping := map[int][]types.DataType{}
+	if oveflow {
+		for _, data := range values[overflowIndex:] {
+			page, _, err := df.insertRecord(data)
+			if err != nil {
+				return nil, err
+			}
+
+			overflowRecordsMapping[page.Id] = data
+		}
+	}
+
+	return overflowRecordsMapping, df.writeAll()
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -246,16 +262,18 @@ func (df *DataFile) String() string {
 	)
 }
 
-func (df *DataFile) put(val []types.DataType) (*pager.Page[*record], int, error) {
-	r := newRecord(0, df.meta)
-	r.data = val
+func (df *DataFile) FreeList() map[int]int {
+	return df.meta.freeList
+}
 
-	page, err := df.alloc(r.Size())
+func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], int, error) {
+	r := newRecord(df.meta, val)
+
+	page, err := df.alloc(r.Size() + pager.SlotHeaderSz)
 	if err != nil {
 		return nil, -1, err
 	}
 
-	r.id = page.Id
 	index, err := page.AddSlot(r)
 	if err != nil {
 		return nil, -1, err
@@ -281,7 +299,7 @@ func (df *DataFile) fetch(id int) (*pager.Page[*record], error) {
 		return page, nil
 	}
 
-	page = pager.NewPage(id, int(df.meta.pageSz), newRecord(id, df.meta))
+	page = pager.NewPage(id, int(df.meta.pageSz), newRecord(df.meta, nil))
 	if err := df.pager.Unmarshal(id, page); err != nil {
 		return nil, err
 	}
@@ -316,11 +334,11 @@ func (df *DataFile) alloc(minSize int) (*pager.Page[*record], error) {
 			return nil, err
 		}
 
-		page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(pid, df.meta))
+		page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(df.meta, nil))
 		return page, nil
 	}
 
-	page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(pid, df.meta))
+	page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(df.meta, nil))
 	return page, df.pager.Unmarshal(pid, page)
 }
 
