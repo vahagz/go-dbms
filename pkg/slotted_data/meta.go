@@ -23,12 +23,12 @@ type metadata struct {
 	dirty bool
 
 	// actual metadata
-	magic    uint16      // magic marker to identify B+ tree.
-	version  uint8       // version of implementation
-	flags    uint8       // flags (unused)
-	pageSz   uint32      // page size used to initialize
-	columns  []column    // list of columns
-	freeList map[int]int // list of allocated, unused pages
+	magic    uint16         // magic marker to identify B+ tree.
+	version  uint8          // version of implementation
+	flags    uint8          // flags (unused)
+	pageSz   uint32         // page size used to initialize
+	columns  []column       // list of columns
+	freeList map[uint64]int // list of allocated, unused pages
 
 	// metrics
 	size int
@@ -107,11 +107,11 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	}
 
 	freeListSize := bin.Uint32(d[offset:offset+4])
-	m.freeList = make(map[int]int, freeListSize)
+	m.freeList = make(map[uint64]int, freeListSize)
 	offset += 4
 	for i := 0; i < int(freeListSize); i++ {
-		id := int(bin.Uint32(d[offset:offset+4]))
-		offset += 4
+		id := bin.Uint64(d[offset:offset+8])
+		offset += 8
 
 		m.freeList[id] = int(bin.Uint32(d[offset:offset+4]))
 		offset += 4

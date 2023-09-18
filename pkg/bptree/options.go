@@ -4,10 +4,11 @@ import "os"
 
 // defaultOptions to be used by New().
 var defaultOptions = Options{
-	ReadOnly:   false,
-	FileMode:   0644,
-	PageSize:   os.Getpagesize(),
-	MaxKeySize: 100,
+	ReadOnly:     false,
+	FileMode:     0644,
+	PageSize:     os.Getpagesize(),
+	MaxKeySize:   100,
+	MaxValueSize: 12,
 }
 
 // Options represents the configuration options for the B+ tree index.
@@ -29,6 +30,12 @@ type Options struct {
 	// Branching factor reduces as this size increases. So smaller
 	// the better.
 	MaxKeySize int
+
+	// MaxKeySize represents the maximum size allowed for the value.
+	// Put call with values larger than this will result in error.
+	// Branching factor reduces as this size increases. So smaller
+	// the better.
+	MaxValueSize int
 
 	// PreAlloc can be set to enable pre-allocating pages when the
 	// index is initialized. This helps avoid mmap/unmap and truncate

@@ -87,8 +87,9 @@ func (n *node) removeAt(idx int) entry {
 }
 
 // update updates the value of the entry with given index.
-func (n *node) update(entryIdx int, val uint64) {
-	if val != n.entries[entryIdx].val {
+func (n *node) update(entryIdx int, val []byte) {
+	
+	if !bytes.Equal(val, n.entries[entryIdx].val) {
 		n.dirty = true
 		n.entries[entryIdx].val = val
 	}
@@ -116,8 +117,8 @@ func (n node) size() int {
 	if n.isLeaf() {
 		sz := leafNodeHeaderSz
 		for i := 0; i < len(n.entries); i++ {
-			// 2 for the key size, 8 for the uint64 value
-			sz += 2 + 8 + len(n.entries[i].key)
+			// 2 for the key size, 2 for the value size
+			sz += 2 + 2 + len(n.entries[i].key) + len(n.entries[i].val)
 		}
 		return sz
 
@@ -152,8 +153,11 @@ func (n node) MarshalBinary() ([]byte, error) {
 		for i := 0; i < len(n.entries); i++ {
 			e := n.entries[i]
 
-			bin.PutUint64(buf[offset:offset+8], e.val)
-			offset += 8
+			bin.PutUint16(buf[offset:offset+2], uint16(len(e.val)))
+			offset += 2
+
+			copy(buf[offset:], e.val)
+			offset += len(e.val)
 
 			bin.PutUint16(buf[offset:offset+2], uint16(len(e.key)))
 			offset += 2
@@ -208,8 +212,13 @@ func (n *node) UnmarshalBinary(d []byte) error {
 
 		for i := 0; i < entryCount; i++ {
 			e := entry{}
-			e.val = bin.Uint64(d[offset : offset+8])
-			offset += 8
+			
+			valSz := int(bin.Uint16(d[offset : offset+2]))
+			offset += 2
+
+			e.val = make([]byte, valSz)
+			copy(e.val, d[offset:offset+valSz])
+			offset += valSz
 
 			keySz := int(bin.Uint16(d[offset : offset+2]))
 			offset += 2
@@ -251,5 +260,5 @@ func (n *node) UnmarshalBinary(d []byte) error {
 
 type entry struct {
 	key []byte
-	val uint64
+	val []byte
 }

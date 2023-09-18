@@ -33,7 +33,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 		mu:    &sync.RWMutex{},
 		file:  fileName,
 		pager: p,
-		pages: map[int]*pager.Page[*record]{},
+		pages: map[uint64]*pager.Page[*record]{},
 		meta:  &metadata{},
 	}
 
@@ -55,12 +55,12 @@ type DataFile struct {
 	// df state
 	mu      *sync.RWMutex
 	pager   *pager.Pager
-	pages   map[int]*pager.Page[*record] // page cache to avoid IO
-	meta    *metadata                    // metadata about df structure
+	pages   map[uint64]*pager.Page[*record] // page cache to avoid IO
+	meta    *metadata                       // metadata about df structure
 }
 
 // Get fetches the record from the given pointer. Returns error if record not found.
-func (df *DataFile) GetPage(id int) ([][]types.DataType, error) {
+func (df *DataFile) GetPage(id uint64) ([][]types.DataType, error) {
 	if id <= 0 {
 		return nil, index.ErrEmptyKey
 	}
@@ -104,12 +104,12 @@ func (df *DataFile) InsertRecordMem(val []types.DataType) (*RecordPointer, error
 		return nil, err
 	}
 
-	return &RecordPointer{p.Id, i}, nil
+	return &RecordPointer{p.Id, uint16(i)}, nil
 }
 
 // Del removes all slots from page. If the
 // page does not exist, returns error.
-func (df *DataFile) DeletePage(id int) error {
+func (df *DataFile) DeletePage(id uint64) error {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
@@ -125,7 +125,7 @@ func (df *DataFile) DeletePage(id int) error {
 	return nil
 }
 
-func (df *DataFile) UpdatePage(id int, values [][]types.DataType) (map[int][]types.DataType, error) {
+func (df *DataFile) UpdatePage(id uint64, values [][]types.DataType) (map[uint64][]types.DataType, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
@@ -149,7 +149,7 @@ func (df *DataFile) UpdatePage(id int, values [][]types.DataType) (map[int][]typ
 	}
 	df.meta.freeList[id] = p.FreeSpace
 
-	overflowRecordsMapping := map[int][]types.DataType{}
+	overflowRecordsMapping := map[uint64][]types.DataType{}
 	if oveflow {
 		for _, data := range values[overflowIndex:] {
 			page, _, err := df.insertRecord(data)
@@ -175,14 +175,14 @@ func (df *DataFile) Scan(scanFn func(ptr *RecordPointer, row []types.DataType) b
 	defer df.mu.RUnlock()
 
 	totalPages := df.pager.Count()
-	for pageId := 1; pageId < totalPages; pageId++ {
+	for pageId := uint64(1); pageId < totalPages; pageId++ {
 		page, err := df.fetch(pageId)
 		if err != nil {
 			return err
 		}
 
 		for slotId, record := range page.Slots {
-			if scanFn(&RecordPointer{pageId, slotId}, record.data) {
+			if scanFn(&RecordPointer{pageId, uint16(slotId)}, record.data) {
 				break
 			}
 		}
@@ -216,7 +216,7 @@ func (df *DataFile) String() string {
 	)
 }
 
-func (df *DataFile) FreeList() map[int]int {
+func (df *DataFile) FreeList() map[uint64]int {
 	return df.meta.freeList
 }
 
@@ -244,7 +244,7 @@ func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], in
 
 // fetch returns the record from given pointer. underlying file is accessed
 // only if the record doesn't exist in cache.
-func (df *DataFile) fetch(id int) (*pager.Page[*record], error) {
+func (df *DataFile) fetch(id uint64) (*pager.Page[*record], error) {
 	page, found := df.pages[id]
 	if found {
 		if page.Flags & PAGE_FLAG_DELETED != 0 {
@@ -272,7 +272,7 @@ func (df *DataFile) fetch(id int) (*pager.Page[*record], error) {
 // pages from free-list if available.
 func (df *DataFile) alloc(minSize int) (*pager.Page[*record], error) {
 	// check if there are enough free pages from the freelist
-	pid := 0
+	pid := uint64(0)
 	freeSpace := 0
 	for id, fs := range df.meta.freeList {
 		if (pid == 0 && fs >= minSize) || (fs >= minSize && fs < freeSpace) {
@@ -350,8 +350,8 @@ func (df *DataFile) init(opts Options) error {
 		columns: columns,
 	}
 
-	df.meta.freeList = make(map[int]int, opts.PreAlloc)
-	for i := 0; i < opts.PreAlloc; i++ {
+	df.meta.freeList = make(map[uint64]int, opts.PreAlloc)
+	for i := uint64(0); i < uint64(opts.PreAlloc); i++ {
 		df.meta.freeList[i + 1] = int(df.meta.pageSz) // +1 since first page reserved
 	}
 

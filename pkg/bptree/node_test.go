@@ -39,8 +39,8 @@ func Test_node_Leaf_Binary(t *testing.T) {
 	original := node{
 		id: 10,
 		entries: []entry{
-			{key: []byte("hello"), val: 10},
-			{key: []byte("world"), val: 100},
+			{key: []byte("hello"), val: []byte("10")},
+			{key: []byte("world"), val: []byte("100")},
 		},
 		next: 13,
 		prev: 10,

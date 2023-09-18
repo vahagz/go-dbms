@@ -17,7 +17,7 @@ const pageHeaderSz = 3
 // 4 is 2 + 2 (slot size + slot offset size)
 const SlotHeaderSz = 4
 
-func NewPage[T Slot](id, PageSize int, dst T) *Page[T] {
+func NewPage[T Slot](id uint64, PageSize int, dst T) *Page[T] {
 	return &Page[T]{
 		dst: dst,
 
@@ -37,7 +37,7 @@ type Page[T Slot] struct {
 	PageSize int
 
 	// page data
-	Id        int
+	Id        uint64
 	Slots     []T
 	FreeSpace int
 }

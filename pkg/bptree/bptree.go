@@ -1,6 +1,6 @@
 // Package bptree implements an on-disk B+ tree indexing scheme that can store
-// key-value pairs and provide fast lookups and range scans. keys can be blobs
-// binary data and value is uint64.
+// key-value pairs and provide fast lookups and range scans. keys and values
+// can be blobs binary data.
 package bptree
 
 import (
@@ -74,23 +74,23 @@ type BPlusTree struct {
 
 // Get fetches the value associated with the given key. Returns error if key
 // not found.
-func (tree *BPlusTree) Get(key []byte) (uint64, error) {
+func (tree *BPlusTree) Get(key []byte) ([]byte, error) {
 	if len(key) == 0 {
-		return 0, index.ErrEmptyKey
+		return nil, index.ErrEmptyKey
 	}
 
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
 	if len(tree.root.entries) == 0 {
-		return 0, index.ErrKeyNotFound
+		return nil, index.ErrKeyNotFound
 	}
 
 	n, idx, found, err := tree.searchRec(tree.root, key)
 	if err != nil {
-		return 0, err
+		return nil, err
 	} else if !found {
-		return 0, index.ErrKeyNotFound
+		return nil, index.ErrKeyNotFound
 	}
 
 	return n.entries[idx].val, nil
@@ -98,7 +98,7 @@ func (tree *BPlusTree) Get(key []byte) (uint64, error) {
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
 // its value will be updated.
-func (tree *BPlusTree) Put(key []byte, val uint64) error {
+func (tree *BPlusTree) Put(key []byte, val []byte) error {
 	if len(key) > int(tree.meta.maxKeySz) {
 		return index.ErrKeyTooLarge
 	} else if len(key) == 0 {
@@ -128,15 +128,15 @@ func (tree *BPlusTree) Put(key []byte, val uint64) error {
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key []byte) (uint64, error) {
+func (tree *BPlusTree) Del(key []byte) ([]byte, error) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
 	target, idx, found, err := tree.searchRec(tree.root, key)
 	if err != nil {
-		return 0, err
+		return nil, err
 	} else if !found {
-		return 0, index.ErrKeyNotFound
+		return nil, index.ErrKeyNotFound
 	}
 
 	e := target.removeAt(idx)
@@ -149,7 +149,7 @@ func (tree *BPlusTree) Del(key []byte) (uint64, error) {
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key []byte, v uint64) bool) error {
+func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key []byte, v []byte) bool) error {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -574,11 +574,10 @@ func (tree *BPlusTree) computeDegree(pageSz int) error {
 	leafContentSz := pageSz - leafNodeHeaderSz
 	internalContentSz := pageSz - internalNodeHeaderSz
 
-	const valueSz = 8       // for the uint64 value
 	const childPtrSz = 4    // for uint32 child pointer in non-leaf node
 	const keySizeSpecSz = 2 // for storing the actual key size
 
-	leafEntrySize := int(valueSz + 2 + tree.meta.maxKeySz)
+	leafEntrySize := int(tree.meta.maxValueSz + 2 + tree.meta.maxKeySz)
 	internalEntrySize := int(childPtrSz + keySizeSpecSz + tree.meta.maxKeySz)
 
 	// 4 bytes extra for the one extra child pointer
