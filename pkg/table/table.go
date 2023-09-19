@@ -41,6 +41,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 
 	dataOptions := data.DefaultOptions
 	dataOptions.Columns = table.columns
+	dataOptions.ColumnsOrder = table.columnsOrder
 
 	df, err := data.Open(
 		path.Join(tablePath, dataFileName),
@@ -93,12 +94,22 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 	return ptr, nil
 }
 
-func (t *Table) FindOneByIndex(values map[string]types.DataType, indexName string) ([]types.DataType, error) {
-	ptr, err := t.indexes[indexName].FindOne(values)
+func (t *Table) FindByIndex(indexName string, values map[string]types.DataType) ([][]types.DataType, error) {
+	ptrArr, err := t.indexes[indexName].Find(values)
 	if err != nil {
 		return nil, err
 	}
-	return t.Get(ptr)
+
+	result := [][]types.DataType{}
+	for _, ptr := range ptrArr {
+		row, err := t.Get(ptr)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, row)
+	}
+	return result, nil
 }
 
 func (t *Table) Get(ptr *data.RecordPointer) ([]types.DataType, error) {

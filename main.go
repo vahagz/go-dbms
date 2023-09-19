@@ -171,6 +171,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"time"
@@ -194,6 +195,10 @@ func main() {
 			"lastname": types.TYPE_STRING,
 		},
 	}
+
+	// os.Remove(path.Join(tablePath, "data.dat"))
+	// os.RemoveAll(path.Join(tablePath, "indexes"))
+
 	table, err := table.Open(tablePath, options)
 	if err != nil {
 		logrus.Fatal(err)
@@ -203,6 +208,8 @@ func main() {
 	defer func() {
 		logrus.Debug(time.Since(start))
 		_ = table.Close()
+		// os.Remove(path.Join(tablePath, "data.dat"))
+		// os.RemoveAll(path.Join(tablePath, "indexes"))
 	}()
 
 
@@ -251,30 +258,41 @@ func main() {
 
 
 
-	// rand.Seed(time.Now().Unix())
-	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	// for i := 0; i < 100; i++ {
-	// 	ptr, err := table.Insert(map[string]types.DataType{
-	// 		"id":        types.Type(types.TYPE_INT32).Set(int32(i)),
-	// 		"firstname": types.Type(types.TYPE_STRING).Set(names[rand.Int31n(4)]),
-	// 		"lastname":  types.Type(types.TYPE_STRING).Set(surnames[rand.Int31n(4)]),
+	rand.Seed(time.Now().Unix())
+	ids      := []int32{5,6,4,5,7,2,1,9}
+	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	for _, id := range ids {
+		ptr, err := table.Insert(map[string]types.DataType{
+			"id":        types.Type(types.TYPE_INT32).Set(id),
+			"firstname": types.Type(types.TYPE_STRING).Set(names[rand.Int31n(4)]),
+			"lastname":  types.Type(types.TYPE_STRING).Set(surnames[rand.Int31n(4)]),
+		})
+		if err != nil {
+			logrus.Error(err)
+		}
+		logrus.Debugf("%s", ptr)
+	}
+
+	// for i := 0; i < 10; i++ {
+	// 	record, err := table.FindOneByIndex("id_1", map[string]types.DataType{
+	// 		"id": types.Type(types.TYPE_INT32).Set(int32(i)),
 	// 	})
 	// 	if err != nil {
-	// 		logrus.Fatal(err)
+	// 		logrus.Error(err)
+	// 		continue
 	// 	}
-	// 	logrus.Debugf("%s", ptr)
+	// 	printData(options.ColumnsOrder, [][]types.DataType{record})
 	// }
 
-	for i := 0; i < 100; i++ {
-		record, err := table.FindOneByIndex(map[string]types.DataType{
-			"id": types.Type(types.TYPE_INT32).Set(int32(i)),
-		}, "id_1")
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		printData(options.ColumnsOrder, [][]types.DataType{record})
+	
+	records, err := table.FindByIndex("id_1", map[string]types.DataType{
+		"id": types.Type(types.TYPE_INT32).Set(int32(5)),
+	})
+	if err != nil {
+		logrus.Fatal(err)
 	}
+	printData(options.ColumnsOrder, records)
 }
 
 

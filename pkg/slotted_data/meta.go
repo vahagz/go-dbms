@@ -37,8 +37,32 @@ type metadata struct {
 func (m metadata) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, m.pageSz)
 
+	bin.PutUint16(buf[0:2], m.magic)
+	buf[2] = m.version
+	buf[3] = m.flags
+	bin.PutUint32(buf[4:8], m.pageSz)
+	bin.PutUint16(buf[8:10], uint16(len(m.columns)))
+
+	columnsSize := 0
+	offset := 10
+	for i := 0; i < len(m.columns); i++ {
+		colBytes := []byte(m.columns[i].name)
+
+		buf[offset] = byte(m.columns[i].typ)
+		offset++
+		columnsSize++
+
+		bin.PutUint16(buf[offset:offset+2], uint16(len(colBytes)))
+		offset += 2
+		columnsSize += 2
+
+		copy(buf[offset:offset+len(colBytes)], colBytes)
+		offset += len(colBytes)
+		columnsSize += len(colBytes)
+	}
+
 	// verify that the free list can fit inside the meta page.
-	freeListSpace := int(m.pageSz) - metadataHeaderSize
+	freeListSpace := int(m.pageSz) - metadataHeaderSize - columnsSize
 	if len(m.freeList)*4 > freeListSpace {
 		// TODO: make sure this doesn't happen by compacting pager
 		// when free page count hits a threshold
@@ -46,31 +70,11 @@ func (m metadata) MarshalBinary() ([]byte, error) {
 		// m.freeList = m.freeList[:freeListSpace/4]
 	}
 
-	bin.PutUint16(buf[0:2], m.magic)
-	buf[2] = m.version
-	buf[3] = m.flags
-	bin.PutUint32(buf[4:8], m.pageSz)
-	bin.PutUint16(buf[8:10], uint16(len(m.columns)))
-
-	offset := 10
-	for i := 0; i < len(m.columns); i++ {
-		colBytes := []byte(m.columns[i].name)
-
-		buf[offset] = byte(m.columns[i].typ)
-		offset++
-
-		bin.PutUint16(buf[offset:offset+2], uint16(len(colBytes)))
-		offset += 2
-
-		copy(buf[offset:offset+len(colBytes)], colBytes)
-		offset += len(colBytes)
-	}
-
 	bin.PutUint32(buf[offset:offset+4], uint32(len(m.freeList)))
 	offset += 4
 	for id, freeSpace := range m.freeList {
-		bin.PutUint32(buf[offset:offset+4], uint32(id))
-		offset += 4
+		bin.PutUint64(buf[offset:offset+8], id)
+		offset += 8
 
 		bin.PutUint32(buf[offset:offset+4], uint32(freeSpace))
 		offset += 4

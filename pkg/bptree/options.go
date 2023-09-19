@@ -42,3 +42,8 @@ type Options struct {
 	// overheads during insertions.
 	PreAlloc int
 }
+
+type PutOptions struct {
+	Uniq   bool
+	Update bool
+}

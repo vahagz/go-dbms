@@ -98,7 +98,7 @@ func (tree *BPlusTree) Get(key []byte) ([]byte, error) {
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
 // its value will be updated.
-func (tree *BPlusTree) Put(key []byte, val []byte) error {
+func (tree *BPlusTree) Put(key []byte, val []byte, opt *PutOptions) error {
 	if len(key) > int(tree.meta.maxKeySz) {
 		return index.ErrKeyTooLarge
 	} else if len(key) == 0 {
@@ -113,7 +113,7 @@ func (tree *BPlusTree) Put(key []byte, val []byte) error {
 		val: val,
 	}
 
-	isInsert, err := tree.put(e)
+	isInsert, err := tree.put(e, opt)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (tree *BPlusTree) Del(key []byte) ([]byte, error) {
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key []byte, v []byte) bool) error {
+func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byte) bool) error {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -242,7 +242,7 @@ func (tree *BPlusTree) String() string {
 	)
 }
 
-func (tree *BPlusTree) put(e entry) (bool, error) {
+func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 	if tree.isFull(tree.root) {
 		// we will need 2 extra nodes for splitting the root
 		// (1 to act as new root + 1 for the right sibling)
@@ -265,14 +265,16 @@ func (tree *BPlusTree) put(e entry) (bool, error) {
 		}
 	}
 
-	return tree.insertNonFull(tree.root, e)
+	return tree.insertNonFull(tree.root, e, opt)
 }
 
-func (tree *BPlusTree) insertNonFull(n *node, e entry) (bool, error) {
+func (tree *BPlusTree) insertNonFull(n *node, e entry, opt *PutOptions) (bool, error) {
 	if len(n.children) == 0 {
 		idx, found := n.search(e.key)
 
-		if found {
+		if opt.Uniq && found && !opt.Update {
+			return false, errors.New("key already exists")
+		} else if found && opt.Update {
 			n.update(idx, e.val)
 			return false, nil
 		}
@@ -281,10 +283,10 @@ func (tree *BPlusTree) insertNonFull(n *node, e entry) (bool, error) {
 		return true, nil
 	}
 
-	return tree.insertInternal(n, e)
+	return tree.insertInternal(n, e, opt)
 }
 
-func (tree *BPlusTree) insertInternal(n *node, e entry) (bool, error) {
+func (tree *BPlusTree) insertInternal(n *node, e entry, opt *PutOptions) (bool, error) {
 	idx, found := n.search(e.key)
 	if found {
 		idx++
@@ -314,7 +316,7 @@ func (tree *BPlusTree) insertInternal(n *node, e entry) (bool, error) {
 		}
 	}
 
-	return tree.insertNonFull(child, e)
+	return tree.insertNonFull(child, e, opt)
 }
 
 func (tree *BPlusTree) split(p, n, sibling *node, i int) error {

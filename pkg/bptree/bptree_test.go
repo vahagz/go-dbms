@@ -34,7 +34,7 @@ func TestBPlusTree_Random(t *testing.T) {
 		key := randKey(4)
 		val := hash(key, 8)
 
-		if err := idx.Put(key, val); err != nil {
+		if err := idx.Put(key, val, &PutOptions{false, true}); err != nil {
 			t.Fatalf("Put() unexpected error: %v", err)
 		}
 	}
@@ -66,7 +66,7 @@ func TestBPlusTree_Put(t *testing.T) {
 	defer tree.Close()
 
 	for i := 0; i < 256; i++ {
-		if err := tree.Put([]byte{byte(i)}, uint64ToBytes(uint64(i))); err != nil {
+		if err := tree.Put([]byte{byte(i)}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			t.Fatalf("failed: %v", err)
 		}
 	}
@@ -76,7 +76,7 @@ func TestBPlusTree_Put(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		if err := tree.Put([]byte{byte(65 + i)}, uint64ToBytes(uint64(i))); err != nil {
+		if err := tree.Put([]byte{byte(65 + i)}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			t.Fatalf("failed: %v", err)
 		}
 	}
@@ -109,11 +109,11 @@ func TestBPlusTree_Put_Get(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(12345))); err != nil {
+		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(12345)), &PutOptions{false, true}); err != nil {
 			t.Errorf("Put() unexpected error: %#v", err)
 		}
 
-		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(120012))); err != nil {
+		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(120012)), &PutOptions{false, true}); err != nil {
 			t.Errorf("Put() unexpected error: %#v", err)
 		}
 
@@ -142,7 +142,7 @@ func BenchmarkBPlusTree_Put_Get(b *testing.B) {
 			d[1] = byte(i >> 16)
 			d[2] = byte(i >> 8)
 			d[3] = byte(i)
-			_ = tree.Put(d[:], uint64ToBytes(uint64(i)))
+			_ = tree.Put(d[:], uint64ToBytes(uint64(i)), &PutOptions{false, true})
 		}
 	})
 
@@ -206,7 +206,7 @@ func writeLot(t *testing.T, tree *BPlusTree, count int) {
 		b[2] = byte(i >> 8)
 		b[3] = byte(i)
 
-		if err := tree.Put(b, uint64ToBytes(uint64(i))); err != nil {
+		if err := tree.Put(b, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			panic(err)
 		}
 	}

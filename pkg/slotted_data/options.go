@@ -34,5 +34,6 @@ type Options struct {
 
 	// list of columns to distinguish data in records, this general for
 	// all records, and is stored in metadata page of df
-	Columns map[string]types.TypeCode
+	Columns      map[string]types.TypeCode
+	ColumnsOrder []string
 }

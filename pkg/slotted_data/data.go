@@ -216,10 +216,6 @@ func (df *DataFile) String() string {
 	)
 }
 
-func (df *DataFile) FreeList() map[uint64]int {
-	return df.meta.freeList
-}
-
 func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], int, error) {
 	r := newRecord(df.meta, val)
 
@@ -334,10 +330,10 @@ func (df *DataFile) init(opts Options) error {
 	}
 
 	columns := []column{}
-	for name, typeCode := range opts.Columns {
+	for _, name := range opts.ColumnsOrder {
 		columns = append(columns, column{
 			name: name,
-			typ: typeCode,
+			typ:  opts.Columns[name],
 		})
 	}
 

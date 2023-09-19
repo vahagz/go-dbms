@@ -1,6 +1,7 @@
 package table
 
 import (
+	"bytes"
 	"go-dbms/pkg/bptree"
 	data "go-dbms/pkg/slotted_data"
 	"go-dbms/pkg/types"
@@ -25,23 +26,31 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 		return err
 	}
 
-	return i.tree.Put(key, val)
+	return i.tree.Put(key, val, &bptree.PutOptions{
+		Uniq: i.uniq,
+		Update: false,
+	})
 }
 
-func (i *index) FindOne(values map[string]types.DataType) (*data.RecordPointer, error) {
+func (i *index) Find(values map[string]types.DataType) ([]*data.RecordPointer, error) {
 	key, err := i.key(i.tuple(values))
 	if err != nil {
 		return nil, err
 	}
 
-	ptrBytes, err := i.tree.Get(key)
-	if err != nil {
-		return nil, err
-	}
+	result := []*data.RecordPointer{}
+	err = i.tree.Scan(key, false, func(k, v []byte) bool {
+		if !bytes.Equal(key, k) {
+			return true
+		}
+		
+		ptr := &data.RecordPointer{}
+		ptr.UnmarshalBinary(v)
+		result = append(result, ptr)
+		return false
+	})
 
-	ptr := &data.RecordPointer{}
-	err = ptr.UnmarshalBinary(ptrBytes)
-	return ptr, err
+	return result, err
 }
 
 func (i *index) Close() error {
