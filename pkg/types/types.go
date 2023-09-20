@@ -26,7 +26,7 @@ type DataType interface {
 
 func Type(typeCode TypeCode) DataType {
 	switch{
-		case typeCode == TYPE_INT32:  return &DataTypeINT32{}
+		case typeCode == TYPE_INT32:  return &DataTypeINTEGER[int32]{}
 		case typeCode == TYPE_STRING: return &DataTypeSTRING{}
 		default: panic(fmt.Errorf("invalid typeCode => %v", typeCode))
 	}
