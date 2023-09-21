@@ -117,7 +117,7 @@ func (t *Table) Get(ptr *data.RecordPointer) ([]types.DataType, error) {
 	return records[ptr.SlotId], nil
 }
 
-func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row []types.DataType) bool) error {
+func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error)) error {
 	return t.df.Scan(scanFn)
 }
 
@@ -133,7 +133,7 @@ func (t *Table) FullScanByIndex(indexName string, reverse bool, scanFn func(ptr 
 	})
 }
 
-func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
+func (t *Table) CreateIndex(name *string, columns []string, uniq bool, keySize int) error {
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
@@ -161,7 +161,7 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
 		ReadOnly:     false,
 		FileMode:     0664,
-		MaxKeySize:   8,
+		MaxKeySize:   keySize,
 		MaxValueSize: 10,
 		PageSize:     os.Getpagesize(),
 		PreAlloc:     100,
@@ -175,11 +175,29 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 		Columns: columns,
 		Uniq:    uniq,
 	})
-	t.indexes[*name] = &index{
+	i := &index{
 		tree:    tree,
 		columns: columns,
 		uniq:    uniq,
 	}
+	t.indexes[*name] = i
+
+	err = t.FullScan(func(ptr *data.RecordPointer, row []types.DataType) (bool, error) {
+		rowMap := map[string]types.DataType{}
+		for i, data := range row {
+			for _, c := range columns {
+				if t.meta.Columns[i].Name == c {
+					rowMap[t.meta.Columns[i].Name] = data
+					break
+				}
+			}
+		}
+		return false, i.Insert(ptr, rowMap)
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

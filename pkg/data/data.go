@@ -173,20 +173,22 @@ func (df *DataFile) UpdatePage(id uint64, values [][]types.DataType) (map[uint64
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (df *DataFile) Scan(scanFn func(ptr *RecordPointer, row []types.DataType) bool) error {
+func (df *DataFile) Scan(scanFn func(ptr *RecordPointer, row []types.DataType) (bool, error)) error {
 	df.mu.RLock()
 	defer df.mu.RUnlock()
 
 	totalPages := df.pager.Count()
-	for pageId := uint64(1); pageId < totalPages; pageId++ {
+	L: for pageId := uint64(1); pageId < totalPages; pageId++ {
 		page, err := df.fetch(pageId)
 		if err != nil {
 			return err
 		}
 
 		for slotId, record := range page.Slots {
-			if scanFn(&RecordPointer{pageId, uint16(slotId)}, record.data) {
-				break
+			if stop, err := scanFn(&RecordPointer{pageId, uint16(slotId)}, record.data); err != nil {
+				return err
+			} else if stop {
+				break L
 			}
 		}
 	}

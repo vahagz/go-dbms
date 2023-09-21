@@ -43,7 +43,7 @@ func (i *index) Find(values map[string]types.DataType, reverse bool) ([]*data.Re
 		if !bytes.Equal(key, k) {
 			return true, nil
 		}
-		
+
 		ptr := &data.RecordPointer{}
 		err := ptr.UnmarshalBinary(v)
 		if err != nil {
@@ -62,12 +62,17 @@ func (i *index) Close() error {
 
 func (i *index) key(tuple []types.DataType) ([]byte, error) {
 	key := []byte{}
+	underscore := false
 
 	for _, col := range tuple {
 		colBytes, err := col.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}
+		if underscore {
+			key = append(key, '_')
+		}
+		underscore = true
 		key = append(key, colBytes...)
 	}
 
@@ -77,7 +82,10 @@ func (i *index) key(tuple []types.DataType) ([]byte, error) {
 func (i *index) tuple(values map[string]types.DataType) []types.DataType {
 	tuple := []types.DataType{}
 	for _, columnName := range i.columns {
-		tuple = append(tuple, values[columnName])
+		data, ok := values[columnName]
+		if ok {
+			tuple = append(tuple, data)
+		}
 	}
 	return tuple
 }

@@ -103,7 +103,11 @@ func main() {
 
 
 
-	// err = table.CreateIndex(nil, []string{"id"}, false)
+	// err = table.CreateIndex(nil, []string{"id"}, false, 8)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// err = table.CreateIndex(nil, []string{"firstname","lastname"}, false, 50)
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
@@ -143,25 +147,26 @@ func main() {
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	
-	// records, err := table.FindByIndex("id_1", false, map[string]types.DataType{
-	// 	"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(4),
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// printData(table.Columns(), records)
 
-	for i := 0; i < 10; i++ {
-		record, err := table.FindByIndex("id_1", false, map[string]types.DataType{
-			"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(i),
-		})
-		if err != nil {
-			logrus.Error(err)
-			continue
-		}
-		printData(table.Columns(), record)
+	records, err := table.FindByIndex("firstname_lastname_1", true, map[string]types.DataType{
+		"firstname": types.Type(types.TYPE_STRING, table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
+		"lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
+	})
+	if err != nil {
+		logrus.Fatal(err)
 	}
+	printData(table.Columns(), records)
+
+	// for i := 0; i < 10; i++ {
+	// 	record, err := table.FindByIndex("id_1", false, map[string]types.DataType{
+	// 		"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(i),
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Error(err)
+	// 		continue
+	// 	}
+	// 	printData(table.Columns(), record)
+	// }
 }
 
 
