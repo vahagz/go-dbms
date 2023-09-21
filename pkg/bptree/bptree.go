@@ -37,7 +37,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		file:  fileName,
 		pager: p,
 		root:  nil,
-		nodes: map[int]*node{},
+		nodes: map[uint64]*node{},
 	}
 
 	// initialize the tree if new or open the existing tree and load
@@ -67,9 +67,9 @@ type BPlusTree struct {
 	// tree state
 	mu    *sync.RWMutex
 	pager *pager.Pager
-	nodes map[int]*node // node cache to avoid IO
-	meta  metadata      // metadata about tree structure
-	root  *node         // current root node
+	nodes map[uint64]*node // node cache to avoid IO
+	meta  metadata         // metadata about tree structure
+	root  *node            // current root node
 }
 
 // Get fetches the value associated with the given key. Returns error if key
@@ -196,7 +196,7 @@ func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byt
 	}
 
 	// starting at found leaf node, follow the 'next' pointer until.
-	var nextNode int
+	var nextNode uint64
 
 	L: for beginAt != nil {
 		if !reverse {
@@ -364,7 +364,7 @@ func (tree *BPlusTree) split(p, n, sibling *node, i int) error {
 		copy(sibling.entries, n.entries[:tree.degree])
 		n.entries = n.entries[tree.degree:]
 
-		sibling.children = make([]int, tree.degree)
+		sibling.children = make([]uint64, tree.degree)
 		copy(sibling.children, n.children[:tree.degree])
 		n.children = n.children[tree.degree:]
 
@@ -437,7 +437,7 @@ func (tree *BPlusTree) isFull(n *node) bool {
 
 // fetch returns the node with given id. underlying file is accessed
 // only if the node doesn't exist in cache.
-func (tree *BPlusTree) fetch(id int) (*node, error) {
+func (tree *BPlusTree) fetch(id uint64) (*node, error) {
 	n, found := tree.nodes[id]
 	if found {
 		return n, nil
@@ -468,17 +468,20 @@ func (tree *BPlusTree) allocOne() (*node, error) {
 func (tree *BPlusTree) alloc(n int) ([]*node, error) {
 	// check if there are enough free pages from the freelist
 	// and try to allocate sequential set of pages.
-	pid, rem := allocSeq(tree.meta.freeList, n)
+	var pid uint64
+	pidPtr, rem := allocSeq(tree.meta.freeList, n)
 	tree.meta.freeList = rem
 
 	// free list could be having less pages than we actually need.
 	// we need to allocate if that is the case.
-	if pid < 0 {
+	if pidPtr == nil {
 		var err error
 		pid, err = tree.pager.Alloc(n)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		pid = *pidPtr
 	}
 
 	nodes := make([]*node, n)
@@ -513,7 +516,7 @@ func (tree *BPlusTree) open(opts Options) error {
 	}
 
 	// read the root node
-	root, err := tree.fetch(int(tree.meta.rootID))
+	root, err := tree.fetch(uint64(tree.meta.rootID))
 	if err != nil {
 		return err
 	}
@@ -544,9 +547,9 @@ func (tree *BPlusTree) init(opts Options) error {
 		maxKeySz: uint16(opts.MaxKeySize),
 	}
 
-	tree.meta.freeList = make([]int, opts.PreAlloc)
+	tree.meta.freeList = make([]uint64, opts.PreAlloc)
 	for i := 0; i < opts.PreAlloc; i++ {
-		tree.meta.freeList[i] = i + 2 // +2 since first 2 pages reserved
+		tree.meta.freeList[i] = uint64(i + 2) // +2 since first 2 pages reserved
 	}
 
 	return nil
@@ -615,26 +618,26 @@ func (tree *BPlusTree) computeDegree(pageSz int) error {
 // allocSeq finds a subset of size 'n' in 'free' that is sequential.
 // Returns the first int in the sequence the set after removing the
 // subset.
-func allocSeq(free []int, n int) (id int, remaining []int) {
+func allocSeq(free []uint64, n int) (id *uint64, remaining []uint64) {
 	if len(free) <= n {
-		return -1, free
+		return nil, free
 	} else if n == 1 {
-		return free[0], free[1:]
+		return &free[0], free[1:]
 	}
 
 	i, j := 0, 0
 	for ; i < len(free); i++ {
 		j = i + (n - 1)
-		if j < len(free) && free[j] == free[i]+(n-1) {
+		if j < len(free) && free[j] == free[i]+uint64(n-1) {
 			break
 		}
 	}
 
 	if i >= len(free) || j >= len(free) {
-		return -1, free
+		return nil, free
 	}
 
-	id = free[i]
+	id = &free[i]
 	free = append(free[:i], free[j+1:]...)
 	return id, free
 }

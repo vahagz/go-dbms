@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
-	data "go-dbms/pkg/slotted_data"
+	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
 	"os"
 	"path"

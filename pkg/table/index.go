@@ -3,7 +3,7 @@ package table
 import (
 	"bytes"
 	"go-dbms/pkg/bptree"
-	data "go-dbms/pkg/slotted_data"
+	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
 )
 

@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	leafNodeHeaderSz     = 11
+	leafNodeHeaderSz     = 19
 	internalNodeHeaderSz = 3
 
 	flagLeafNode     = uint8(0x0)
@@ -15,7 +15,7 @@ const (
 )
 
 // newNode initializes an in-memory leaf node and returns.
-func newNode(id int, pageSz int) *node {
+func newNode(id uint64, pageSz int) *node {
 	return &node{
 		id:    id,
 		dirty: true,
@@ -28,11 +28,11 @@ type node struct {
 	dirty bool
 
 	// node data
-	id       int
-	next     int
-	prev     int
+	id       uint64
+	next     uint64
+	prev     uint64
 	entries  []entry
-	children []int
+	children []uint64
 }
 
 // search performs a binary search in the node entries for the given key
@@ -179,11 +179,11 @@ func (n node) MarshalBinary() ([]byte, error) {
 		bin.PutUint16(buf[offset:offset+2], uint16(len(n.entries)))
 		offset += 2
 
-		bin.PutUint32(buf[offset:offset+4], uint32(n.next))
-		offset += 4
+		bin.PutUint64(buf[offset:offset+8], n.next)
+		offset += 8
 
-		bin.PutUint32(buf[offset:offset+4], uint32(n.prev))
-		offset += 4
+		bin.PutUint64(buf[offset:offset+8], n.prev)
+		offset += 8
 
 		for i := 0; i < len(n.entries); i++ {
 			e := n.entries[i]
@@ -209,14 +209,14 @@ func (n node) MarshalBinary() ([]byte, error) {
 		offset += 2
 
 		// write the 0th pointer
-		bin.PutUint32(buf[offset:offset+4], uint32(n.children[0]))
-		offset += 4
+		bin.PutUint64(buf[offset:offset+8], n.children[0])
+		offset += 8
 
 		for i := 0; i < len(n.entries); i++ {
 			e := n.entries[i]
 
-			bin.PutUint32(buf[offset:offset+4], uint32(n.children[i+1]))
-			offset += 4
+			bin.PutUint64(buf[offset:offset+4], uint64(n.children[i+1]))
+			offset += 8
 
 			bin.PutUint16(buf[offset:offset+2], uint16(len(e.key)))
 			offset += 2
@@ -239,11 +239,11 @@ func (n *node) UnmarshalBinary(d []byte) error {
 		entryCount := int(bin.Uint16(d[offset : offset+2]))
 		offset += 2
 
-		n.next = int(bin.Uint32(d[offset : offset+4]))
-		offset += 4
+		n.next = bin.Uint64(d[offset : offset+8])
+		offset += 8
 
-		n.prev = int(bin.Uint32(d[offset : offset+4]))
-		offset += 4
+		n.prev = bin.Uint64(d[offset : offset+8])
+		offset += 8
 
 		for i := 0; i < entryCount; i++ {
 			e := entry{}
@@ -270,12 +270,12 @@ func (n *node) UnmarshalBinary(d []byte) error {
 		offset += 2
 
 		// read the left most child pointer
-		n.children = append(n.children, int(bin.Uint32(d[offset:offset+4])))
-		offset += 4 // we are at offset 7 now
+		n.children = append(n.children, bin.Uint64(d[offset:offset+8]))
+		offset += 8 // we are at offset 11 now
 
 		for i := 0; i < entryCount; i++ {
-			childPtr := bin.Uint32(d[offset : offset+4])
-			offset += 4
+			childPtr := bin.Uint64(d[offset : offset+8])
+			offset += 8
 
 			keySz := bin.Uint16(d[offset : offset+2])
 			offset += 2
@@ -284,7 +284,7 @@ func (n *node) UnmarshalBinary(d []byte) error {
 			copy(key, d[offset:])
 			offset += int(keySz)
 
-			n.children = append(n.children, int(childPtr))
+			n.children = append(n.children, childPtr)
 			n.entries = append(n.entries, entry{key: key})
 		}
 

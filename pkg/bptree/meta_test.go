@@ -14,7 +14,7 @@ func Test_metadata_Binary(t *testing.T) {
 		pageSz:   4096,
 		rootID:   10,
 		size:     1000,
-		freeList: []int{},
+		freeList: []uint64{},
 	}
 
 	d, err := original.MarshalBinary()

@@ -2,6 +2,7 @@ package pager
 
 import (
 	"encoding"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/edsrzf/mmap-go"
 )
+
+var bin = binary.BigEndian
 
 const disableMmap = false
 
@@ -80,7 +83,7 @@ type Pager struct {
 	file     RandomAccessFile
 	pageSize int
 	fileSize int64
-	count    int
+	count    uint64
 	readOnly bool
 
 	// memory mapping state for os.File
@@ -96,7 +99,7 @@ type Pager struct {
 
 // Alloc allocates 'n' new sequential pages and returns the id of the first
 // page in sequence.
-func (p *Pager) Alloc(n int) (int, error) {
+func (p *Pager) Alloc(n int) (uint64, error) {
 	if p.file == nil {
 		return 0, os.ErrClosed
 	} else if p.readOnly {
@@ -120,7 +123,7 @@ func (p *Pager) Alloc(n int) (int, error) {
 
 // Read reads one page of data from the underlying file or mmapped region if
 // enabled.
-func (p *Pager) Read(id int) ([]byte, error) {
+func (p *Pager) Read(id uint64) ([]byte, error) {
 	if id < 0 || id >= p.count {
 		return nil, fmt.Errorf("invalid page id (max=%d)", id)
 	} else if p.file == nil {
@@ -147,7 +150,7 @@ func (p *Pager) Read(id int) ([]byte, error) {
 
 // Write writes one page of data to the page with given id. Returns error if
 // the data is larger than a page.
-func (p *Pager) Write(id int, d []byte) error {
+func (p *Pager) Write(id uint64, d []byte) error {
 	if id < 0 || id >= p.count {
 		return fmt.Errorf("invalid page id=%d (max=%d)", id, p.count-1)
 	} else if len(d) > p.pageSize {
@@ -173,7 +176,7 @@ func (p *Pager) Write(id int, d []byte) error {
 }
 
 // Marshal writes the marshaled value of 'v' into page with given id.
-func (p *Pager) Marshal(id int, v encoding.BinaryMarshaler) error {
+func (p *Pager) Marshal(id uint64, v encoding.BinaryMarshaler) error {
 	d, err := v.MarshalBinary()
 	if err != nil {
 		return err
@@ -182,8 +185,8 @@ func (p *Pager) Marshal(id int, v encoding.BinaryMarshaler) error {
 }
 
 // Unmarshal reads the page with given id and unmarshals the page data using
-// 'into'.
-func (p *Pager) Unmarshal(id int, into encoding.BinaryUnmarshaler) error {
+// 'into' and 'slot'.
+func (p *Pager) Unmarshal(id uint64, into encoding.BinaryUnmarshaler) error {
 	d, err := p.Read(id)
 	if err != nil {
 		return err
@@ -196,7 +199,7 @@ func (p *Pager) PageSize() int { return p.pageSize }
 
 // Count returns the number of pages in the underlying file. Returns error if
 // the file is closed.
-func (p *Pager) Count() int { return p.count }
+func (p *Pager) Count() uint64 { return p.count }
 
 // ReadOnly returns true if the pager instance is in read-only mode.
 func (p *Pager) ReadOnly() bool { return p.readOnly }
@@ -234,11 +237,11 @@ func (p *Pager) String() string {
 }
 
 func (p *Pager) computeCount() {
-	p.count = int(p.fileSize) / p.pageSize
+	p.count = uint64(p.fileSize) / uint64(p.pageSize)
 }
 
-func (p *Pager) offset(id int) int64 {
-	return int64(p.pageSize * id)
+func (p *Pager) offset(id uint64) int64 {
+	return int64(uint64(p.pageSize) * id)
 }
 
 func (p *Pager) mmap() error {

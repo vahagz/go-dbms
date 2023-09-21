@@ -10,7 +10,7 @@ import (
 
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
-	pager "go-dbms/pkg/slotted_pager"
+	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
 )
 

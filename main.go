@@ -15,158 +15,6 @@
 // 	fmt.Printf(err)
 // }
 
-// package main
-
-// import (
-// 	"fmt"
-// 	"os"
-
-// 	"go-dbms/pkg/bptree"
-// 	"go-dbms/pkg/types"
-
-// 	"github.com/sirupsen/logrus"
-// )
-
-// func main() {
-// logrus.SetLevel(logrus.DebugLevel)
-// fileName := "bpt_index.idx"
-
-// logrus.Debugf("using file '%s'...\n", fileName)
-
-// tree, err := bptree.Open(fileName, &bptree.Options{
-// 	ReadOnly:     false,
-// 	FileMode:     0664,
-// 	MaxKeySize:   8,
-// 	MaxValueSize: 10,
-// 	PageSize:     os.Getpagesize(),
-// 	PreAlloc:     100,
-// })
-// if err != nil {
-// 	logrus.Fatalf("failed to init B+ tree: %v", err)
-// }
-// defer func() {
-// 	_ = tree.Close()
-// 	// _ = os.Remove(fileName)
-// }()
-
-// rand.Seed(time.Now().Unix())
-// for i := 0; i < 100; i++ {
-// 	key := make([]byte, 8)
-// 	binary.BigEndian.PutUint64(key, uint64(i))
-// 	val := make([]byte, 10)
-// 	binary.BigEndian.PutUint64(val[0:8], uint64(i))
-// 	binary.BigEndian.PutUint16(val[8:10], uint16(rand.Intn(128)))
-// 	err := tree.Put(key, val)
-// 	if err != nil {
-// 		logrus.Fatal(err)
-// 	}
-// }
-
-// for i := 0; i < 100; i++ {
-// 	key := make([]byte, 8)
-// 	binary.BigEndian.PutUint64(key, uint64(i))
-// 	val, err := tree.Get(key)
-// 	if err != nil {
-// 		logrus.Fatal(err)
-// 	}
-// 	logrus.Debug(binary.BigEndian.Uint64(val[0:8]), binary.BigEndian.Uint16(val[8:10]))
-// }
-// }
-
-// package main
-
-// import (
-// 	"fmt"
-
-// 	"go-dbms/pkg/types"
-// )
-
-// func main() {
-// 	logrus.SetLevel(logrus.DebugLevel)
-// 	fileName := "df.dat"
-// 	// _ = os.Remove(fileName)
-
-// 	logrus.Debugf("using file '%s'...\n", fileName)
-
-// 	columnsOrder := []string{"id","name","surname"}
-// 	_ = columnsOrder
-// 	columns := map[string]types.TypeCode{
-// 		"id":      types.TYPE_INT,
-// 		"name":    types.TYPE_STRING,
-// 		"surname": types.TYPE_STRING,
-// 	}
-
-// 	df, err := data.Open(fileName, &data.Options{
-// 		ReadOnly: false,
-// 		FileMode: 0664,
-// 		PageSize: os.Getpagesize(),
-// 		PreAlloc: 10,
-// 		Columns:  columns,
-// 	})
-// 	if err != nil {
-// 		logrus.Fatalf("failed to init df: %v", err)
-// 	}
-
-// 	start := time.Now()
-// 	defer func() {
-// 		logrus.Debug(time.Since(start))
-// 		logrus.Debug(df.FreeList())
-// 		_ = df.Close()
-// 	}()
-
-// rand.Seed(time.Now().Unix())
-// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-// for i := 0; i < 100; i++ {
-// 	v1 := types.Type(types.TYPE_INT);  v1.Set(int32(i))
-// 	v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
-// 	v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
-// 	id, err := df.InsertRecord([]types.DataType{v1, v2, v3})
-// 	if err != nil {
-// 		logrus.Debug(df.FreeList())
-// 		logrus.Fatal(err)
-// 	}
-// 	logrus.Debug("id => ", id)
-// }
-
-// id := 4
-// data, err := df.GetPage(id)
-// if err != nil {
-// 	logrus.Fatal(err)
-// }
-// logrus.Debug(len(data))
-// logrus.Debugf("[%v] %s", id, sprintData(columnsOrder, data))
-
-// err = df.Scan(func(pageId, slotId int, row []types.DataType) bool {
-// 	logrus.Debugf("[%v][%v] %s", pageId, slotId, sprintData(columnsOrder, [][]types.DataType{row}))
-// 	return false
-// })
-// if err != nil {
-// 	logrus.Fatal(err)
-// }
-
-// id := 4
-// data, err := df.GetPage(id)
-// if err != nil {
-// 	logrus.Fatal(err)
-// }
-// logrus.Debug(len(data))
-// last := data[len(data)-1]
-// last[2].Set(last[2].Value().(string) + "dsadsads")
-// if moved, err := df.UpdatePage(id, data); err != nil {
-// 	logrus.Fatal(err)
-// } else {
-// 	for pid, v := range moved {
-// 		printData(pid, columnsOrder, [][]types.DataType{v})
-// 	}
-// }
-
-// if err := df.DeletePage(8); err != nil {
-// 	logrus.Error(err)
-// }
-
-// }
-
 package main
 
 import (
@@ -189,32 +37,29 @@ func main() {
 	tablePath := path.Join(dir, "testtable")
 	var options *table.Options = nil
 
-	// idMeta := types.Meta(types.TYPE_INT, false, true, 4)
-	// fnMeta := types.Meta(types.TYPE_STRING, false)
-	// lnMeta := types.Meta(types.TYPE_STRING, false)
+	idMeta := types.Meta(types.TYPE_INT, false, true, 4)
+	fnMeta := types.Meta(types.TYPE_STRING, false)
+	lnMeta := types.Meta(types.TYPE_STRING, false)
 
-	// options = &table.Options{
-	// 	Columns: []*column.Column{
-	// 		{
-	// 			Name: "id",
-	// 			Typ:  types.TYPE_INT,
-	// 			Meta: idMeta,
-	// 		},
-	// 		{
-	// 			Name: "firstname",
-	// 			Typ:  types.TYPE_STRING,
-	// 			Meta: fnMeta,
-	// 		},
-	// 		{
-	// 			Name: "lastname",
-	// 			Typ:  types.TYPE_STRING,
-	// 			Meta: lnMeta,
-	// 		},
-	// 	},
-	// }
-
-	// os.Remove(path.Join(tablePath, "data.dat"))
-	// os.RemoveAll(path.Join(tablePath, "indexes"))
+	options = &table.Options{
+		Columns: []*column.Column{
+			{
+				Name: "id",
+				Typ:  types.TYPE_INT,
+				Meta: idMeta,
+			},
+			{
+				Name: "firstname",
+				Typ:  types.TYPE_STRING,
+				Meta: fnMeta,
+			},
+			{
+				Name: "lastname",
+				Typ:  types.TYPE_STRING,
+				Meta: lnMeta,
+			},
+		},
+	}
 
 	table, err := table.Open(tablePath, options)
 	if err != nil {
@@ -299,24 +144,24 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	
-	records, err := table.FindByIndex("id_1", false, map[string]types.DataType{
-		"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(4),
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	printData(table.Columns(), records)
-
-	// for i := 0; i < 10; i++ {
-	// 	record, err := table.FindOneByIndex("id_1", map[string]types.DataType{
-	// 		"id": types.Type(types.TYPE_INT).Set(int32(i)),
-	// 	})
-	// 	if err != nil {
-	// 		logrus.Error(err)
-	// 		continue
-	// 	}
-	// 	printData(options.ColumnsOrder, [][]types.DataType{record})
+	// records, err := table.FindByIndex("id_1", false, map[string]types.DataType{
+	// 	"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(4),
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
 	// }
+	// printData(table.Columns(), records)
+
+	for i := 0; i < 10; i++ {
+		record, err := table.FindByIndex("id_1", false, map[string]types.DataType{
+			"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(i),
+		})
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+		printData(table.Columns(), record)
+	}
 }
 
 

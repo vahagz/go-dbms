@@ -69,7 +69,7 @@ func Test_node_Internal_Binary(t *testing.T) {
 			{key: []byte("hello")},
 			{key: []byte("world")},
 		},
-		children: []int{3, 18, 4},
+		children: []uint64{3, 18, 4},
 	}
 
 	d, err := original.MarshalBinary()

@@ -17,15 +17,15 @@ type metadata struct {
 	dirty bool
 
 	// actual metadata
-	magic      uint16 // magic marker to identify B+ tree.
-	version    uint8  // version of implementation
-	flags      uint8  // flags (unused)
-	maxKeySz   uint16 // maximum key size allowed
-	maxValueSz uint16 // maximum value size allowed
-	pageSz     uint32 // page size used to initialize
-	size       uint32 // number of entries in the tree
-	rootID     uint32 // page id for the root node
-	freeList   []int  // list of allocated, unused pages
+	magic      uint16   // magic marker to identify B+ tree.
+	version    uint8    // version of implementation
+	flags      uint8    // flags (unused)
+	maxKeySz   uint16   // maximum key size allowed
+	maxValueSz uint16   // maximum value size allowed
+	pageSz     uint32   // page size used to initialize
+	size       uint32   // number of entries in the tree
+	rootID     uint32   // page id for the root node
+	freeList   []uint64 // list of allocated, unused pages
 }
 
 func (m metadata) MarshalBinary() ([]byte, error) {
@@ -52,8 +52,8 @@ func (m metadata) MarshalBinary() ([]byte, error) {
 
 	offset := 24
 	for i := 0; i < len(m.freeList); i++ {
-		bin.PutUint32(buf[offset:offset+4], uint32(m.freeList[i]))
-		offset += 4
+		bin.PutUint64(buf[offset:offset+8], m.freeList[i])
+		offset += 8
 	}
 
 	return buf, nil
@@ -75,11 +75,11 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	m.size = bin.Uint32(d[12:16])
 	m.rootID = bin.Uint32(d[16:20])
 
-	m.freeList = make([]int, bin.Uint32(d[20:24]))
+	m.freeList = make([]uint64, bin.Uint32(d[20:24]))
 	offset := 24
 	for i := 0; i < len(m.freeList); i++ {
-		m.freeList[i] = int(bin.Uint32(d[offset:offset+4]))
-		offset += 4
+		m.freeList[i] = bin.Uint64(d[offset:offset+8])
+		offset += 8
 	}
 
 	return nil
