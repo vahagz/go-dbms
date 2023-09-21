@@ -32,22 +32,25 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 	})
 }
 
-func (i *index) Find(values map[string]types.DataType) ([]*data.RecordPointer, error) {
+func (i *index) Find(values map[string]types.DataType, reverse bool) ([]*data.RecordPointer, error) {
 	key, err := i.key(i.tuple(values))
 	if err != nil {
 		return nil, err
 	}
 
 	result := []*data.RecordPointer{}
-	err = i.tree.Scan(key, false, func(k, v []byte) bool {
+	err = i.tree.Scan(key, reverse, func(k, v []byte) (bool, error) {
 		if !bytes.Equal(key, k) {
-			return true
+			return true, nil
 		}
 		
 		ptr := &data.RecordPointer{}
-		ptr.UnmarshalBinary(v)
+		err := ptr.UnmarshalBinary(v)
+		if err != nil {
+			return false, err
+		}
 		result = append(result, ptr)
-		return false
+		return false, nil
 	})
 
 	return result, err

@@ -2,20 +2,12 @@ package data
 
 import (
 	"errors"
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/types"
 )
 
 // no header in record
 const recordHeaderSz = 0
-
-// newrecord initializes an in-memory record and returns.
-func newRecord(meta *metadata, data []types.DataType) *record {
-	return &record{
-		dirty: true,
-		data:  data,
-		meta:  meta,
-	}
-}
 
 // record represents a data row in the Data file.
 type record struct {
@@ -23,8 +15,8 @@ type record struct {
 	dirty bool
 
 	// record data
-	data []types.DataType
-	meta *metadata
+	data    []types.DataType
+	columns []*column.Column // list of columns
 }
 
 func (r *record) Copy() interface{} {
@@ -74,11 +66,11 @@ func (r *record) UnmarshalBinary(d []byte) error {
 	}
 
 	offset := 0
-	r.data = make([]types.DataType, len(r.meta.columns))
+	r.data = make([]types.DataType, len(r.columns))
 
-	for i, column := range r.meta.columns {
+	for i, column := range r.columns {
 		size := 0
-		v := types.Type(types.TypeCode(column.typ))
+		v := types.Type(types.TypeCode(column.Typ), column.Meta)
 
 		if v.IsFixedSize() {
 			size = v.GetSize()

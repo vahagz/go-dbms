@@ -25,14 +25,15 @@ func frombytes[T any](srcBytes []byte, dst *T) {
 	*dst = *(*T)(unsafe.Pointer(&dstBytes[0]))
 }
 
-func convert[T constraints.Integer](from interface{}, to *T) {
+func convert[T constraints.Integer](from interface{}, to *T) T {
 	srcSize := sizeof(from)
 	dstSize := sizeof(*to)
 
 	if srcSize >= dstSize {
 		*to = *(*T)((*eface)(unsafe.Pointer(&from)).val)
-		return
+		return *to
 	}
 
 	frombytes(bytesof(from), to)
+	return *to
 }

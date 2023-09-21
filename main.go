@@ -91,7 +91,7 @@
 // 	columnsOrder := []string{"id","name","surname"}
 // 	_ = columnsOrder
 // 	columns := map[string]types.TypeCode{
-// 		"id":      types.TYPE_INT32,
+// 		"id":      types.TYPE_INT,
 // 		"name":    types.TYPE_STRING,
 // 		"surname": types.TYPE_STRING,
 // 	}
@@ -118,7 +118,7 @@
 // names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
 // surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
 // for i := 0; i < 100; i++ {
-// 	v1 := types.Type(types.TYPE_INT32);  v1.Set(int32(i))
+// 	v1 := types.Type(types.TYPE_INT);  v1.Set(int32(i))
 // 	v2 := types.Type(types.TYPE_STRING); v2.Set(names[rand.Int31n(4)])
 // 	v3 := types.Type(types.TYPE_STRING); v3.Set(surnames[rand.Int31n(4)])
 // 	id, err := df.InsertRecord([]types.DataType{v1, v2, v3})
@@ -171,11 +171,11 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"path"
 	"time"
 
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
 
@@ -187,14 +187,31 @@ func main() {
 
 	dir, _ := os.Getwd()
 	tablePath := path.Join(dir, "testtable")
-	options := &table.Options{
-		ColumnsOrder: []string{"id","firstname","lastname"},
-		Columns: map[string]types.TypeCode{
-			"id": types.TYPE_INT32,
-			"firstname": types.TYPE_STRING,
-			"lastname": types.TYPE_STRING,
-		},
-	}
+	var options *table.Options = nil
+
+	// idMeta := types.Meta(types.TYPE_INT, false, true, 4)
+	// fnMeta := types.Meta(types.TYPE_STRING, false)
+	// lnMeta := types.Meta(types.TYPE_STRING, false)
+
+	// options = &table.Options{
+	// 	Columns: []*column.Column{
+	// 		{
+	// 			Name: "id",
+	// 			Typ:  types.TYPE_INT,
+	// 			Meta: idMeta,
+	// 		},
+	// 		{
+	// 			Name: "firstname",
+	// 			Typ:  types.TYPE_STRING,
+	// 			Meta: fnMeta,
+	// 		},
+	// 		{
+	// 			Name: "lastname",
+	// 			Typ:  types.TYPE_STRING,
+	// 			Meta: lnMeta,
+	// 		},
+	// 	},
+	// }
 
 	// os.Remove(path.Join(tablePath, "data.dat"))
 	// os.RemoveAll(path.Join(tablePath, "indexes"))
@@ -214,7 +231,7 @@ func main() {
 
 
 	// ptr, err := table.Insert(map[string]types.DataType{
-	// 	"id":        types.Type(types.TYPE_INT32).Set(int32(7)),
+	// 	"id":        types.Type(types.TYPE_INT).Set(int32(7)),
 	// 	"firstname": types.Type(types.TYPE_STRING).Set("Vahag"),
 	// 	"lastname":  types.Type(types.TYPE_STRING).Set("Zargaryan"),
 	// })
@@ -232,7 +249,7 @@ func main() {
 
 
 	// err = table.FullScan(func(ptr *data.RecordPointer, row []types.DataType) bool {
-	// 	fmt.Printf("%s, %s", *ptr, sprintData(options.ColumnsOrder, [][]types.DataType{row}))
+	// 	fmt.Printf("%s, %s", *ptr, sprintData(table.Columns(), [][]types.DataType{row}))
 	// 	return false
 	// })
 	// if err != nil {
@@ -249,7 +266,7 @@ func main() {
 
 
 	// record, err := table.FindOneByIndex(map[string]types.DataType{
-	// 	"id": types.Type(types.TYPE_INT32).Set(int32(50)),
+	// 	"id": types.Type(types.TYPE_INT).Set(int32(50)),
 	// }, "id_1")
 	// if err != nil {
 	// 	logrus.Fatal(err)
@@ -258,25 +275,41 @@ func main() {
 
 
 
-	rand.Seed(time.Now().Unix())
-	ids      := []int32{5,6,4,5,7,2,1,9}
-	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for _, id := range ids {
-		ptr, err := table.Insert(map[string]types.DataType{
-			"id":        types.Type(types.TYPE_INT32).Set(id),
-			"firstname": types.Type(types.TYPE_STRING).Set(names[rand.Int31n(4)]),
-			"lastname":  types.Type(types.TYPE_STRING).Set(surnames[rand.Int31n(4)]),
-		})
-		if err != nil {
-			logrus.Error(err)
-		}
-		logrus.Debugf("%s", ptr)
+	// rand.Seed(time.Now().Unix())
+	// ids      := []int{5,6,4,5,7,2,1,9}
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for _, id := range ids {
+	// 	ptr, err := table.Insert(map[string]types.DataType{
+	// 		"id":        types.Type(types.TYPE_INT,    table.ColumnsMap()["id"].Meta).Set(id),
+	// 		"firstname": types.Type(types.TYPE_STRING, table.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
+	// 		"lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Error(err)
+	// 	}
+	// 	logrus.Debugf("%s", ptr)
+	// }
+	
+	// err = table.FullScanByIndex("id_1", false, func(ptr *data.RecordPointer, row []types.DataType) (bool, error) {
+	// 	fmt.Printf("%s, %s", *ptr, sprintData(table.Columns(), [][]types.DataType{row}))
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	
+	records, err := table.FindByIndex("id_1", false, map[string]types.DataType{
+		"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(4),
+	})
+	if err != nil {
+		logrus.Fatal(err)
 	}
+	printData(table.Columns(), records)
 
 	// for i := 0; i < 10; i++ {
 	// 	record, err := table.FindOneByIndex("id_1", map[string]types.DataType{
-	// 		"id": types.Type(types.TYPE_INT32).Set(int32(i)),
+	// 		"id": types.Type(types.TYPE_INT).Set(int32(i)),
 	// 	})
 	// 	if err != nil {
 	// 		logrus.Error(err)
@@ -284,29 +317,20 @@ func main() {
 	// 	}
 	// 	printData(options.ColumnsOrder, [][]types.DataType{record})
 	// }
-
-	
-	records, err := table.FindByIndex("id_1", map[string]types.DataType{
-		"id": types.Type(types.TYPE_INT32).Set(int32(5)),
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	printData(options.ColumnsOrder, records)
 }
 
 
-func sprintData(columnsOrder []string, data [][]types.DataType) string {
+func sprintData(columns []*column.Column, data [][]types.DataType) string {
 	str := ""
 	for _, d := range data {
-		for i, col := range columnsOrder {
-			str += fmt.Sprintf("'%s' -> '%v', ", col, d[i].Value())
+		for i, col := range columns {
+			str += fmt.Sprintf("'%s' -> '%v', ", col.Name, d[i].Value())
 		}
 		str += "\n"
 	}
 	return str
 }
 
-func printData(columnsOrder []string, data [][]types.DataType) {
-	fmt.Println(sprintData(columnsOrder, data))
+func printData(columns []*column.Column, data [][]types.DataType) {
+	fmt.Println(sprintData(columns, data))
 }

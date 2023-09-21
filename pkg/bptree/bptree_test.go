@@ -42,7 +42,7 @@ func TestBPlusTree_Random(t *testing.T) {
 
 	start = time.Now()
 	c := uint32(0)
-	_ = idx.Scan(nil, false, func(key []byte, v []byte) bool {
+	_ = idx.Scan(nil, false, func(key []byte, v []byte) (bool, error) {
 		c++
 		expectedV := hash(key, 8)
 
@@ -52,7 +52,7 @@ func TestBPlusTree_Random(t *testing.T) {
 				key, v, expectedV,
 			)
 		}
-		return false
+		return false, nil
 	})
 
 	t.Logf("finished Scan() for %d keys in %s", c, time.Since(start))
@@ -122,7 +122,7 @@ func TestBPlusTree_Put_Get(t *testing.T) {
 			t.Errorf("Get('hello') unexpected error: %#v", err)
 		}
 
-		if binary.BigEndian.Uint64(v) != 120012 {
+		if binary.BigEndian.Uint64(v[0]) != 120012 {
 			t.Errorf("expected value of key 'hello' to be 120012, not %d", v)
 		}
 	})
@@ -173,7 +173,7 @@ func readCheck(t *testing.T, tree *BPlusTree, count int) {
 			t.Fatalf("Get('%x') unexpected error: %#v", b, err)
 		}
 
-		if binary.BigEndian.Uint64(v) != uint64(i) {
+		if binary.BigEndian.Uint64(v[0]) != uint64(i) {
 			t.Fatalf("Get('%x'): %d != %d", b, v, uint64(i))
 		}
 	}
@@ -183,12 +183,12 @@ func readCheck(t *testing.T, tree *BPlusTree, count int) {
 func scanLot(t *testing.T, tree *BPlusTree, count int) {
 	start := time.Now()
 	scanned := uint64(0)
-	_ = tree.Scan(nil, false, func(key []byte, v []byte) bool {
+	_ = tree.Scan(nil, false, func(key []byte, v []byte) (bool, error) {
 		if binary.BigEndian.Uint64(v) != scanned {
 			t.Fatalf("bad scan for '%x': %d != %d", key, v, scanned)
 		}
 		scanned++
-		return false
+		return false, nil
 	})
 
 	if int(scanned) != count {

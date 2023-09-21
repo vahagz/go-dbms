@@ -74,7 +74,7 @@ type BPlusTree struct {
 
 // Get fetches the value associated with the given key. Returns error if key
 // not found.
-func (tree *BPlusTree) Get(key []byte) ([]byte, error) {
+func (tree *BPlusTree) Get(key []byte) ([][]byte, error) {
 	if len(key) == 0 {
 		return nil, index.ErrEmptyKey
 	}
@@ -86,14 +86,18 @@ func (tree *BPlusTree) Get(key []byte) ([]byte, error) {
 		return nil, index.ErrKeyNotFound
 	}
 
-	n, idx, found, err := tree.searchRec(tree.root, key)
+	n, startIdx, endIdx, found, err := tree.searchRec(tree.root, key)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, index.ErrKeyNotFound
 	}
 
-	return n.entries[idx].val, nil
+	res := make([][]byte, endIdx - startIdx + 1)
+	for idx := startIdx; idx < endIdx; idx++ {
+		res = append(res, n.entries[idx].val)
+	}
+	return res, nil
 }
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
@@ -128,19 +132,22 @@ func (tree *BPlusTree) Put(key []byte, val []byte, opt *PutOptions) error {
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key []byte) ([]byte, error) {
+func (tree *BPlusTree) Del(key []byte) ([][]byte, error) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
-	target, idx, found, err := tree.searchRec(tree.root, key)
+	target, startIdx, endIdx, found, err := tree.searchRec(tree.root, key)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, index.ErrKeyNotFound
 	}
 
-	e := target.removeAt(idx)
-	return e.val, nil
+	valArr := make([][]byte, endIdx - startIdx + 1)
+	for idx := startIdx; idx < endIdx; idx++ {
+		valArr = append(valArr, target.removeAt(idx).val)
+	}
+	return valArr, nil
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -149,7 +156,7 @@ func (tree *BPlusTree) Del(key []byte) ([]byte, error) {
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byte) bool) error {
+func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byte) (bool, error)) error {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -159,6 +166,8 @@ func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byt
 
 	var err error
 	var beginAt *node
+	startIdx := 0
+	endIdx := 0
 	idx := 0
 
 	if len(key) == 0 {
@@ -174,7 +183,12 @@ func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byt
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		beginAt, idx, _, err = tree.searchRec(tree.root, key)
+		beginAt, startIdx, endIdx, _, err = tree.searchRec(tree.root, key)
+		if !reverse {
+			idx = startIdx
+		} else {
+			idx = endIdx
+		}
 	}
 
 	if err != nil {
@@ -184,20 +198,24 @@ func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byt
 	// starting at found leaf node, follow the 'next' pointer until.
 	var nextNode int
 
-	for beginAt != nil {
+	L: for beginAt != nil {
 		if !reverse {
 			for i := idx; i < len(beginAt.entries); i++ {
 				e := beginAt.entries[i]
-				if scanFn(e.key, e.val) {
-					break
+				if stop, err := scanFn(e.key, e.val); err != nil {
+					return err
+				} else if stop {
+					break L
 				}
 			}
 			nextNode = beginAt.next
 		} else {
 			for i := idx; i >= 0; i-- {
 				e := beginAt.entries[i]
-				if scanFn(e.key, e.val) {
-					break
+				if stop, err := scanFn(e.key, e.val); err != nil {
+					return err
+				} else if stop {
+					break L
 				}
 			}
 			nextNode = beginAt.prev
@@ -270,16 +288,18 @@ func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 
 func (tree *BPlusTree) insertNonFull(n *node, e entry, opt *PutOptions) (bool, error) {
 	if len(n.children) == 0 {
-		idx, found := n.search(e.key)
+		startIdx, endIdx, found := n.search(e.key)
 
 		if opt.Uniq && found && !opt.Update {
 			return false, errors.New("key already exists")
 		} else if found && opt.Update {
-			n.update(idx, e.val)
+			for idx := startIdx; idx <= endIdx; idx++ {
+				n.update(idx, e.val)
+			}
 			return false, nil
 		}
 
-		n.insertAt(idx, e)
+		n.insertAt(startIdx, e)
 		return true, nil
 	}
 
@@ -287,12 +307,12 @@ func (tree *BPlusTree) insertNonFull(n *node, e entry, opt *PutOptions) (bool, e
 }
 
 func (tree *BPlusTree) insertInternal(n *node, e entry, opt *PutOptions) (bool, error) {
-	idx, found := n.search(e.key)
+	_, endIdx, found := n.search(e.key)
 	if found {
-		idx++
+		endIdx++
 	}
 
-	child, err := tree.fetch(n.children[idx])
+	child, err := tree.fetch(n.children[endIdx])
 	if err != nil {
 		return false, err
 	}
@@ -303,13 +323,13 @@ func (tree *BPlusTree) insertInternal(n *node, e entry, opt *PutOptions) (bool, 
 			return false, err
 		}
 
-		if err := tree.split(n, child, sibling, idx); err != nil {
+		if err := tree.split(n, child, sibling, endIdx); err != nil {
 			return false, err
 		}
 
 		// should go into left child or right child?
-		if bytes.Compare(e.key, n.entries[idx].key) >= 0 {
-			child, err = tree.fetch(n.children[idx+1])
+		if bytes.Compare(e.key, n.entries[endIdx].key) >= 0 {
+			child, err = tree.fetch(n.children[endIdx+1])
 			if err != nil {
 				return false, err
 			}
@@ -358,20 +378,20 @@ func (tree *BPlusTree) split(p, n, sibling *node, i int) error {
 // searchRec searches the sub-tree with root 'n' recursively until the key
 // is  found or the leaf node is  reached. Returns the node last searched,
 // index where the key should be and a flag to indicate if the key exists.
-func (tree *BPlusTree) searchRec(n *node, key []byte) (*node, int, bool, error) {
-	idx, found := n.search(key)
+func (tree *BPlusTree) searchRec(n *node, key []byte) (*node, int, int, bool, error) {
+	startIdx, endIdx, found := n.search(key)
 
 	if n.isLeaf() {
-		return n, idx, found, nil
+		return n, startIdx, endIdx, found, nil
 	}
 
 	if found {
-		idx++
+		endIdx++
 	}
 
-	child, err := tree.fetch(n.children[idx])
+	child, err := tree.fetch(n.children[endIdx])
 	if err != nil {
-		return nil, 0, false, err
+		return nil, 0, 0, false, err
 	}
 
 	return tree.searchRec(child, key)

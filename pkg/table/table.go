@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-dbms/pkg/bptree"
+	"go-dbms/pkg/column"
 	data "go-dbms/pkg/slotted_data"
 	"go-dbms/pkg/types"
 	"os"
@@ -18,20 +19,16 @@ const (
 )
 
 type Table struct {
-	path         string
-	df           *data.DataFile
-	meta         *metadata
-	indexes      map[string]*index
-	columns      map[string]types.TypeCode
-	columnsOrder []string
+	path       string
+	df         *data.DataFile
+	meta       *metadata
+	indexes    map[string]*index
 }
 
 func Open(tablePath string, opts *Options) (*Table, error) {
 	table := &Table{
-		path:         tablePath,
-		indexes:      map[string]*index{},
-		columns:      opts.Columns,
-		columnsOrder: opts.ColumnsOrder,
+		path:       tablePath,
+		indexes:    map[string]*index{},
 	}
 
 	err := table.init(opts)
@@ -40,8 +37,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 	}
 
 	dataOptions := data.DefaultOptions
-	dataOptions.Columns = table.columns
-	dataOptions.ColumnsOrder = table.columnsOrder
+	dataOptions.Columns = table.meta.Columns
 
 	df, err := data.Open(
 		path.Join(tablePath, dataFileName),
@@ -60,23 +56,23 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 	dataToInsert := []types.DataType{}
 	dataToInsertMap := map[string]types.DataType{}
 	
-	if len(values) > len(t.columns) {
+	if len(values) > len(t.meta.Columns) {
 		return nil, fmt.Errorf("invalid columns count")
 	}
 
 	for columnName := range values {
-		if _, ok := t.columns[columnName]; !ok {
+		if _, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return nil, fmt.Errorf("unknown column while inserting => %s", columnName)
 		}
 	}
 
-	for _, column := range t.columnsOrder {
-		if data, ok := values[column]; !ok {
-			dataToInsert = append(dataToInsert, types.Type(t.columns[column]))
+	for _, column := range t.meta.Columns {
+		if data, ok := values[column.Name]; !ok {
+			dataToInsert = append(dataToInsert, types.Type(column.Typ, column.Meta))
 		} else {
 			dataToInsert = append(dataToInsert, data)
 		}
-		dataToInsertMap[column] = dataToInsert[len(dataToInsert)-1]
+		dataToInsertMap[column.Name] = dataToInsert[len(dataToInsert)-1]
 	}
 
 	ptr, err := t.df.InsertRecord(dataToInsert)
@@ -94,8 +90,8 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 	return ptr, nil
 }
 
-func (t *Table) FindByIndex(indexName string, values map[string]types.DataType) ([][]types.DataType, error) {
-	ptrArr, err := t.indexes[indexName].Find(values)
+func (t *Table) FindByIndex(indexName string, reverse bool, values map[string]types.DataType) ([][]types.DataType, error) {
+	ptrArr, err := t.indexes[indexName].Find(values, reverse)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +121,18 @@ func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row []types.DataTy
 	return t.df.Scan(scanFn)
 }
 
+func (t *Table) FullScanByIndex(indexName string, reverse bool, scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error)) error {
+	return t.indexes[indexName].tree.Scan(nil, reverse, func(key, val []byte) (bool, error) {
+		ptr := &data.RecordPointer{}
+		ptr.UnmarshalBinary(val)
+		row, err := t.Get(ptr)
+		if err != nil {
+			return false, err
+		}
+		return scanFn(ptr, row)
+	})
+}
+
 func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
@@ -133,7 +141,7 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 
 	for _, columnName := range columns {
-		if _, ok := t.columns[columnName]; !ok {
+		if _, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
 		}
 	}
@@ -175,6 +183,14 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	return nil
 }
 
+func (t *Table) Columns() []*column.Column {
+	return t.meta.Columns
+}
+
+func (t *Table) ColumnsMap() map[string]*column.Column {
+	return t.meta.ColumnsMap
+}
+
 func (t *Table) Close() error {
 	err := t.writeMeta()
 	if err != nil {
@@ -210,15 +226,21 @@ func (t *Table) indexPath(name string) string {
 	return path.Join(t.path, indexPath, fmt.Sprintf("%s.idx", name))
 }
 
-func (t *Table) readMeta(opts *Options) error {	
+func (t *Table) readMeta(opts *Options) error {
+	defer func ()  {
+		for _, c := range t.meta.Columns {
+			t.meta.ColumnsMap[c.Name] = c
+		}
+	}()
+
 	metaPath := t.metaPath()
 
   if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		t.meta = &metadata{
-			Indexes:      []*metaIndex{},
-			PrimaryKey:   nil,
-			ColumnsOrder: opts.ColumnsOrder,
-			Columns:      opts.Columns,
+			Indexes:    []*metaIndex{},
+			PrimaryKey: nil,
+			Columns:    opts.Columns,
+			ColumnsMap: map[string]*column.Column{},
 		}
 
 		return t.writeMeta()
@@ -229,7 +251,9 @@ func (t *Table) readMeta(opts *Options) error {
 		return err
 	}
 
-	t.meta = &metadata{}
+	t.meta = &metadata{
+		ColumnsMap: map[string]*column.Column{},
+	}
 
 	return json.Unmarshal(metadataBytes, t.meta)
 }

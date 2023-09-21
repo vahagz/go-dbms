@@ -1,7 +1,7 @@
 package data
 
 import (
-	"go-dbms/pkg/types"
+	"go-dbms/pkg/column"
 	"os"
 )
 
@@ -32,8 +32,7 @@ type Options struct {
 	// overheads during insertions.
 	PreAlloc int
 
-	// list of columns to distinguish data in records, this general for
-	// all records, and is stored in metadata page of df
-	Columns      map[string]types.TypeCode
-	ColumnsOrder []string
+	// list of columns to distinguish data in records, this is general
+	// for all records, and is stored in metadata of table
+	Columns []*column.Column
 }

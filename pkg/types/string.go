@@ -1,9 +1,51 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
+
+func NewSTRINGMeta() *DataTypeSTRINGMeta {
+	return &DataTypeSTRINGMeta{}
+}
+
+func NewSTRING(code TypeCode, meta *DataTypeSTRINGMeta) *DataTypeSTRING {
+	return &DataTypeSTRING{
+		Code: code,
+		Meta: meta,
+	}
+}
+
+const (
+	DataTypeSTRINGMetaSize = 0
+)
+
+type DataTypeSTRINGMeta struct {
+}
+
+// func (m *DataTypeSTRINGMeta) MarshalJSON() ([]byte, error) {
+// 	return json.Marshal(m)
+// }
+
+// func (m *DataTypeSTRINGMeta) UnmarshalJSON(data []byte) (error) {
+// 	return json.Unmarshal(data, m)
+// }
+
+func (m *DataTypeSTRINGMeta) MarshalBinary() (data []byte, err error) {
+	return make([]byte, 0), nil
+}
+
+func (m *DataTypeSTRINGMeta) UnmarshalBinary(data []byte) error {
+	return nil
+}
+
+func (m *DataTypeSTRINGMeta) GetSize() int {
+	return DataTypeSTRINGMetaSize
+}
 
 type DataTypeSTRING struct {
 	value string
+	Code  TypeCode            `json:"code"`
+	Meta  *DataTypeSTRINGMeta `json:"meta"`
 }
 
 func (t *DataTypeSTRING) MarshalBinary() (data []byte, err error) {
@@ -30,7 +72,7 @@ func (t *DataTypeSTRING) Set(value interface{}) DataType {
 }
 
 func (t *DataTypeSTRING) GetCode() TypeCode {
-	return TYPE_STRING
+	return t.Code
 }
 
 func (t *DataTypeSTRING) IsFixedSize() bool {

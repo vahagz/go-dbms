@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
 	pager "go-dbms/pkg/slotted_pager"
 	"go-dbms/pkg/types"
@@ -30,16 +31,17 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	}
 
 	df := &DataFile{
-		mu:    &sync.RWMutex{},
-		file:  fileName,
-		pager: p,
-		pages: map[uint64]*pager.Page[*record]{},
-		meta:  &metadata{},
+		mu:      &sync.RWMutex{},
+		file:    fileName,
+		pager:   p,
+		pages:   map[uint64]*pager.Page[*record]{},
+		meta:    &metadata{},
+		columns: opts.Columns,
 	}
 
 	// initialize the df if new or open the existing df and load
 	// root node.
-	if err := df.open(*opts); err != nil {
+	if err := df.open(opts); err != nil {
 		_ = df.Close()
 		return nil, err
 	}
@@ -57,6 +59,7 @@ type DataFile struct {
 	pager   *pager.Pager
 	pages   map[uint64]*pager.Page[*record] // page cache to avoid IO
 	meta    *metadata                       // metadata about df structure
+	columns []*column.Column                // columns list of data
 }
 
 // Get fetches the record from the given pointer. Returns error if record not found.
@@ -92,7 +95,7 @@ func (df *DataFile) InsertRecord(val []types.DataType) (*RecordPointer, error) {
 }
 
 func (df *DataFile) InsertRecordMem(val []types.DataType) (*RecordPointer, error) {
-	if len(val) != len(df.meta.columns) {
+	if len(val) != len(df.columns) {
 		return nil, index.ErrKeyTooLarge
 	}
 
@@ -141,7 +144,7 @@ func (df *DataFile) UpdatePage(id uint64, values [][]types.DataType) (map[uint64
 	oveflow := false
 	for i, data := range values {
 		overflowIndex = i
-		r := newRecord(df.meta, data)
+		r := df.newRecord(data)
 		if _, err := p.AddSlot(r); err != nil {
 			oveflow = true
 			break
@@ -216,8 +219,17 @@ func (df *DataFile) String() string {
 	)
 }
 
+// newrecord initializes an in-memory record and returns.
+func (df *DataFile) newRecord(data []types.DataType) *record {
+	return &record{
+		dirty:   true,
+		data:    data,
+		columns: df.columns,
+	}
+}
+
 func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], int, error) {
-	r := newRecord(df.meta, val)
+	r := df.newRecord(val)
 
 	page, err := df.alloc(r.Size() + pager.SlotHeaderSz)
 	if err != nil {
@@ -249,7 +261,7 @@ func (df *DataFile) fetch(id uint64) (*pager.Page[*record], error) {
 		return page, nil
 	}
 
-	page = pager.NewPage(id, int(df.meta.pageSz), newRecord(df.meta, nil))
+	page = pager.NewPage(id, int(df.meta.pageSz), df.newRecord(nil))
 	if err := df.pager.Unmarshal(id, page); err != nil {
 		return nil, err
 	}
@@ -284,17 +296,17 @@ func (df *DataFile) alloc(minSize int) (*pager.Page[*record], error) {
 			return nil, err
 		}
 
-		page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(df.meta, nil))
+		page := pager.NewPage(pid, int(df.meta.pageSz), df.newRecord(nil))
 		return page, nil
 	}
 
-	page := pager.NewPage(pid, int(df.meta.pageSz), newRecord(df.meta, nil))
+	page := pager.NewPage(pid, int(df.meta.pageSz), df.newRecord(nil))
 	return page, df.pager.Unmarshal(pid, page)
 }
 
 // open opens the df stored on disk using the pager. If the pager
 // has no pages, a new df will be initialized.
-func (df *DataFile) open(opts Options) error {
+func (df *DataFile) open(opts *Options) error {
 	if df.pager.Count() == 0 {
 		// pager has no pages. initialize a new index.
 		err := df.init(opts)
@@ -323,18 +335,10 @@ func (df *DataFile) open(opts Options) error {
 // init initializes a new df in the underlying file. allocates 1 page
 // for meta) and initializes the instance. metadata is expected to 
 // be written to file during insertion.
-func (df *DataFile) init(opts Options) error {
+func (df *DataFile) init(opts *Options) error {
 	_, err := df.pager.Alloc(1 + opts.PreAlloc)
 	if err != nil {
 		return err
-	}
-
-	columns := []column{}
-	for _, name := range opts.ColumnsOrder {
-		columns = append(columns, column{
-			name: name,
-			typ:  opts.Columns[name],
-		})
 	}
 
 	df.meta = &metadata{
@@ -343,7 +347,6 @@ func (df *DataFile) init(opts Options) error {
 		flags:   0,
 		size:    0,
 		pageSz:  uint32(df.pager.PageSize()),
-		columns: columns,
 	}
 
 	df.meta.freeList = make(map[uint64]int, opts.PreAlloc)

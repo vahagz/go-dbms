@@ -38,27 +38,62 @@ type node struct {
 // search performs a binary search in the node entries for the given key
 // and returns the index where it should be and a flag indicating whether
 // key exists.
-func (n node) search(key []byte) (idx int, found bool) {
-	lo, hi := 0, len(n.entries)-1
+func (n node) search(key []byte) (startIdx int, endIdx int, found bool) {
+	startIdx = -1
+	endIdx = -1
 
-	var mid int
-	for lo <= hi {
-		mid = (hi + lo) / 2
+	// leftmost search
+	left, right := 0, len(n.entries)-1
+	for left <= right {
+		mid := (right + left) / 2
 
 		cmp := bytes.Compare(key, n.entries[mid].key)
-		switch {
-		case cmp == 0:
-			return mid, true
-
-		case cmp > 0:
-			lo = mid + 1
-
-		case cmp < 0:
-			hi = mid - 1
+		if cmp == 0 {
+			startIdx = mid
+			right = mid - 1
+		} else if cmp > 0 {
+			left = mid + 1
+		} else if cmp < 0 {
+			right = mid - 1
 		}
 	}
 
-	return lo, false
+	// rightmost search
+	left, right = 0, len(n.entries)-1
+	for left <= right {
+		mid := (right + left) / 2
+
+		cmp := bytes.Compare(key, n.entries[mid].key)
+		if cmp == 0 {
+			endIdx = mid
+			left = mid + 1
+		} else if cmp > 0 {
+			left = mid + 1
+		} else if cmp < 0 {
+			right = mid - 1
+		}
+	}
+
+	// if found
+	if startIdx != -1 {
+		return startIdx, endIdx, true
+	}
+
+	// not found, searching index where should be inserted
+	left, right = 0, len(n.entries)-1
+	for left <= right {
+		mid := (right + left) / 2
+
+		cmp := bytes.Compare(key, n.entries[mid].key)
+		if cmp == 0 {
+			return mid, mid, true
+		} else if cmp > 0 {
+			left = mid + 1
+		} else if cmp < 0 {
+			right = mid - 1
+		}
+	}
+	return left, left, false
 }
 
 // insertChild adds the given child at appropriate location under the node.

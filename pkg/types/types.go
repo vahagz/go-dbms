@@ -9,9 +9,12 @@ import (
 type TypeCode uint8
 
 const (
-	TYPE_INT32  TypeCode = 0 // 32 bit integer
-	TYPE_STRING TypeCode = 1 // variable length string
+	TYPE_INT     TypeCode = 0 // 32 bit integer
+	TYPE_STRING  TypeCode = 1 // variable length string
+	TYPE_VARCHAR TypeCode = 2 // fixed length string
 )
+
+var bin = binary.BigEndian
 
 type DataType interface {
 	encoding.BinaryMarshaler
@@ -24,12 +27,34 @@ type DataType interface {
 	IsFixedSize() bool
 }
 
-func Type(typeCode TypeCode) DataType {
+type DataTypeMeta interface {
+	// json.Marshaler
+	// json.Unmarshaler
+
+	GetSize() int
+}
+
+func Type(typeCode TypeCode, meta DataTypeMeta) DataType {
 	switch{
-		case typeCode == TYPE_INT32:  return &DataTypeINTEGER[int32]{}
-		case typeCode == TYPE_STRING: return &DataTypeSTRING{}
-		default: panic(fmt.Errorf("invalid typeCode => %v", typeCode))
+		case typeCode == TYPE_INT:     return NewINTEGER(typeCode, meta.(*DataTypeINTEGERMeta))
+		case typeCode == TYPE_STRING:  return NewSTRING(typeCode, meta.(*DataTypeSTRINGMeta))
+		case typeCode == TYPE_VARCHAR: return NewVARCHAR(typeCode, meta.(*DataTypeVARCHARMeta))
+		default:                       panic(fmt.Errorf("[Type] invalid typeCode => %v", typeCode))
 	}
 }
 
-var bin = binary.BigEndian
+func Meta(typeCode TypeCode, empty bool, args ...interface{}) DataTypeMeta {
+	switch{
+		case typeCode == TYPE_INT:
+			if empty { return &DataTypeINTEGERMeta{} }
+			return NewINTEGERMeta(args[0].(bool), convert(args[1], new(uint8)))
+		case typeCode == TYPE_STRING:
+			if empty { return &DataTypeSTRINGMeta{} }
+			return NewSTRINGMeta()
+		case typeCode == TYPE_VARCHAR:
+			if empty { return &DataTypeVARCHARMeta{} }
+			return NewVARCHARMeta(convert(args[0], new(uint16)))
+		default:
+			panic(fmt.Errorf("[Meta] invalid typeCode => %v", typeCode))
+	}
+}
