@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"go-dbms/pkg/index"
+
+	"golang.org/x/exp/constraints"
 )
 
 func TrimSuffix(s, suffix string) string {
@@ -71,4 +73,14 @@ func GenKV(i uint32) ([]byte, uint64) {
 	var b [4]byte
 	binary.BigEndian.PutUint32(b[:], i)
 	return b[:], uint64(i)
+}
+
+func Min[T constraints.Ordered](numbers ...T) T {
+	var min T = numbers[0]
+	for _, n := range numbers {
+		if n < min {
+			min = n
+		}
+	}
+	return min
 }

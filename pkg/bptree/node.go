@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go-dbms/util/helpers"
 )
 
 const (
@@ -47,7 +48,8 @@ func (n node) search(key []byte) (startIdx int, endIdx int, found bool) {
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := bytes.Compare(key, n.entries[mid].key)
+		idx := helpers.Min(len(key), len(n.entries[mid].key))
+		cmp := bytes.Compare(key[:idx], n.entries[mid].key[:idx])
 		if cmp == 0 {
 			startIdx = mid
 			right = mid - 1
@@ -63,7 +65,8 @@ func (n node) search(key []byte) (startIdx int, endIdx int, found bool) {
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := bytes.Compare(key, n.entries[mid].key)
+		idx := helpers.Min(len(key), len(n.entries[mid].key))
+		cmp := bytes.Compare(key[:idx], n.entries[mid].key[:idx])
 		if cmp == 0 {
 			endIdx = mid
 			left = mid + 1
@@ -84,7 +87,8 @@ func (n node) search(key []byte) (startIdx int, endIdx int, found bool) {
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := bytes.Compare(key, n.entries[mid].key)
+		idx := helpers.Min(len(key), len(n.entries[mid].key))
+		cmp := bytes.Compare(key[:idx], n.entries[mid].key[:idx])
 		if cmp == 0 {
 			return mid, mid, true
 		} else if cmp > 0 {

@@ -148,9 +148,9 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	records, err := table.FindByIndex("firstname_lastname_1", true, map[string]types.DataType{
+	records, err := table.FindByIndex("firstname_lastname_1", false, "=", map[string]types.DataType{
 		"firstname": types.Type(types.TYPE_STRING, table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-		"lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
+		// "lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
 	})
 	if err != nil {
 		logrus.Fatal(err)

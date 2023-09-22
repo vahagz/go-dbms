@@ -5,12 +5,21 @@ import (
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
+	"go-dbms/util/helpers"
 )
 
 type index struct {
 	tree    *bptree.BPlusTree
 	columns []string
 	uniq    bool
+}
+
+var operatorMapping = map[string]map[int]bool {
+	"<":  { 1:true},
+	"<=": { 1:true,0:true},
+	"=":  { 0:true},
+	">=": { 0:true, -1:true},
+	">":  { -1:true},
 }
 
 func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType) error {
@@ -32,7 +41,7 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 	})
 }
 
-func (i *index) Find(values map[string]types.DataType, reverse bool) ([]*data.RecordPointer, error) {
+func (i *index) Find(values map[string]types.DataType, reverse bool, operator string) ([]*data.RecordPointer, error) {
 	key, err := i.key(i.tuple(values))
 	if err != nil {
 		return nil, err
@@ -40,7 +49,8 @@ func (i *index) Find(values map[string]types.DataType, reverse bool) ([]*data.Re
 
 	result := []*data.RecordPointer{}
 	err = i.tree.Scan(key, reverse, func(k, v []byte) (bool, error) {
-		if !bytes.Equal(key, k) {
+		idx := helpers.Min(len(key),len(k))
+		if _, ok := operatorMapping[operator][bytes.Compare(key[:idx], k[:idx])]; !ok {
 			return true, nil
 		}
 

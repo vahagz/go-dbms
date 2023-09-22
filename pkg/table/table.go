@@ -90,8 +90,8 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 	return ptr, nil
 }
 
-func (t *Table) FindByIndex(indexName string, reverse bool, values map[string]types.DataType) ([][]types.DataType, error) {
-	ptrArr, err := t.indexes[indexName].Find(values, reverse)
+func (t *Table) FindByIndex(indexName string, reverse bool, operator string, values map[string]types.DataType) ([][]types.DataType, error) {
+	ptrArr, err := t.indexes[indexName].Find(values, reverse, operator)
 	if err != nil {
 		return nil, err
 	}
