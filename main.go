@@ -148,9 +148,9 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	records, err := table.FindByIndex("firstname_lastname_1", false, "=", map[string]types.DataType{
+	records, err := table.FindByIndex("firstname_lastname_1", "=", map[string]types.DataType{
 		"firstname": types.Type(types.TYPE_STRING, table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-		// "lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
+		// "lastname":  types.Type(types.TYPE_STRING, table.ColumnsMap()["lastname"].Meta).Set("Sargsyan"),
 	})
 	if err != nil {
 		logrus.Fatal(err)
@@ -170,17 +170,17 @@ func main() {
 }
 
 
-func sprintData(columns []*column.Column, data [][]types.DataType) string {
+func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
 	str := ""
 	for _, d := range data {
-		for i, col := range columns {
-			str += fmt.Sprintf("'%s' -> '%v', ", col.Name, d[i].Value())
+		for _, col := range columns {
+			str += fmt.Sprintf("'%s' -> '%v', ", col.Name, d[col.Name].Value())
 		}
 		str += "\n"
 	}
 	return str
 }
 
-func printData(columns []*column.Column, data [][]types.DataType) {
+func printData(columns []*column.Column, data []map[string]types.DataType) {
 	fmt.Println(sprintData(columns, data))
 }

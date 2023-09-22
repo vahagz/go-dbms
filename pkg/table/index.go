@@ -2,6 +2,7 @@ package table
 
 import (
 	"bytes"
+	"fmt"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
@@ -14,12 +15,36 @@ type index struct {
 	uniq    bool
 }
 
-var operatorMapping = map[string]map[int]bool {
-	"<":  { 1:true},
-	"<=": { 1:true,0:true},
-	"=":  { 0:true},
-	">=": { 0:true, -1:true},
-	">":  { -1:true},
+type operatorConfig struct {
+	cmpOption map[int]bool
+	reverse   bool
+	strict    bool
+}
+var operatorMapping = map[string]operatorConfig {
+	"<":  {
+		cmpOption: map[int]bool{ -1: true },
+		reverse:   false,
+		strict:    false,
+	},
+	"<=": {
+		cmpOption: map[int]bool{ -1: true, 0: true },
+		reverse:   false,
+		strict:    true,
+	},
+	"=":  {
+		cmpOption: map[int]bool{ 0:  true },
+		strict:    true,
+	},
+	">=": {
+		cmpOption: map[int]bool{ 0:  true, 1: true },
+		reverse:   true,
+		strict:    true,
+	},
+	">":  {
+		cmpOption: map[int]bool{ 1:  true },
+		reverse:   true,
+		strict:    false,
+	},
 }
 
 func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType) error {
@@ -41,17 +66,26 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 	})
 }
 
-func (i *index) Find(values map[string]types.DataType, reverse bool, operator string) ([]*data.RecordPointer, error) {
-	key, err := i.key(i.tuple(values))
+func (i *index) Find(
+	values map[string]types.DataType,
+	operator string,
+	scanFn func(ptr *data.RecordPointer) (map[string]types.DataType, error),
+) ([]map[string]types.DataType, error) {
+	tuple := i.tuple(values)
+	key, err := i.key(tuple)
 	if err != nil {
 		return nil, err
 	}
 
-	result := []*data.RecordPointer{}
-	err = i.tree.Scan(key, reverse, func(k, v []byte) (bool, error) {
-		idx := helpers.Min(len(key),len(k))
-		if _, ok := operatorMapping[operator][bytes.Compare(key[:idx], k[:idx])]; !ok {
+	op := operatorMapping[operator]
+	reverse, strict := op.reverse, op.strict
+	result := []map[string]types.DataType{}
+	err = i.tree.Scan(key, reverse, strict, func(k, v []byte) (bool, error) {
+		stop, skip := i.where(key, operator, k)
+		if stop {
 			return true, nil
+		} else if skip {
+			return false, nil
 		}
 
 		ptr := &data.RecordPointer{}
@@ -59,7 +93,35 @@ func (i *index) Find(values map[string]types.DataType, reverse bool, operator st
 		if err != nil {
 			return false, err
 		}
-		result = append(result, ptr)
+
+		row, err := scanFn(ptr)
+		if err != nil {
+			return false, err
+		}
+
+		if operator == "=" {
+			for _, column := range i.columns {
+				if rowCol, ok := row[column]; ok {
+					rowCol, err := rowCol.MarshalBinary()
+					if err != nil {
+						return false, err
+					}
+
+					if valCol, ok := values[column]; ok {
+						val, err := valCol.MarshalBinary()
+						if err != nil {
+							return false, err
+						}
+	
+						if !bytes.Equal(rowCol, val) {
+							return true, nil
+						}
+					}
+				}
+			}
+		}
+
+		result = append(result, row)
 		return false, nil
 	})
 
@@ -98,4 +160,25 @@ func (i *index) tuple(values map[string]types.DataType) []types.DataType {
 		}
 	}
 	return tuple
+}
+
+func (i *index) where(
+	searchingKey []byte,
+	operator string,
+	currentKey []byte,
+) (stop bool, skip bool) {
+	min := helpers.Min(len(searchingKey), len(currentKey))
+	fmt.Println(string(searchingKey), operator, string(currentKey), bytes.Compare(searchingKey[:min], currentKey[:min]))
+	if operator == "=" {
+		_, ok := operatorMapping[operator].cmpOption[bytes.Compare(searchingKey[:min], currentKey[:min])]
+		return !ok, false
+	}
+
+	cmp := bytes.Compare(searchingKey[:min], currentKey[:min])
+	if cmp == 0 && (operator == ">" || operator == "<") {
+		return false, true
+	}
+
+	_, ok := operatorMapping[operator].cmpOption[cmp]
+	return !ok, false
 }

@@ -27,8 +27,8 @@ type Table struct {
 
 func Open(tablePath string, opts *Options) (*Table, error) {
 	table := &Table{
-		path:       tablePath,
-		indexes:    map[string]*index{},
+		path:    tablePath,
+		indexes: map[string]*index{},
 	}
 
 	err := table.init(opts)
@@ -90,21 +90,27 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 	return ptr, nil
 }
 
-func (t *Table) FindByIndex(indexName string, reverse bool, operator string, values map[string]types.DataType) ([][]types.DataType, error) {
-	ptrArr, err := t.indexes[indexName].Find(values, reverse, operator)
+func (t *Table) FindByIndex(indexName string, operator string, values map[string]types.DataType) ([]map[string]types.DataType, error) {
+	result, err := t.indexes[indexName].Find(
+		values,
+		operator,
+		func(ptr *data.RecordPointer) (map[string]types.DataType, error) {
+			rowMap := map[string]types.DataType{}
+			row, err := t.Get(ptr)
+			if err != nil {
+				return nil, err
+			}
+
+			for i, c := range t.meta.Columns {
+				rowMap[c.Name] = row[i]
+			}
+			return rowMap, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	result := [][]types.DataType{}
-	for _, ptr := range ptrArr {
-		row, err := t.Get(ptr)
-		if err != nil {
-			return nil, err
-		}
-
-		result = append(result, row)
-	}
 	return result, nil
 }
 
@@ -121,8 +127,12 @@ func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row []types.DataTy
 	return t.df.Scan(scanFn)
 }
 
-func (t *Table) FullScanByIndex(indexName string, reverse bool, scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error)) error {
-	return t.indexes[indexName].tree.Scan(nil, reverse, func(key, val []byte) (bool, error) {
+func (t *Table) FullScanByIndex(
+	indexName string,
+	reverse, strict bool,
+	scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error),
+) error {
+	return t.indexes[indexName].tree.Scan(nil, reverse, strict, func(key, val []byte) (bool, error) {
 		ptr := &data.RecordPointer{}
 		ptr.UnmarshalBinary(val)
 		row, err := t.Get(ptr)

@@ -156,7 +156,11 @@ func (tree *BPlusTree) Del(key []byte) ([][]byte, error) {
 // the right most leaf node is reached or the scanFn returns 'true' indicating
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
-func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byte) (bool, error)) error {
+func (tree *BPlusTree) Scan(
+	key []byte,
+	reverse, strict bool,
+	scanFn func(key, val []byte) (bool, error),
+) error {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
@@ -185,9 +189,17 @@ func (tree *BPlusTree) Scan(key []byte, reverse bool, scanFn func(key, val []byt
 		// key and start the scan there.
 		beginAt, startIdx, endIdx, _, err = tree.searchRec(tree.root, key)
 		if !reverse {
-			idx = startIdx
+			if strict {
+				idx = startIdx
+			} else {
+				idx = endIdx
+			}
 		} else {
-			idx = endIdx
+			if strict {
+				idx = endIdx
+			} else {
+				idx = startIdx
+			}
 		}
 	}
 

@@ -42,7 +42,7 @@ func TestBPlusTree_Random(t *testing.T) {
 
 	start = time.Now()
 	c := uint32(0)
-	_ = idx.Scan(nil, false, func(key []byte, v []byte) (bool, error) {
+	_ = idx.Scan(nil, false, true, func(key []byte, v []byte) (bool, error) {
 		c++
 		expectedV := hash(key, 8)
 
@@ -183,7 +183,7 @@ func readCheck(t *testing.T, tree *BPlusTree, count int) {
 func scanLot(t *testing.T, tree *BPlusTree, count int) {
 	start := time.Now()
 	scanned := uint64(0)
-	_ = tree.Scan(nil, false, func(key []byte, v []byte) (bool, error) {
+	_ = tree.Scan(nil, false, true, func(key []byte, v []byte) (bool, error) {
 		if binary.BigEndian.Uint64(v) != scanned {
 			t.Fatalf("bad scan for '%x': %d != %d", key, v, scanned)
 		}
