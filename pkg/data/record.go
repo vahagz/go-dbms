@@ -30,7 +30,7 @@ func (r record) Size() int {
 
 	for i := 0; i < len(r.data); i++ {
 		// 1 for the type size
-		sz += 1 + r.data[i].GetSize()
+		sz += 1 + r.data[i].Size()
 
 		if !r.data[i].IsFixedSize() {
 			sz += 2
@@ -46,7 +46,7 @@ func (r record) MarshalBinary() ([]byte, error) {
 
 	for i := 0; i < len(r.data); i++ {
 		data := r.data[i]
-		size := data.GetSize()
+		size := data.Size()
 		if !data.IsFixedSize() {
 			bin.PutUint16(buf[offset:offset+2], uint16(size))
 			offset += 2
@@ -70,10 +70,10 @@ func (r *record) UnmarshalBinary(d []byte) error {
 
 	for i, column := range r.columns {
 		size := 0
-		v := types.Type(types.TypeCode(column.Typ), column.Meta)
+		v := types.Type(column.Meta)
 
 		if v.IsFixedSize() {
-			size = v.GetSize()
+			size = v.Size()
 		} else {
 			size = int(bin.Uint16(d[offset:offset+2]))
 			offset += 2

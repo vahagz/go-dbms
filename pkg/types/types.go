@@ -16,25 +16,25 @@ const (
 
 var bin = binary.BigEndian
 
-type DataType interface {
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-
-	Value() interface{}
-	Set(value interface{}) DataType
+type DataTypeMeta interface {
 	GetCode() TypeCode
-	GetSize() int
+	Size() int
 	IsFixedSize() bool
 }
 
-type DataTypeMeta interface {
-	// json.Marshaler
-	// json.Unmarshaler
+type DataType interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+	DataTypeMeta
 
-	GetSize() int
+	Bytes() []byte
+
+	Value() interface{}
+	Set(value interface{}) DataType
 }
 
-func Type(typeCode TypeCode, meta DataTypeMeta) DataType {
+func Type(meta DataTypeMeta) DataType {
+	typeCode := meta.GetCode()
 	switch{
 		case typeCode == TYPE_INT:     return NewINTEGER(typeCode, meta.(*DataTypeINTEGERMeta))
 		case typeCode == TYPE_STRING:  return NewSTRING(typeCode, meta.(*DataTypeSTRINGMeta))

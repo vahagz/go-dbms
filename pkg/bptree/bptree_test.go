@@ -34,7 +34,7 @@ func TestBPlusTree_Random(t *testing.T) {
 		key := randKey(4)
 		val := hash(key, 8)
 
-		if err := idx.Put(key, val, &PutOptions{false, true}); err != nil {
+		if err := idx.Put([][]byte{key}, val, &PutOptions{false, true}); err != nil {
 			t.Fatalf("Put() unexpected error: %v", err)
 		}
 	}
@@ -42,9 +42,9 @@ func TestBPlusTree_Random(t *testing.T) {
 
 	start = time.Now()
 	c := uint32(0)
-	_ = idx.Scan(nil, false, true, func(key []byte, v []byte) (bool, error) {
+	_ = idx.Scan(nil, false, true, func(key [][]byte, v []byte) (bool, error) {
 		c++
-		expectedV := hash(key, 8)
+		expectedV := hash(key[0], 8)
 
 		if !bytes.Equal(v, expectedV) {
 			t.Fatalf(
@@ -66,7 +66,7 @@ func TestBPlusTree_Put(t *testing.T) {
 	defer tree.Close()
 
 	for i := 0; i < 256; i++ {
-		if err := tree.Put([]byte{byte(i)}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
+		if err := tree.Put([][]byte{{byte(i)}}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			t.Fatalf("failed: %v", err)
 		}
 	}
@@ -76,7 +76,7 @@ func TestBPlusTree_Put(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		if err := tree.Put([]byte{byte(65 + i)}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
+		if err := tree.Put([][]byte{{byte(65 + i)}}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			t.Fatalf("failed: %v", err)
 		}
 	}
@@ -109,15 +109,15 @@ func TestBPlusTree_Put_Get(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(12345)), &PutOptions{false, true}); err != nil {
+		if err := tree.Put([][]byte{[]byte("hello")}, uint64ToBytes(uint64(12345)), &PutOptions{false, true}); err != nil {
 			t.Errorf("Put() unexpected error: %#v", err)
 		}
 
-		if err := tree.Put([]byte("hello"), uint64ToBytes(uint64(120012)), &PutOptions{false, true}); err != nil {
+		if err := tree.Put([][]byte{[]byte("hello")}, uint64ToBytes(uint64(120012)), &PutOptions{false, true}); err != nil {
 			t.Errorf("Put() unexpected error: %#v", err)
 		}
 
-		v, err := tree.Get([]byte("hello"))
+		v, err := tree.Get([][]byte{[]byte("hello")})
 		if err != nil {
 			t.Errorf("Get('hello') unexpected error: %#v", err)
 		}
@@ -142,7 +142,7 @@ func BenchmarkBPlusTree_Put_Get(b *testing.B) {
 			d[1] = byte(i >> 16)
 			d[2] = byte(i >> 8)
 			d[3] = byte(i)
-			_ = tree.Put(d[:], uint64ToBytes(uint64(i)), &PutOptions{false, true})
+			_ = tree.Put([][]byte{d[:]}, uint64ToBytes(uint64(i)), &PutOptions{false, true})
 		}
 	})
 
@@ -153,7 +153,7 @@ func BenchmarkBPlusTree_Put_Get(b *testing.B) {
 			d[1] = byte(i >> 16)
 			d[2] = byte(i >> 8)
 			d[3] = byte(i)
-			_, _ = tree.Get(d[:])
+			_, _ = tree.Get([][]byte{d[:]})
 		}
 	})
 }
@@ -168,7 +168,7 @@ func readCheck(t *testing.T, tree *BPlusTree, count int) {
 		b[2] = byte(i >> 8)
 		b[3] = byte(i)
 
-		v, err := tree.Get(b)
+		v, err := tree.Get([][]byte{b})
 		if err != nil {
 			t.Fatalf("Get('%x') unexpected error: %#v", b, err)
 		}
@@ -183,9 +183,9 @@ func readCheck(t *testing.T, tree *BPlusTree, count int) {
 func scanLot(t *testing.T, tree *BPlusTree, count int) {
 	start := time.Now()
 	scanned := uint64(0)
-	_ = tree.Scan(nil, false, true, func(key []byte, v []byte) (bool, error) {
+	_ = tree.Scan(nil, false, true, func(key [][]byte, v []byte) (bool, error) {
 		if binary.BigEndian.Uint64(v) != scanned {
-			t.Fatalf("bad scan for '%x': %d != %d", key, v, scanned)
+			t.Fatalf("bad scan for '%x': %d != %d", key[0], v, scanned)
 		}
 		scanned++
 		return false, nil
@@ -206,7 +206,7 @@ func writeLot(t *testing.T, tree *BPlusTree, count int) {
 		b[2] = byte(i >> 8)
 		b[3] = byte(i)
 
-		if err := tree.Put(b, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
+		if err := tree.Put([][]byte{b}, uint64ToBytes(uint64(i)), &PutOptions{false, true}); err != nil {
 			panic(err)
 		}
 	}

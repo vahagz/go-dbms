@@ -4,7 +4,6 @@
 package bptree
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/pager"
+	"go-dbms/util/helpers"
 )
 
 // bin is the byte order used for all marshals/unmarshals.
@@ -74,7 +74,7 @@ type BPlusTree struct {
 
 // Get fetches the value associated with the given key. Returns error if key
 // not found.
-func (tree *BPlusTree) Get(key []byte) ([][]byte, error) {
+func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	if len(key) == 0 {
 		return nil, index.ErrEmptyKey
 	}
@@ -102,10 +102,15 @@ func (tree *BPlusTree) Get(key []byte) ([][]byte, error) {
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
 // its value will be updated.
-func (tree *BPlusTree) Put(key []byte, val []byte, opt *PutOptions) error {
-	if len(key) > int(tree.meta.maxKeySz) {
+func (tree *BPlusTree) Put(key [][]byte, val []byte, opt *PutOptions) error {
+	keylen := 0
+	for _, v := range key {
+		keylen += len(v)
+	}
+
+	if keylen > int(tree.meta.maxKeySz) {
 		return index.ErrKeyTooLarge
-	} else if len(key) == 0 {
+	} else if keylen == 0 {
 		return index.ErrEmptyKey
 	}
 
@@ -113,7 +118,7 @@ func (tree *BPlusTree) Put(key []byte, val []byte, opt *PutOptions) error {
 	defer tree.mu.Unlock()
 
 	e := entry{
-		key: append([]byte(nil), key...),
+		key: key,
 		val: val,
 	}
 
@@ -132,7 +137,7 @@ func (tree *BPlusTree) Put(key []byte, val []byte, opt *PutOptions) error {
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key []byte) ([][]byte, error) {
+func (tree *BPlusTree) Del(key [][]byte) ([][]byte, error) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
@@ -157,9 +162,9 @@ func (tree *BPlusTree) Del(key []byte) ([][]byte, error) {
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
 func (tree *BPlusTree) Scan(
-	key []byte,
+	key [][]byte,
 	reverse, strict bool,
-	scanFn func(key, val []byte) (bool, error),
+	scanFn func(key [][]byte, val []byte) (bool, error),
 ) error {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
@@ -192,13 +197,13 @@ func (tree *BPlusTree) Scan(
 			if strict {
 				idx = startIdx
 			} else {
-				idx = endIdx
+				idx = endIdx + 1
 			}
 		} else {
 			if strict {
 				idx = endIdx
 			} else {
-				idx = startIdx
+				idx = startIdx - 1
 			}
 		}
 	}
@@ -340,7 +345,7 @@ func (tree *BPlusTree) insertInternal(n *node, e entry, opt *PutOptions) (bool, 
 		}
 
 		// should go into left child or right child?
-		if bytes.Compare(e.key, n.entries[endIdx].key) >= 0 {
+		if helpers.CompareMatrix(e.key, n.entries[endIdx].key) >= 0 {
 			child, err = tree.fetch(n.children[endIdx+1])
 			if err != nil {
 				return false, err
@@ -390,7 +395,7 @@ func (tree *BPlusTree) split(p, n, sibling *node, i int) error {
 // searchRec searches the sub-tree with root 'n' recursively until the key
 // is  found or the leaf node is  reached. Returns the node last searched,
 // index where the key should be and a flag to indicate if the key exists.
-func (tree *BPlusTree) searchRec(n *node, key []byte) (*node, int, int, bool, error) {
+func (tree *BPlusTree) searchRec(n *node, key [][]byte) (*node, int, int, bool, error) {
 	startIdx, endIdx, found := n.search(key)
 
 	if n.isLeaf() {

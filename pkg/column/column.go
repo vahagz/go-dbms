@@ -17,6 +17,14 @@ type column struct {
 	Meta json.RawMessage `json:"meta"`
 }
 
+func New(name string, meta types.DataTypeMeta) *Column {
+	return &Column{
+		Name: name,
+		Typ:  meta.GetCode(),
+		Meta: meta,
+	}
+}
+
 func (c *Column) UnmarshalJSON(data []byte) error {
 	col := &column{}
 	if err := json.Unmarshal(data, col); err != nil {

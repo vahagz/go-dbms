@@ -15,31 +15,19 @@ func NewSTRING(code TypeCode, meta *DataTypeSTRINGMeta) *DataTypeSTRING {
 	}
 }
 
-const (
-	DataTypeSTRINGMetaSize = 0
-)
-
 type DataTypeSTRINGMeta struct {
 }
 
-// func (m *DataTypeSTRINGMeta) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(m)
-// }
-
-// func (m *DataTypeSTRINGMeta) UnmarshalJSON(data []byte) (error) {
-// 	return json.Unmarshal(data, m)
-// }
-
-func (m *DataTypeSTRINGMeta) MarshalBinary() (data []byte, err error) {
-	return make([]byte, 0), nil
+func (m *DataTypeSTRINGMeta) GetCode() TypeCode {
+	return TYPE_STRING
 }
 
-func (m *DataTypeSTRINGMeta) UnmarshalBinary(data []byte) error {
-	return nil
+func (m *DataTypeSTRINGMeta) Size() int {
+	return -1
 }
 
-func (m *DataTypeSTRINGMeta) GetSize() int {
-	return DataTypeSTRINGMetaSize
+func (m *DataTypeSTRINGMeta) IsFixedSize() bool {
+	return false
 }
 
 type DataTypeSTRING struct {
@@ -55,6 +43,10 @@ func (t *DataTypeSTRING) MarshalBinary() (data []byte, err error) {
 func (t *DataTypeSTRING) UnmarshalBinary(data []byte) error {
 	t.value = string(data)
 	return nil
+}
+
+func (t *DataTypeSTRING) Bytes() []byte {
+	return []byte(t.value)
 }
 
 func (t *DataTypeSTRING) Value() interface{} {
@@ -76,9 +68,9 @@ func (t *DataTypeSTRING) GetCode() TypeCode {
 }
 
 func (t *DataTypeSTRING) IsFixedSize() bool {
-	return false
+	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeSTRING) GetSize() int {
+func (t *DataTypeSTRING) Size() int {
 	return len(t.value)
 }

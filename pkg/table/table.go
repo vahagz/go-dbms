@@ -7,6 +7,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
+	"go-dbms/util/helpers"
 	"os"
 	"path"
 	"strings"
@@ -68,7 +69,7 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 
 	for _, column := range t.meta.Columns {
 		if data, ok := values[column.Name]; !ok {
-			dataToInsert = append(dataToInsert, types.Type(column.Typ, column.Meta))
+			dataToInsert = append(dataToInsert, types.Type(column.Meta))
 		} else {
 			dataToInsert = append(dataToInsert, data)
 		}
@@ -95,16 +96,12 @@ func (t *Table) FindByIndex(indexName string, operator string, values map[string
 		values,
 		operator,
 		func(ptr *data.RecordPointer) (map[string]types.DataType, error) {
-			rowMap := map[string]types.DataType{}
 			row, err := t.Get(ptr)
 			if err != nil {
 				return nil, err
 			}
 
-			for i, c := range t.meta.Columns {
-				rowMap[c.Name] = row[i]
-			}
-			return rowMap, nil
+			return row, nil
 		},
 	)
 	if err != nil {
@@ -114,45 +111,53 @@ func (t *Table) FindByIndex(indexName string, operator string, values map[string
 	return result, nil
 }
 
-func (t *Table) Get(ptr *data.RecordPointer) ([]types.DataType, error) {
+func (t *Table) Get(ptr *data.RecordPointer) (map[string]types.DataType, error) {
 	records, err := t.df.GetPage(ptr.PageId)
 	if err != nil {
 		return nil, err
 	}
 
-	return records[ptr.SlotId], nil
+	return t.row2map(records[ptr.SlotId]), nil
 }
 
-func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error)) error {
-	return t.df.Scan(scanFn)
+func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error)) error {
+	return t.df.Scan(func(ptr *data.RecordPointer, row []types.DataType) (bool, error) {
+		return scanFn(ptr, t.row2map(row))
+	})
 }
 
 func (t *Table) FullScanByIndex(
 	indexName string,
-	reverse, strict bool,
-	scanFn func(ptr *data.RecordPointer, row []types.DataType) (bool, error),
+	reverse bool,
+	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
-	return t.indexes[indexName].tree.Scan(nil, reverse, strict, func(key, val []byte) (bool, error) {
+	return t.indexes[indexName].tree.Scan(nil, reverse, true, func(key [][]byte, val []byte) (bool, error) {
 		ptr := &data.RecordPointer{}
 		ptr.UnmarshalBinary(val)
 		row, err := t.Get(ptr)
 		if err != nil {
 			return false, err
 		}
-		return scanFn(ptr, row)
+
+		return scanFn(row)
 	})
 }
 
-func (t *Table) CreateIndex(name *string, columns []string, uniq bool, keySize int) error {
+func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
 		}
 	}
 
+	keySize := len(columns) * 2 // 2 byte for length of each column
 	for _, columnName := range columns {
-		if _, ok := t.meta.ColumnsMap[columnName]; !ok {
+		if col, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
+		} else if !col.Meta.IsFixedSize() {
+			return fmt.Errorf("column must be of fixed size")
+		} else {
+			keySize += col.Meta.Size()
 		}
 	}
 
@@ -172,7 +177,7 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool, keySize i
 		ReadOnly:     false,
 		FileMode:     0664,
 		MaxKeySize:   keySize,
-		MaxValueSize: 10,
+		MaxValueSize: data.RecordPointerSize,
 		PageSize:     os.Getpagesize(),
 		PreAlloc:     100,
 	})
@@ -192,17 +197,8 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool, keySize i
 	}
 	t.indexes[*name] = i
 
-	err = t.FullScan(func(ptr *data.RecordPointer, row []types.DataType) (bool, error) {
-		rowMap := map[string]types.DataType{}
-		for i, data := range row {
-			for _, c := range columns {
-				if t.meta.Columns[i].Name == c {
-					rowMap[t.meta.Columns[i].Name] = data
-					break
-				}
-			}
-		}
-		return false, i.Insert(ptr, rowMap)
+	err = t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
+		return false, i.Insert(ptr, row)
 	})
 	if err != nil {
 		return err
@@ -233,12 +229,12 @@ func (t *Table) Close() error {
 }
 
 func (t *Table) init(opts *Options) error {
-	err := t.readMeta(opts)
+	err := t.createDirs()
 	if err != nil {
 		return err
 	}
 
-	err = t.createDirs()
+	err = t.readMeta(opts)
 	if err != nil {
 		return err
 	}
@@ -312,9 +308,21 @@ func (t *Table) writeMeta() error {
 }
 
 func (t *Table) createDirs() error {
-	dir := path.Join(t.path, indexPath)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return os.MkdirAll(dir, 0755)
+	if err := helpers.CreateDir(t.path); err != nil {
+		return err
 	}
-	return nil
+	return helpers.CreateDir(path.Join(t.path, indexPath))
+}
+
+func (t *Table) row2map(row []types.DataType) map[string]types.DataType {
+	rowMap := map[string]types.DataType{}
+	for i, data := range row {
+		for _, c := range t.Columns() {
+			if t.meta.Columns[i].Name == c.Name {
+				rowMap[t.meta.Columns[i].Name] = data
+				break
+			}
+		}
+	}
+	return rowMap
 }

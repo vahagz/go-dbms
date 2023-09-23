@@ -19,42 +19,21 @@ func NewINTEGER(code TypeCode, meta *DataTypeINTEGERMeta) *DataTypeINTEGER {
 	}
 }
 
-const (
-	DataTypeINTEGERMetaSize = 1
-  signBit                 = 0b00010000
-	sizeBit                 = 0b00001111
-)
-
 type DataTypeINTEGERMeta struct {
 	Signed   bool  `json:"signed"`
 	ByteSize uint8 `json:"bit_size"`
 }
 
-// func (m *DataTypeINTEGERMeta) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(m)
-// }
+func (m *DataTypeINTEGERMeta) GetCode() TypeCode {
+	return TYPE_INT
+}
 
-// func (m *DataTypeINTEGERMeta) UnmarshalJSON(data []byte) (error) {
-// 	return json.Unmarshal(data, m)
-// }
+func (m *DataTypeINTEGERMeta) Size() int {
+	return int(m.ByteSize)
+}
 
-// func (m *DataTypeINTEGERMeta) MarshalBinary() (data []byte, err error) {
-// 	buf := make([]byte, DataTypeINTEGERMetaSize)
-// 	buf[0] = m.ByteSize
-// 	if m.Signed {
-// 		buf[0] = buf[0] | signBit
-// 	}
-// 	return buf, nil
-// }
-
-// func (m *DataTypeINTEGERMeta) UnmarshalBinary(data []byte) error {
-// 	m.Signed = data[0] & signBit == 1
-// 	m.ByteSize = data[0] & sizeBit
-// 	return nil
-// }
-
-func (m *DataTypeINTEGERMeta) GetSize() int {
-	return DataTypeINTEGERMetaSize
+func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
+	return true
 }
 
 type DataTypeINTEGER struct {
@@ -70,6 +49,10 @@ func (t *DataTypeINTEGER) MarshalBinary() (data []byte, err error) {
 func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 	copy(t.value, data)
 	return nil
+}
+
+func (t *DataTypeINTEGER) Bytes() []byte {
+	return t.value
 }
 
 func (t *DataTypeINTEGER) Value() interface{} {
@@ -129,9 +112,9 @@ func (t *DataTypeINTEGER) GetCode() TypeCode {
 }
 
 func (t *DataTypeINTEGER) IsFixedSize() bool {
-	return true
+	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeINTEGER) GetSize() int {
+func (t *DataTypeINTEGER) Size() int {
 	return int(t.Meta.ByteSize)
 }

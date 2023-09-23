@@ -18,35 +18,20 @@ func NewVARCHAR(code TypeCode, meta *DataTypeVARCHARMeta) *DataTypeVARCHAR {
 	}
 }
 
-const (
-	DataTypeVARCHARMetaSize = 2
-)
-
 type DataTypeVARCHARMeta struct {
 	Cap uint16 `json:"cap"`
 }
 
-// func (m *DataTypeVARCHARMeta) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(m)
-// }
-
-// func (m *DataTypeVARCHARMeta) UnmarshalJSON(data []byte) (error) {
-// 	return json.Unmarshal(data, m)
-// }
-
-func (m *DataTypeVARCHARMeta) MarshalBinary() (data []byte, err error) {
-	buf := make([]byte, DataTypeVARCHARMetaSize)
-	bin.PutUint16(buf, m.Cap)
-	return buf, nil
+func (m *DataTypeVARCHARMeta) GetCode() TypeCode {
+	return TYPE_VARCHAR
 }
 
-func (m *DataTypeVARCHARMeta) UnmarshalBinary(data []byte) error {
-	m.Cap = bin.Uint16(data)
-	return nil
+func (m *DataTypeVARCHARMeta) Size() int {
+	return int(m.Cap)
 }
 
-func (m *DataTypeVARCHARMeta) GetSize() int {
-	return DataTypeVARCHARMetaSize
+func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
+	return true
 }
 
 type DataTypeVARCHAR struct {
@@ -57,22 +42,20 @@ type DataTypeVARCHAR struct {
 }
 
 func (t *DataTypeVARCHAR) MarshalBinary() (data []byte, err error) {
-	buf := make([]byte, t.GetSize())
-
-	bin.PutUint16(buf[0:2], t.Len)
-	copy(buf[2:], t.value)
-
-	return buf, nil
+	return t.value, nil
 }
 
 func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
-	t.Len = bin.Uint16(data[0:2])
-	copy(t.value, data[2:])
+	t.Len = uint16(copy(t.value, data))
 	return nil
 }
 
-func (t *DataTypeVARCHAR) Value() interface{} {
+func (t *DataTypeVARCHAR) Bytes() []byte {
 	return t.value[:t.Len]
+}
+
+func (t *DataTypeVARCHAR) Value() interface{} {
+	return string(t.value[:t.Len])
 }
 
 func (t *DataTypeVARCHAR) Set(value interface{}) DataType {
@@ -90,9 +73,9 @@ func (t *DataTypeVARCHAR) GetCode() TypeCode {
 }
 
 func (t *DataTypeVARCHAR) IsFixedSize() bool {
-	return true
+	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeVARCHAR) GetSize() int {
-	return 2 + int(t.Meta.Cap) // 2 is actual string length
+func (t *DataTypeVARCHAR) Size() int {
+	return int(t.Meta.Cap)
 }

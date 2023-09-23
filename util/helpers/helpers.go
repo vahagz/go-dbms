@@ -1,8 +1,10 @@
 package helpers
 
 import (
+	"bytes"
 	"encoding/binary"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -83,4 +85,26 @@ func Min[T constraints.Ordered](numbers ...T) T {
 		}
 	}
 	return min
+}
+
+func CreateDir(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return os.MkdirAll(dir, 0755)
+	}
+	return nil
+}
+
+func CompareMatrix(a, b [][]byte) int {
+	var cmp int
+	for i := range a {
+		if a[i] == nil || b[i] == nil {
+			break
+		}
+
+		cmp = bytes.Compare(a[i], b[i])
+		if cmp != 0 {
+			break
+		}
+	}
+	return cmp
 }
