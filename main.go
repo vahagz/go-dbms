@@ -125,6 +125,9 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
+	// TODO: ptr fix - change slot indexing logic in page
+	// TODO: add page overflow logic
+	// TODO: add freelist login
 	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
 		printData(table.Columns(), []map[string]types.DataType{row})
 		return false, nil

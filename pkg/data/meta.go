@@ -41,36 +41,7 @@ func (m metadata) MarshalBinary() ([]byte, error) {
 	buf[3] = m.flags
 	bin.PutUint32(buf[4:8], m.pageSz)
 
-	// columnsSize := 0
 	offset := 8
-	// for i := 0; i < len(m.columns); i++ {
-	// 	nameBytes := []byte(m.columns[i].name)
-	// 	metaSize := m.columns[i].meta.GetSize()
-	// 	metaBytes, err := m.columns[i].meta.MarshalBinary()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	buf[offset] = byte(m.columns[i].typ)
-	// 	offset++
-	// 	columnsSize++
-
-	// 	bin.PutUint16(buf[offset:offset+2], uint16(len(nameBytes)))
-	// 	offset += 2
-	// 	columnsSize += 2
-
-	// 	copy(buf[offset:offset+len(nameBytes)], nameBytes)
-	// 	offset += len(nameBytes)
-	// 	columnsSize += len(nameBytes)
-
-	// 	bin.PutUint16(buf[offset:offset+2], uint16(metaSize))
-	// 	offset += 2
-	// 	columnsSize += 2
-
-	// 	copy(buf[offset:offset+metaSize], metaBytes)
-	// 	offset += metaSize
-	// 	columnsSize += metaSize
-	// }
 
 	// verify that the free list can fit inside the meta page.
 	freeListSpace := int(m.pageSz) - metadataHeaderSize //- columnsSize
@@ -105,27 +76,8 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	m.version = d[2]
 	m.flags = d[3]
 	m.pageSz = bin.Uint32(d[4:8])
-	// colLen := bin.Uint16(d[8:10])
 
 	offset := 8
-	// m.columns = make([]column, colLen)
-	// for i := 0; i < int(colLen); i++ {
-	// 	m.columns[i].typ = types.TypeCode(d[offset])
-	// 	offset++
-
-	// 	nameLen := int(bin.Uint16(d[offset:offset+2]))
-	// 	offset += 2
-
-	// 	m.columns[i].name = string(d[offset:offset+nameLen])
-	// 	offset += nameLen
-		
-	// 	metaLen := int(bin.Uint16(d[offset:offset+2]))
-	// 	offset += 2
-
-	// 	m.columns[i].meta = types.Meta(m.columns[i].typ)
-	// 	m.columns[i].meta.UnmarshalBinary(d[offset:offset+metaLen])
-	// 	offset += metaLen
-	// }
 
 	freeListSize := bin.Uint32(d[offset:offset+4])
 	m.freeList = make(map[uint64]int, freeListSize)
