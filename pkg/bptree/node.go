@@ -154,7 +154,7 @@ func (n node) size() int {
 		sz := leafNodeHeaderSz
 		for i := 0; i < len(n.entries); i++ {
 			// 2 for the colCount size, 2 for the value size
-			sz += 2 + 2 + len(n.entries[i].key) + len(n.entries[i].val)
+			sz += 2 + 2 + len(n.entries[i].val)
 			for j := 0; j < len(n.entries[i].key); j++ {
 				// 2 for key size
 				sz += 2 + len(n.entries[i].key[j])

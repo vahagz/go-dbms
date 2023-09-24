@@ -51,12 +51,14 @@ func main() {
 	}
 
 	start := time.Now()
-	defer func() {
+	exitFunc := func() {
 		fmt.Println("DURATION =>", time.Since(start))
 		_ = table.Close()
 		// os.Remove(path.Join(tablePath, "data.dat"))
 		// os.RemoveAll(path.Join(tablePath, "indexes"))
-	}()
+	}
+	logrus.RegisterExitHandler(exitFunc)
+	defer exitFunc()
 
 
 	// ptr, err := table.Insert(map[string]types.DataType{
@@ -123,30 +125,30 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-	// 	printData(table.Columns(), []map[string]types.DataType{row})
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-
-
-	records, err := table.FindByIndex(
-		// "id_1",
-		"firstname_lastname_1",
-		"<=",
-		map[string]types.DataType{
-			// "id": types.Type(table.ColumnsMap()["id"].Meta).Set(5),
-			"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-			"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
-		},
-	)
+	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+		printData(table.Columns(), []map[string]types.DataType{row})
+		return false, nil
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	printData(table.Columns(), records)
+
+
+
+	// records, err := table.FindByIndex(
+	// 	// "id_1",
+	// 	"firstname_lastname_1",
+	// 	"<=",
+	// 	map[string]types.DataType{
+	// 		// "id": types.Type(table.ColumnsMap()["id"].Meta).Set(5),
+	// 		"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
+	// 		"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
+	// 	},
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// printData(table.Columns(), records)
 
 
 
