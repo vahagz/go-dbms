@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	r "math/rand"
 	"os"
 	"path"
 	"time"
@@ -29,6 +30,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+var rand = r.New(r.NewSource(time.Now().Unix()))
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
@@ -100,20 +103,20 @@ func main() {
 
 
 
-	// rand.Seed(time.Now().Unix())
-	// ids      := []int{5,6,4,5,7,2,1,9}
-	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	// for _, id := range ids {
-	// 	_, err := table.Insert(map[string]types.DataType{
-	// 		"id":        types.Type(table.ColumnsMap()["id"].Meta).Set(id),
-	// 		"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
-	// 		"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
-	// 	})
-	// 	if err != nil {
-	// 		logrus.Error(err)
-	// 	}
-	// }
+	rand.Seed(time.Now().Unix())
+	ids      := []int{5,6,4,5,7,2,1,9}
+	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	for _, id := range ids {
+		_, err := table.Insert(map[string]types.DataType{
+			"id":        types.Type(table.ColumnsMap()["id"].Meta).Set(id),
+			"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
+			"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
+		})
+		if err != nil {
+			logrus.Error(err)
+		}
+	}
 
 
 
@@ -125,7 +128,6 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// TODO: ptr fix - change slot indexing logic in page
 	// TODO: add page overflow logic
 	// TODO: add freelist login
 	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {

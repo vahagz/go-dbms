@@ -63,7 +63,7 @@ type DataFile struct {
 }
 
 // Get fetches the record from the given pointer. Returns error if record not found.
-func (df *DataFile) GetPage(id uint64) ([][]types.DataType, error) {
+func (df *DataFile) GetPage(id uint64) (map[uint16][]types.DataType, error) {
 	if id <= 0 {
 		return nil, index.ErrEmptyKey
 	}
@@ -76,10 +76,11 @@ func (df *DataFile) GetPage(id uint64) ([][]types.DataType, error) {
 		return nil, err
 	}
 
-	result := make([][]types.DataType, len(p.Slots))
-	for i, slot := range p.Slots {
-		result[i] = slot.data
-	}
+	result := make(map[uint16][]types.DataType, p.SlotCount())
+	p.Each(func(key uint16, slot *record) (bool, error) {
+		result[key] = slot.data
+		return false, nil
+	})
 	return result, nil
 }
 
@@ -123,7 +124,7 @@ func (df *DataFile) DeletePage(id uint64) error {
 
 	p.ClearSlots()
 	p.Dirty = true
-	df.meta.freeList[id] = p.FreeSpace
+	df.meta.freeList[id] = p.FreeSpace()
 
 	return nil
 }
@@ -150,7 +151,7 @@ func (df *DataFile) UpdatePage(id uint64, values [][]types.DataType) (map[uint64
 			break
 		}
 	}
-	df.meta.freeList[id] = p.FreeSpace
+	df.meta.freeList[id] = p.FreeSpace()
 
 	overflowRecordsMapping := map[uint64][]types.DataType{}
 	if oveflow {
@@ -178,18 +179,19 @@ func (df *DataFile) Scan(scanFn func(ptr *RecordPointer, row []types.DataType) (
 	defer df.mu.RUnlock()
 
 	totalPages := df.pager.Count()
-	L: for pageId := uint64(1); pageId < totalPages; pageId++ {
+	for pageId := uint64(1); pageId < totalPages; pageId++ {
 		page, err := df.fetch(pageId)
 		if err != nil {
 			return err
 		}
 
-		for slotId, record := range page.Slots {
-			if stop, err := scanFn(&RecordPointer{pageId, uint16(slotId)}, record.data); err != nil {
-				return err
-			} else if stop {
-				break L
-			}
+		stopped, err := page.Each(func(key uint16, slot *record) (bool, error) {
+			return scanFn(&RecordPointer{pageId, key}, slot.data)
+		})
+		if err != nil {
+			return err
+		} else if stopped {
+			break
 		}
 	}
 
@@ -230,20 +232,20 @@ func (df *DataFile) newRecord(data []types.DataType) *record {
 	}
 }
 
-func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], int, error) {
+func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], uint16, error) {
 	r := df.newRecord(val)
 
 	page, err := df.alloc(r.Size() + pager.SlotHeaderSz)
 	if err != nil {
-		return nil, -1, err
+		return nil, 0, err
 	}
 
 	index, err := page.AddSlot(r)
 	if err != nil {
-		return nil, -1, err
+		return nil, 0, err
 	}
 
-	df.meta.freeList[page.Id] = page.FreeSpace
+	df.meta.freeList[page.Id] = page.FreeSpace()
 	
 	df.meta.size++
 	df.meta.dirty = true
