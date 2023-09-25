@@ -1,6 +1,6 @@
 // Package index defines common interface and errors for indexing implementations
 // to use.
-package index
+package customerrors
 
 import (
 	"errors"

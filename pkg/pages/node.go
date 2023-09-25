@@ -16,7 +16,7 @@ const (
 )
 
 // newNode initializes an in-memory leaf node and returns.
-func NewNode(id uint64, pageSz int) *Node {
+func NewNode(id uint64) *Node {
 	return &Node{
 		Id:    id,
 		Dirty: true,

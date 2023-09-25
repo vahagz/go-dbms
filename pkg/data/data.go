@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/index"
+	"go-dbms/pkg/customerrors"
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/pages"
 	"go-dbms/pkg/types"
@@ -66,7 +66,7 @@ type DataFile struct {
 // Get fetches the record from the given pointer. Returns error if record not found.
 func (df *DataFile) GetPage(id uint64) (map[uint16][]types.DataType, error) {
 	if id <= 0 {
-		return nil, index.ErrEmptyKey
+		return nil, customerrors.ErrEmptyKey
 	}
 
 	df.mu.RLock()
@@ -98,7 +98,7 @@ func (df *DataFile) InsertRecord(val []types.DataType) (*RecordPointer, error) {
 
 func (df *DataFile) InsertRecordMem(val []types.DataType) (*RecordPointer, error) {
 	if len(val) != len(df.columns) {
-		return nil, index.ErrKeyTooLarge
+		return nil, customerrors.ErrKeyTooLarge
 	}
 
 	df.mu.Lock()

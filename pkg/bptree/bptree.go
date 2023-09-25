@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 
-	"go-dbms/pkg/index"
+	"go-dbms/pkg/customerrors"
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/pages"
 	"go-dbms/util/helpers"
@@ -77,21 +77,21 @@ type BPlusTree struct {
 // not found.
 func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	if len(key) == 0 {
-		return nil, index.ErrEmptyKey
+		return nil, customerrors.ErrEmptyKey
 	}
 
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
 	if len(tree.root.Entries) == 0 {
-		return nil, index.ErrKeyNotFound
+		return nil, customerrors.ErrKeyNotFound
 	}
 
 	n, startIdx, endIdx, found, err := tree.searchRec(tree.root, key)
 	if err != nil {
 		return nil, err
 	} else if !found {
-		return nil, index.ErrKeyNotFound
+		return nil, customerrors.ErrKeyNotFound
 	}
 
 	res := make([][]byte, endIdx - startIdx + 1)
@@ -110,9 +110,9 @@ func (tree *BPlusTree) Put(key [][]byte, val []byte, opt *PutOptions) error {
 	}
 
 	if keylen > int(tree.meta.maxKeySz) {
-		return index.ErrKeyTooLarge
+		return customerrors.ErrKeyTooLarge
 	} else if keylen == 0 {
-		return index.ErrEmptyKey
+		return customerrors.ErrEmptyKey
 	}
 
 	tree.mu.Lock()
@@ -146,7 +146,7 @@ func (tree *BPlusTree) Del(key [][]byte) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	} else if !found {
-		return nil, index.ErrKeyNotFound
+		return nil, customerrors.ErrKeyNotFound
 	}
 
 	valArr := make([][]byte, endIdx - startIdx + 1)
@@ -461,7 +461,7 @@ func (tree *BPlusTree) fetch(id uint64) (*pages.Node, error) {
 		return n, nil
 	}
 
-	n = pages.NewNode(id, int(tree.meta.pageSz))
+	n = pages.NewNode(id)
 	if err := tree.pager.Unmarshal(id, n); err != nil {
 		return nil, err
 	}
@@ -504,7 +504,7 @@ func (tree *BPlusTree) alloc(n int) ([]*pages.Node, error) {
 
 	nodes := make([]*pages.Node, n)
 	for i := 0; i < n; i++ {
-		n := pages.NewNode(pid, int(tree.meta.pageSz))
+		n := pages.NewNode(pid)
 		tree.nodes[pid] = n
 		nodes[i] = n
 		pid++
@@ -552,7 +552,7 @@ func (tree *BPlusTree) init(opts Options) error {
 		return err
 	}
 
-	tree.root = pages.NewNode(1, tree.pager.PageSize())
+	tree.root = pages.NewNode(1)
 	tree.nodes[tree.root.Id] = tree.root
 
 	tree.meta = metadata{
@@ -605,7 +605,7 @@ func (tree *BPlusTree) canMutate() error {
 	if tree.pager == nil {
 		return os.ErrClosed
 	} else if tree.pager.ReadOnly() {
-		return index.ErrImmutable
+		return customerrors.ErrImmutable
 	}
 	return nil
 }
