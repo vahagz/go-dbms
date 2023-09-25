@@ -11,6 +11,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/pager"
+	"go-dbms/pkg/pages"
 	"go-dbms/pkg/types"
 )
 
@@ -34,7 +35,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 		mu:      &sync.RWMutex{},
 		file:    fileName,
 		pager:   p,
-		pages:   map[uint64]*pager.Page[*record]{},
+		pages:   map[uint64]*pages.Data[*record]{},
 		meta:    &metadata{},
 		columns: opts.Columns,
 	}
@@ -57,7 +58,7 @@ type DataFile struct {
 	// df state
 	mu      *sync.RWMutex
 	pager   *pager.Pager
-	pages   map[uint64]*pager.Page[*record] // page cache to avoid IO
+	pages   map[uint64]*pages.Data[*record] // page cache to avoid IO
 	meta    *metadata                       // metadata about df structure
 	columns []*column.Column                // columns list of data
 }
@@ -232,10 +233,10 @@ func (df *DataFile) newRecord(data []types.DataType) *record {
 	}
 }
 
-func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], uint16, error) {
+func (df *DataFile) insertRecord(val []types.DataType) (*pages.Data[*record], uint16, error) {
 	r := df.newRecord(val)
 
-	page, err := df.alloc(r.Size() + pager.SlotHeaderSz)
+	page, err := df.alloc(r.Size() + pages.SlotHeaderSz)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -256,22 +257,15 @@ func (df *DataFile) insertRecord(val []types.DataType) (*pager.Page[*record], ui
 
 // fetch returns the record from given pointer. underlying file is accessed
 // only if the record doesn't exist in cache.
-func (df *DataFile) fetch(id uint64) (*pager.Page[*record], error) {
+func (df *DataFile) fetch(id uint64) (*pages.Data[*record], error) {
 	page, found := df.pages[id]
 	if found {
-		if page.Flags & PAGE_FLAG_DELETED != 0 {
-			return nil, errors.New("page deleted")
-		}
 		return page, nil
 	}
 
-	page = pager.NewPage(id, int(df.meta.pageSz), df.newRecord(nil))
+	page = pages.NewData(id, int(df.meta.pageSz), df.newRecord(nil))
 	if err := df.pager.Unmarshal(id, page); err != nil {
 		return nil, err
-	}
-
-	if page.Flags & PAGE_FLAG_DELETED != 0 {
-		return nil, errors.New("page deleted")
 	}
 
 	page.Dirty = false
@@ -282,7 +276,7 @@ func (df *DataFile) fetch(id uint64) (*pager.Page[*record], error) {
 
 // alloc allocates page required to store data. alloc will reuse
 // pages from free-list if available.
-func (df *DataFile) alloc(minSize int) (*pager.Page[*record], error) {
+func (df *DataFile) alloc(minSize int) (*pages.Data[*record], error) {
 	// check if there are enough free pages from the freelist
 	pid := uint64(0)
 	freeSpace := 0
@@ -300,11 +294,11 @@ func (df *DataFile) alloc(minSize int) (*pager.Page[*record], error) {
 			return nil, err
 		}
 
-		page := pager.NewPage(pid, int(df.meta.pageSz), df.newRecord(nil))
+		page := pages.NewData(pid, int(df.meta.pageSz), df.newRecord(nil))
 		return page, nil
 	}
 
-	page := pager.NewPage(pid, int(df.meta.pageSz), df.newRecord(nil))
+	page := pages.NewData(pid, int(df.meta.pageSz), df.newRecord(nil))
 	return page, df.pager.Unmarshal(pid, page)
 }
 
@@ -387,31 +381,4 @@ func (df *DataFile) writeMeta() error {
 	}
 
 	return nil
-}
-
-// allocSeq finds a subset of size 'n' in 'free' that is sequential.
-// Returns the first int in the sequence the set after removing the
-// subset.
-func allocSeq(free []int, n int) (id int, remaining []int) {
-	if len(free) <= n {
-		return -1, free
-	} else if n == 1 {
-		return free[0], free[1:]
-	}
-
-	i, j := 0, 0
-	for ; i < len(free); i++ {
-		j = i + (n - 1)
-		if j < len(free) && free[j] == free[i]+(n-1) {
-			break
-		}
-	}
-
-	if i >= len(free) || j >= len(free) {
-		return -1, free
-	}
-
-	id = free[i]
-	free = append(free[:i], free[j+1:]...)
-	return id, free
 }

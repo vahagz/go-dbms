@@ -129,6 +129,7 @@ func main() {
 	// }
 
 	// TODO: add page overflow logic
+	// TODO: handle case when count of duplicate entries in node doesn't fit in page
 	// TODO: add freelist login
 	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
 		printData(table.Columns(), []map[string]types.DataType{row})

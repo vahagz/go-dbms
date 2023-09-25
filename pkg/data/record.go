@@ -6,9 +6,6 @@ import (
 	"go-dbms/pkg/types"
 )
 
-// no header in record
-const recordHeaderSz = 0
-
 // record represents a data row in the Data file.
 type record struct {
 	// configs for read/write
@@ -26,7 +23,7 @@ func (r *record) Copy() interface{} {
 }
 
 func (r record) Size() int {
-	sz := recordHeaderSz
+	sz := 0
 
 	for i := 0; i < len(r.data); i++ {
 		// 1 for the type code size

@@ -1,10 +1,13 @@
-package pager
+package pages
 
 import (
 	"encoding"
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
+
+var bin = binary.BigEndian
 
 type Slot interface {
 	encoding.BinaryMarshaler
@@ -18,19 +21,19 @@ const pageHeaderSz = 3
 // 6 is 2 + 2 + 2 (slot size + slot offset size + slot key size)
 const SlotHeaderSz = 6
 
-func NewPage[T Slot](id uint64, PageSize int, dst T) *Page[T] {
-	return &Page[T]{
+func NewData[T Slot](id uint64, pageSize int, dst T) *Data[T] {
+	return &Data[T]{
 		dst: dst,
 
 		Dirty:     true,
 		Id:        id,
-		PageSize:  PageSize,
-		freeSpace: PageSize - pageHeaderSz,
+		PageSize:  pageSize,
+		freeSpace: pageSize - pageHeaderSz,
 	}
 }
 
 // page represents a fixed size data block in file.
-type Page[T Slot] struct {
+type Data[T Slot] struct {
 	dst T
 
 	Flags    uint8
@@ -44,7 +47,7 @@ type Page[T Slot] struct {
 	freeSpace  int
 }
 
-func (p *Page[T]) AddSlot(slot T) (uint16, error) {
+func (p *Data[T]) AddSlot(slot T) (uint16, error) {
 	if p.freeSpace < slot.Size() + SlotHeaderSz {
 		return 0, errors.New("not enough space for new slot")
 	}
@@ -55,7 +58,7 @@ func (p *Page[T]) AddSlot(slot T) (uint16, error) {
 	return key, nil
 }
 
-func (p *Page[T]) RemoveSlot(slotKey uint16) error {
+func (p *Data[T]) RemoveSlot(slotKey uint16) error {
 	if _, ok := p.slots[slotKey]; !ok {
 		return fmt.Errorf("slot not found with key => %v", slotKey)
 	}
@@ -65,16 +68,16 @@ func (p *Page[T]) RemoveSlot(slotKey uint16) error {
 	return nil
 }
 
-func (p *Page[T]) ClearSlots() {
+func (p *Data[T]) ClearSlots() {
 	p.slots = map[uint16]T{}
 	p.CalculateFreeSpace()
 }
 
-func (p *Page[T]) SlotCount() int {
+func (p *Data[T]) SlotCount() int {
 	return len(p.slots)
 }
 
-func (p *Page[T]) Each(fn func(key uint16, slot T) (bool, error)) (bool, error) {
+func (p *Data[T]) Each(fn func(key uint16, slot T) (bool, error)) (bool, error) {
 	var stop bool
 	var err  error
 	for k, v := range p.slots {
@@ -88,7 +91,7 @@ func (p *Page[T]) Each(fn func(key uint16, slot T) (bool, error)) (bool, error) 
 	return false, nil
 }
 
-func (p *Page[T]) CalculateFreeSpace() {
+func (p *Data[T]) CalculateFreeSpace() {
 	fs := p.PageSize - pageHeaderSz
 	slotsSize := 0
 
@@ -99,11 +102,11 @@ func (p *Page[T]) CalculateFreeSpace() {
 	p.freeSpace = fs - slotsSize
 }
 
-func (p Page[T]) FreeSpace() int {
+func (p *Data[T]) FreeSpace() int {
 	return p.freeSpace
 }
 
-func (p Page[T]) MarshalBinary() ([]byte, error) {
+func (p *Data[T]) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, p.PageSize)
 	leftOffset := 0
 	rightOffset := p.PageSize
@@ -136,7 +139,7 @@ func (p Page[T]) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-func (p *Page[T]) UnmarshalBinary(d []byte) error {
+func (p *Data[T]) UnmarshalBinary(d []byte) error {
 	if p == nil {
 		return errors.New("cannot unmarshal into nil page")
 	}
@@ -176,7 +179,7 @@ func (p *Page[T]) UnmarshalBinary(d []byte) error {
 	return nil
 }
 
-func (p *Page[T]) newSlotKey() uint16 {
+func (p *Data[T]) newSlotKey() uint16 {
 	for k := uint16(1); k <= 0xffff; k++ {
 		if _, ok := p.slots[k]; !ok {
 			return k
