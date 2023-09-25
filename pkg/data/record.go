@@ -29,7 +29,7 @@ func (r record) Size() int {
 	sz := recordHeaderSz
 
 	for i := 0; i < len(r.data); i++ {
-		// 1 for the type size
+		// 1 for the type code size
 		sz += 1 + r.data[i].Size()
 
 		if !r.data[i].IsFixedSize() {

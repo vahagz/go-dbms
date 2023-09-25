@@ -42,9 +42,9 @@ func main() {
 
 	options = &table.Options{
 		Columns: []*column.Column{
-			column.New("id",        types.Meta(types.TYPE_INT,     false, true, 4)),
-			column.New("firstname", types.Meta(types.TYPE_VARCHAR, false, 32)),
-			column.New("lastname",  types.Meta(types.TYPE_VARCHAR, false, 32)),
+			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4)),
+			column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
+			column.New("lastname",  types.Meta(types.TYPE_VARCHAR, 32)),
 		},
 	}
 
@@ -92,14 +92,14 @@ func main() {
 
 
 
-	// err = table.CreateIndex(nil, []string{"id"}, false)
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// err = table.CreateIndex(nil, []string{"firstname","lastname"}, false)
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
+	err = table.CreateIndex(nil, []string{"id"}, false)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	err = table.CreateIndex(nil, []string{"firstname","lastname"}, false)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 
 

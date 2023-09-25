@@ -4,18 +4,26 @@ import (
 	"fmt"
 )
 
-func NewINTEGERMeta(signed bool, byteSize uint8) *DataTypeINTEGERMeta {
-	return &DataTypeINTEGERMeta{
-		Signed:   signed,
-		ByteSize: byteSize,
-	}
-}
+func init() {
+	typesMap[TYPE_INTEGER] = newable{
+		newInstance: func(meta DataTypeMeta) DataType {
+			m := meta.(*DataTypeINTEGERMeta)
+			return &DataTypeINTEGER{
+				value: make([]byte, m.ByteSize),
+				Code:  m.GetCode(),
+				Meta:  m,
+			}
+		},
+		newMeta: func(args ...interface{}) DataTypeMeta {
+			if len(args) == 0 {
+				return &DataTypeINTEGERMeta{}
+			}
 
-func NewINTEGER(code TypeCode, meta *DataTypeINTEGERMeta) *DataTypeINTEGER {
-	return &DataTypeINTEGER{
-		value: make([]byte, meta.ByteSize),
-		Code:  code,
-		Meta:  meta,
+			return &DataTypeINTEGERMeta{
+				Signed:   args[0].(bool),
+				ByteSize: convert(args[1], new(uint8)),
+			}
+		},
 	}
 }
 
@@ -25,7 +33,7 @@ type DataTypeINTEGERMeta struct {
 }
 
 func (m *DataTypeINTEGERMeta) GetCode() TypeCode {
-	return TYPE_INT
+	return TYPE_INTEGER
 }
 
 func (m *DataTypeINTEGERMeta) Size() int {

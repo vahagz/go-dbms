@@ -4,14 +4,21 @@ import (
 	"fmt"
 )
 
-func NewSTRINGMeta() *DataTypeSTRINGMeta {
-	return &DataTypeSTRINGMeta{}
-}
+func init() {
+	typesMap[TYPE_STRING] = newable{
+		newInstance: func(meta DataTypeMeta) DataType {
+			return &DataTypeSTRING{
+				Code: meta.GetCode(),
+				Meta: meta.(*DataTypeSTRINGMeta),
+			}
+		},
+		newMeta: func(args ...interface{}) DataTypeMeta {
+			if len(args) == 0 {
+				return &DataTypeSTRINGMeta{}
+			}
 
-func NewSTRING(code TypeCode, meta *DataTypeSTRINGMeta) *DataTypeSTRING {
-	return &DataTypeSTRING{
-		Code: code,
-		Meta: meta,
+			return &DataTypeSTRINGMeta{}
+		},
 	}
 }
 

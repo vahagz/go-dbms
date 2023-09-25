@@ -33,6 +33,6 @@ func (c *Column) UnmarshalJSON(data []byte) error {
 
 	c.Name = col.Name
 	c.Typ = col.Typ
-	c.Meta = types.Meta(col.Typ, true)
+	c.Meta = types.Meta(col.Typ)
 	return json.Unmarshal(col.Meta, c.Meta)
 }

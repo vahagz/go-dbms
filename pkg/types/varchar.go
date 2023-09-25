@@ -4,17 +4,25 @@ import (
 	"fmt"
 )
 
-func NewVARCHARMeta(length uint16) *DataTypeVARCHARMeta {
-	return &DataTypeVARCHARMeta{
-		Cap: length,
-	}
-}
+func init() {
+	typesMap[TYPE_VARCHAR] = newable{
+		newInstance: func(meta DataTypeMeta) DataType {
+			m := meta.(*DataTypeVARCHARMeta)
+			return &DataTypeVARCHAR{
+				value: make([]byte, m.Cap),
+				Code: m.GetCode(),
+				Meta: m,
+			}
+		},
+		newMeta: func(args ...interface{}) DataTypeMeta {
+			if len(args) == 0 {
+				return &DataTypeVARCHARMeta{}
+			}
 
-func NewVARCHAR(code TypeCode, meta *DataTypeVARCHARMeta) *DataTypeVARCHAR {
-	return &DataTypeVARCHAR{
-		value: make([]byte, meta.Cap),
-		Code:  code,
-		Meta:  meta,
+			return &DataTypeVARCHARMeta{
+				Cap: convert(args[0], new(uint16)),
+			}
+		},
 	}
 }
 
