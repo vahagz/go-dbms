@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"os"
 	"strings"
-
-	"golang.org/x/exp/constraints"
 )
 
 func TrimSuffix(s, suffix string) string {
@@ -13,16 +11,6 @@ func TrimSuffix(s, suffix string) string {
 		s = s[:len(s)-len(suffix)]
 	}
 	return s
-}
-
-func Min[T constraints.Ordered](numbers ...T) T {
-	var min T = numbers[0]
-	for _, n := range numbers {
-		if n < min {
-			min = n
-		}
-	}
-	return min
 }
 
 func CreateDir(dir string) error {

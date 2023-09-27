@@ -197,14 +197,9 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 	t.indexes[*name] = i
 
-	err = t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
+	return t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
 		return false, i.Insert(ptr, row)
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t *Table) Columns() []*column.Column {

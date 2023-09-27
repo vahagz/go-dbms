@@ -236,7 +236,7 @@ func (df *DataFile) newRecord(data []types.DataType) *record {
 func (df *DataFile) insertRecord(val []types.DataType) (*pages.Data[*record], uint16, error) {
 	r := df.newRecord(val)
 
-	page, err := df.alloc(r.Size() + pages.SlotHeaderSz)
+	page, err := df.alloc(r.Size() + uint(pages.SlotHeaderSz))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -263,7 +263,7 @@ func (df *DataFile) fetch(id uint64) (*pages.Data[*record], error) {
 		return page, nil
 	}
 
-	page = pages.NewData(id, int(df.meta.pageSz), df.newRecord(nil))
+	page = pages.NewData(id, df.meta.pageSz, df.newRecord(nil))
 	if err := df.pager.Unmarshal(id, page); err != nil {
 		return nil, err
 	}
@@ -276,12 +276,12 @@ func (df *DataFile) fetch(id uint64) (*pages.Data[*record], error) {
 
 // alloc allocates page required to store data. alloc will reuse
 // pages from free-list if available.
-func (df *DataFile) alloc(minSize int) (*pages.Data[*record], error) {
+func (df *DataFile) alloc(minSize uint) (*pages.Data[*record], error) {
 	// check if there are enough free pages from the freelist
 	pid := uint64(0)
-	freeSpace := 0
+	freeSpace := uint16(0)
 	for id, fs := range df.meta.freeList {
-		if (pid == 0 && fs >= minSize) || (fs >= minSize && fs < freeSpace) {
+		if (pid == 0 && uint(fs) >= minSize) || (uint(fs) >= minSize && fs < freeSpace) {
 			pid = id
 			freeSpace = fs
 		}
@@ -294,11 +294,11 @@ func (df *DataFile) alloc(minSize int) (*pages.Data[*record], error) {
 			return nil, err
 		}
 
-		page := pages.NewData(pid, int(df.meta.pageSz), df.newRecord(nil))
+		page := pages.NewData(pid, df.meta.pageSz, df.newRecord(nil))
 		return page, nil
 	}
 
-	page := pages.NewData(pid, int(df.meta.pageSz), df.newRecord(nil))
+	page := pages.NewData(pid, df.meta.pageSz, df.newRecord(nil))
 	return page, df.pager.Unmarshal(pid, page)
 }
 
@@ -344,12 +344,12 @@ func (df *DataFile) init(opts *Options) error {
 		version: version,
 		flags:   0,
 		size:    0,
-		pageSz:  uint32(df.pager.PageSize()),
+		pageSz:  uint16(df.pager.PageSize()),
 	}
 
-	df.meta.freeList = make(map[uint64]int, opts.PreAlloc)
+	df.meta.freeList = make(map[uint64]uint16, opts.PreAlloc)
 	for i := uint64(0); i < uint64(opts.PreAlloc); i++ {
-		df.meta.freeList[i + 1] = int(df.meta.pageSz) // +1 since first page reserved
+		df.meta.freeList[i + 1] = df.meta.pageSz // +1 since first page reserved
 	}
 
 	return nil
