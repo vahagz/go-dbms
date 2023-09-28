@@ -35,6 +35,8 @@ type Freelist interface {
 	Get(ptr *Pointer) (uint16, error)
 	Set(ptr *Pointer, freeSpace uint16) error
 	Fit(size uint16) (uint64, *Pointer, error)
+	Close() error
+	Print() error
 }
 
 type freelist struct {
@@ -47,7 +49,7 @@ type freelist struct {
 }
 
 func (fl *freelist) Add(pageId uint64, freeSpace uint16) (*Pointer, error) {
-	left, _, _, _, err := fl.find(freeSpace)
+	leftPage, leftPtr, _, rightPtr, err := fl.find(freeSpace)
 	if err != nil {
 		return nil, err
 	}
@@ -57,19 +59,30 @@ func (fl *freelist) Add(pageId uint64, freeSpace uint16) (*Pointer, error) {
 			pageId:    pageId,
 			freeSpace: freeSpace,
 		},
-		next: left.next,
 	}
 
-	left.next, err = fl.add(itm)
+	if rightPtr != nil {
+		itm.next = rightPtr
+	}
+
+	itmPtr, err := fl.add(itm)
 	if err != nil {
 		return nil, err
 	}
 
-	return left.next, fl.writeAll()
+	if fl.meta.head == nil || leftPage == nil {
+		fl.meta.head = itmPtr
+		fl.meta.dirty = true
+	} else if leftPage != nil {
+		leftPage.items[leftPtr.Index].next = itmPtr
+		leftPage.dirty = true
+	}
+
+	return itmPtr, fl.writeAll()
 }
 
 func (fl *freelist) Get(ptr *Pointer) (uint16, error) {
-	itm, err := fl.getItem(ptr)
+	_, itm, err := fl.getItem(ptr)
 	if err != nil {
 		return 0, err
 	}
@@ -77,23 +90,26 @@ func (fl *freelist) Get(ptr *Pointer) (uint16, error) {
 }
 
 func (fl *freelist) Set(ptr *Pointer, freeSpace uint16) error {
-	p, err := fl.fetch(ptr.pageId)
+	p, err := fl.fetch(ptr.PageId)
 	if err != nil {
 		return err
 	}
 
 	p.dirty = true
-	p.items[ptr.index].val.freeSpace = freeSpace
+	p.items[ptr.Index].val.freeSpace = freeSpace
 	return nil
 }
 
 func (fl *freelist) Fit(size uint16) (uint64, *Pointer, error) {
-	_, _, right, rightPtr, err := fl.find(size)
+	_, _, rightPage, rightPtr, err := fl.find(size)
 	if err != nil {
 		return 0, nil, nil
 	}
-	if right != nil {
-		return right.val.pageId, rightPtr, nil
+	if rightPage != nil {
+		rightPage.dirty = true
+		itm := rightPage.items[rightPtr.Index]
+		itm.val.freeSpace -= size
+		return itm.val.pageId, rightPtr, nil
 	}
 
 	pid, err := fl.allocator.Alloc(1)
@@ -101,8 +117,25 @@ func (fl *freelist) Fit(size uint16) (uint64, *Pointer, error) {
 		return 0, nil, nil
 	}
 
-	flPid, err := fl.Add(pid, fl.targetPageSize)
-	return pid, flPid, err
+	ptr, err := fl.Add(pid, fl.targetPageSize - size)
+	return pid, ptr, err
+}
+
+func (fl *freelist) Close() error {
+	err := fl.writeAll()
+	if err != nil {
+		return err
+	}
+	return fl.pager.Close()
+}
+
+func (fl *freelist) Print() error {
+	fmt.Println("pages", fl.meta.notFullPages)
+	fmt.Println("head", fl.meta.head)
+	return fl.scan(nil, func(p *page, itm *item, ptr *Pointer) (bool, error) {
+		fmt.Println(ptr, itm.val, itm.next)
+		return false, nil
+	})
 }
 
 func (fl *freelist) add(itm *item) (*Pointer, error) {
@@ -111,7 +144,7 @@ func (fl *freelist) add(itm *item) (*Pointer, error) {
 	err := fl.scanMeta(func(meta *metadata, pageId uint32) (bool, error) {
 		meta.dirty = true
 		meta.notFullPages[pageId]--
-		
+
 		page, err := fl.fetch(pageId)
 		if err != nil {
 			return true, err
@@ -120,56 +153,64 @@ func (fl *freelist) add(itm *item) (*Pointer, error) {
 		itmPageId = pageId
 		itmIndex = page.free[0]
 		page.dirty = true
-		page.free = page.free[1:]
 		page.items[itmIndex] = itm
+
+		if meta.notFullPages[pageId] == 0 {
+			page.free = page.free[1:]
+		}
 
 		return true, nil
 	})
 
 	return &Pointer{
-		pageId: itmPageId,
-		index:  itmIndex,
+		PageId: itmPageId,
+		Index:  itmIndex,
 	}, err
 }
 
 func (fl *freelist) find(
 	size uint16,
 ) (
-	left *item,
+	leftPage *page,
 	leftPtr *Pointer,
-	right *item,
+	rightPage *page,
 	rightPtr *Pointer,
 	err error,
 ) {
-	err = fl.scan(nil, func(itm *item, ptr *Pointer) (bool, error) {
+	err = fl.scan(nil, func(p *page, itm *item, ptr *Pointer) (bool, error) {
 		if itm.val.freeSpace >= size {
-			right = itm
+			rightPage = p
 			rightPtr = ptr
 			return true, nil
 		}
-		left = itm
+		leftPage = p
 		leftPtr = ptr
 		return false, nil
 	})
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return left, leftPtr, right, rightPtr, nil
+	return leftPage, leftPtr, rightPage, rightPtr, nil
 }
 
-func (fl *freelist) scan(start *Pointer, scanFn func(itm *item, ptr *Pointer) (bool, error)) error {
+func (fl *freelist) scan(start *Pointer, scanFn func(p *page, itm *item, ptr *Pointer) (bool, error)) error {
 	ptr := fl.meta.head
 	if start != nil {
 		ptr = start
 	}
 
 	var err error
+	var p *page
 	var itm *item
 	var stop bool
 
 	for ptr != nil {
-		itm, err = fl.getItem(ptr)
-		stop, err = scanFn(itm, ptr)
+		p, itm, err = fl.getItem(ptr)
+		if err != nil {
+			return err
+		}
+
+		stop, err = scanFn(p, itm, ptr)
 		if err != nil {
 			return err
 		} else if stop {
@@ -182,17 +223,17 @@ func (fl *freelist) scan(start *Pointer, scanFn func(itm *item, ptr *Pointer) (b
 	return nil
 }
 
-func (fl *freelist) getItem(ptr *Pointer) (*item, error) {
-	p, err := fl.fetch(ptr.pageId)
+func (fl *freelist) getItem(ptr *Pointer) (*page, *item, error) {
+	p, err := fl.fetch(ptr.PageId)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	itm, ok := p.items[ptr.index]
+	itm, ok := p.items[ptr.Index]
 	if !ok {
-		return nil, fmt.Errorf("invalid pointer => %v", *ptr)
+		return nil, nil, fmt.Errorf("invalid pointer => %v", *ptr)
 	}
-	return itm, nil
+	return p, itm, nil
 }
 
 func (fl *freelist) fetch(id uint32) (*page, error) {
@@ -212,13 +253,15 @@ func (fl *freelist) fetch(id uint32) (*page, error) {
 	return page, nil
 }
 
-func (fl *freelist) fetchMeta(id uint32) (*metadata, error) {
+func (fl *freelist) fetchMeta(id uint32, pageSize uint16) (*metadata, error) {
 	meta, found := fl.metas[id]
 	if found {
 		return meta, nil
 	}
 
-	meta = &metadata{}
+	meta = &metadata{
+		pageSize: pageSize,
+	}
 	err := fl.pager.Unmarshal(uint64(id), meta)
 	if err != nil {
 		return nil, err
@@ -245,7 +288,7 @@ func (fl *freelist) scanMeta(scanFn func(meta *metadata, pageId uint32) (bool, e
 			break
 		}
 
-		meta, err = fl.fetchMeta(meta.next)
+		meta, err = fl.fetchMeta(meta.next, meta.pageSize)
 		if err != nil {
 			return err
 		}
@@ -260,13 +303,11 @@ func (fl *freelist) open(opts *Options) error {
 		if err != nil {
 			return err
 		}
-
-		fl.meta = &metadata{}
 		return fl.pager.Marshal(0, fl.meta)
 	}
 
 	var err error
-	fl.meta, err = fl.fetchMeta(0)
+	fl.meta, err = fl.fetchMeta(0, opts.FreelistPageSize)
 	return err
 }
 

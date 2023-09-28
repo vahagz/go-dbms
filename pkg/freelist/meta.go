@@ -1,6 +1,8 @@
 package freelist
 
-import "bytes"
+import (
+	"bytes"
+)
 
 const (
 	metadataHeaderSize = 12
@@ -21,10 +23,10 @@ func (m *metadata) MarshalBinary() ([]byte, error) {
 	offset := 0
 
 	if m.head != nil {
-		bin.PutUint32(buf[offset:offset+4], m.head.pageId)
+		bin.PutUint32(buf[offset:offset+4], m.head.PageId)
 		offset += 4
 
-		bin.PutUint16(buf[offset:offset+2], m.head.index)
+		bin.PutUint16(buf[offset:offset+2], m.head.Index)
 		offset += 2
 	} else {
 		offset += 6
@@ -57,10 +59,10 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	} else {
 		m.head = &Pointer{}
 
-		m.head.pageId = bin.Uint32(d[offset:offset+4])
+		m.head.PageId = bin.Uint32(d[offset:offset+4])
 		offset += 4
 
-		m.head.index = bin.Uint16(d[offset:offset+2])
+		m.head.Index = bin.Uint16(d[offset:offset+2])
 		offset += 2
 	}
 
