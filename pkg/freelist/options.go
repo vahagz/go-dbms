@@ -1,7 +1,8 @@
 package freelist
 
 type Options struct {
-	allocator        Allocator
-	targetPageSize   uint16
-	freelistPageSize uint16
+	Allocator        Allocator
+	PreAlloc         int
+	TargetPageSize   uint16
+	FreelistPageSize uint16
 }

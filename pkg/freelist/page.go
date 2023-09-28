@@ -2,32 +2,48 @@ package freelist
 
 import "bytes"
 
-const itemSize = 22
+const itemSize = 16
 
-func newPage(pageSize uint16) *page {
-	return &page{pageSize: pageSize}
+func newPage(id uint32, pageSize uint16) *page {
+	return &page{
+		id:       id,
+		dirty:    true,
+		pageSize: pageSize,
+		free:     []uint16{},
+		items:    map[uint16]*item{},
+	}
 }
 
 type value struct {
 	pageId    uint64
-	freeSpace uint64
+	freeSpace uint16
 }
 
-type pointer struct {
+type Pointer struct {
 	pageId uint32
 	index  uint16
 }
 
 type item struct {
 	val  *value
-	next *pointer
+	next *Pointer
 }
 
 type page struct {
+	id       uint32
+	dirty    bool
 	pageSize uint16
 
 	free  []uint16
 	items map[uint16]*item
+}
+
+func (p *page) init() {
+	count := p.pageSize / itemSize
+	p.free = make([]uint16, count)
+	for i := uint16(0); i < count; i++ {
+		p.free[i] = i
+	}
 }
 
 func (p *page) MarshalBinary() ([]byte, error) {
@@ -44,8 +60,8 @@ func (p *page) MarshalBinary() ([]byte, error) {
 
 		bin.PutUint64(buf[offset:offset+8], item.val.pageId)
 		offset += 8
-		bin.PutUint64(buf[offset:offset+8], item.val.freeSpace)
-		offset += 8
+		bin.PutUint16(buf[offset:offset+2], item.val.freeSpace)
+		offset += 2
 		bin.PutUint32(buf[offset:offset+4], item.next.pageId)
 		offset += 4
 		bin.PutUint16(buf[offset:offset+2], item.next.index)
@@ -68,15 +84,15 @@ func (p *page) UnmarshalBinary(d []byte) error {
 		}
 
 		itm := &item{
-			val: &value{},
-			next: &pointer{},
+			val:  &value{},
+			next: &Pointer{},
 		}
 
 		itm.val.pageId = bin.Uint64(d[offset:offset+8])
 		offset += 8
 
-		itm.val.freeSpace = bin.Uint64(d[offset:offset+8])
-		offset += 8
+		itm.val.freeSpace = bin.Uint16(d[offset:offset+2])
+		offset += 2
 
 		itm.next.pageId = bin.Uint32(d[offset:offset+8])
 		offset += 4
