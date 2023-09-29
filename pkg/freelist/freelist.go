@@ -49,7 +49,7 @@ type freelist struct {
 }
 
 func (fl *freelist) Add(pageId uint64, freeSpace uint16) (*Pointer, error) {
-	leftPage, leftPtr, _, rightPtr, err := fl.find(freeSpace)
+	leftPage, leftItm, rightPage, rightItm, err := fl.find(freeSpace)
 	if err != nil {
 		return nil, err
 	}
@@ -61,21 +61,30 @@ func (fl *freelist) Add(pageId uint64, freeSpace uint16) (*Pointer, error) {
 		},
 	}
 
-	if rightPtr != nil {
-		itm.next = rightPtr
+	if leftItm != nil {
+		itm.prev = leftItm.self
+	}
+	if rightItm != nil {
+		itm.next = rightItm.self
 	}
 
 	itmPtr, err := fl.add(itm)
 	if err != nil {
 		return nil, err
 	}
+	itm.self = itmPtr
 
 	if fl.meta.head == nil || leftPage == nil {
-		fl.meta.head = itmPtr
 		fl.meta.dirty = true
-	} else if leftPage != nil {
-		leftPage.items[leftPtr.Index].next = itmPtr
+		fl.meta.head = itmPtr
+	}
+	if leftPage != nil {
 		leftPage.dirty = true
+		itm.setPrev(leftItm)
+	}
+	if rightPage != nil {
+		rightPage.dirty = true
+		itm.setNext(rightItm)
 	}
 
 	return itmPtr, fl.writeAll()
@@ -95,21 +104,28 @@ func (fl *freelist) Set(ptr *Pointer, freeSpace uint16) error {
 		return err
 	}
 
+	itm, ok := p.items[ptr.Index]
+	if !ok {
+		return fmt.Errorf("invalid pointer => %v", *ptr)
+	}
+
 	p.dirty = true
-	p.items[ptr.Index].val.freeSpace = freeSpace
-	return nil
+	return fl.set(itm, freeSpace)
 }
 
 func (fl *freelist) Fit(size uint16) (uint64, *Pointer, error) {
-	_, _, rightPage, rightPtr, err := fl.find(size)
+	_, _, rightPage, rightItm, err := fl.find(size)
 	if err != nil {
 		return 0, nil, nil
 	}
 	if rightPage != nil {
 		rightPage.dirty = true
-		itm := rightPage.items[rightPtr.Index]
-		itm.val.freeSpace -= size
-		return itm.val.pageId, rightPtr, nil
+		err := fl.set(rightItm, rightItm.val.freeSpace - size)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		return rightItm.val.pageId, rightItm.self, nil
 	}
 
 	pid, err := fl.allocator.Alloc(1)
@@ -118,7 +134,10 @@ func (fl *freelist) Fit(size uint16) (uint64, *Pointer, error) {
 	}
 
 	ptr, err := fl.Add(pid, fl.targetPageSize - size)
-	return pid, ptr, err
+	if err != nil {
+		return 0, nil, err
+	}
+	return pid, ptr, fl.writeAll()
 }
 
 func (fl *freelist) Close() error {
@@ -132,8 +151,8 @@ func (fl *freelist) Close() error {
 func (fl *freelist) Print() error {
 	fmt.Println("pages", fl.meta.notFullPages)
 	fmt.Println("head", fl.meta.head)
-	return fl.scan(nil, func(p *page, itm *item, ptr *Pointer) (bool, error) {
-		fmt.Println(ptr, itm.val, itm.next)
+	return fl.scan(nil, false, func(p *page, itm *item) (bool, error) {
+		fmt.Printf("ptr -> %v, val -> %v, prev -> %v, next -> %v\n", itm.self, itm.val, itm.prev, itm.next)
 		return false, nil
 	})
 }
@@ -168,32 +187,156 @@ func (fl *freelist) add(itm *item) (*Pointer, error) {
 	}, err
 }
 
+func (fl *freelist) set(targetItem *item, freeSpace uint16) error {
+	var err error
+
+	targetPage, targetItem, err := fl.getItem(targetItem.self)
+	if err != nil {
+		return err
+	}
+
+	var prevPage *page
+	var prevItem *item
+	if targetItem.prev != nil {
+		prevPage, prevItem, err = fl.getItem(targetItem.prev)
+		if err != nil {
+			return err
+		}
+	}
+
+	var nextPage *page
+	var nextItem *item
+	if targetItem.next != nil {
+		nextPage, nextItem, err = fl.getItem(targetItem.next)
+		if err != nil {
+			return err
+		}
+	}
+
+	targetPage.dirty = true
+
+	if  (prevItem == nil || prevItem.val.freeSpace <= freeSpace) &&
+			(nextItem == nil || freeSpace <= nextItem.val.freeSpace) {
+		targetItem.val.freeSpace = freeSpace
+		return nil
+	}
+
+	var startPtr *Pointer
+	if nextItem != nil && nextItem.val.freeSpace < freeSpace {
+		settled := false
+		leftPage := nextPage
+		leftItem := nextItem
+		if nextItem != nil {
+			startPtr = nextItem.next
+		}
+		err := fl.scan(startPtr, false, func(p *page, itm *item) (bool, error) {
+			if freeSpace <= itm.val.freeSpace {
+				p.dirty = true
+				if leftPage != nil {
+					leftPage.dirty = true
+				}
+				targetItem.setBetween(leftItem, itm)
+				settled = true
+				return true, nil
+			}
+			leftPage = p
+			leftItem = itm
+			return false, nil
+		})
+		if err != nil {
+			return err
+		}
+
+		if !settled {
+			targetItem.setBetween(leftItem, nil)
+		}
+		if prevItem == nil {
+			_, head, err := fl.getItem(fl.meta.head)
+			if err != nil {
+				return err
+			}
+
+			nextItem.setBetween(nil, head)
+			fl.meta.dirty = true
+			fl.meta.head = nextItem.self
+		}
+	} else if prevItem != nil && freeSpace < prevItem.val.freeSpace {
+		settled := false
+		rightPage := prevPage
+		rightItem := prevItem
+		if prevItem != nil {
+			startPtr = prevItem.prev
+		}
+
+		err := fl.scan(startPtr, true, func(p *page, itm *item) (bool, error) {
+			if freeSpace >= itm.val.freeSpace {
+				p.dirty = true
+				if rightPage != nil {
+					rightPage.dirty = true
+				}
+				targetItem.setBetween(itm, rightItem)
+				settled = true
+				return true, nil
+			}
+			rightPage = p
+			rightItem = itm
+			return false, nil
+		})
+		if err != nil {
+			return err
+		}
+
+		if !settled {
+			_, head, err := fl.getItem(fl.meta.head)
+			if err != nil {
+				return err
+			}
+
+			targetItem.setBetween(nil, head)
+			fl.meta.dirty = true
+			fl.meta.head = targetItem.self
+		}
+	}
+
+	if prevItem != nil {
+		prevPage.dirty = true
+		prevItem.setNext(nextItem)
+	}
+	if nextItem != nil {
+		nextPage.dirty = true
+		nextItem.setPrev(prevItem)
+	}
+	targetItem.val.freeSpace = freeSpace
+
+	return nil
+}
+
 func (fl *freelist) find(
 	size uint16,
 ) (
 	leftPage *page,
-	leftPtr *Pointer,
+	leftItem *item,
 	rightPage *page,
-	rightPtr *Pointer,
+	rightItem *item,
 	err error,
 ) {
-	err = fl.scan(nil, func(p *page, itm *item, ptr *Pointer) (bool, error) {
+	err = fl.scan(nil, false, func(p *page, itm *item) (bool, error) {
 		if itm.val.freeSpace >= size {
 			rightPage = p
-			rightPtr = ptr
+			rightItem = itm
 			return true, nil
 		}
 		leftPage = p
-		leftPtr = ptr
+		leftItem = itm
 		return false, nil
 	})
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return leftPage, leftPtr, rightPage, rightPtr, nil
+	return leftPage, leftItem, rightPage, rightItem, nil
 }
 
-func (fl *freelist) scan(start *Pointer, scanFn func(p *page, itm *item, ptr *Pointer) (bool, error)) error {
+func (fl *freelist) scan(start *Pointer, reverse bool, scanFn func(p *page, itm *item) (bool, error)) error {
 	ptr := fl.meta.head
 	if start != nil {
 		ptr = start
@@ -210,14 +353,18 @@ func (fl *freelist) scan(start *Pointer, scanFn func(p *page, itm *item, ptr *Po
 			return err
 		}
 
-		stop, err = scanFn(p, itm, ptr)
+		stop, err = scanFn(p, itm)
 		if err != nil {
 			return err
 		} else if stop {
 			return nil
 		}
 
-		ptr = itm.next
+		if reverse {
+			ptr = itm.prev
+		} else {
+			ptr = itm.next
+		}
 	}
 
 	return nil

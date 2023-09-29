@@ -191,19 +191,26 @@ func main() {
 	defer fl.Close()
 	defer p.Close()
 
-	// p.Alloc(1)
-	// _, err = fl.Add(3, uint16(1000/*os.Getpagesize()*/))
+	// const n = 2
+	// p.Alloc(n)
+	// _, err = fl.Add(n, uint16(2000))
+	// // _, err = fl.Add(n, uint16(os.Getpagesize()))
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
 	// fmt.Println(fl.Get(&freelist.Pointer{
 	// 	PageId: 4,
-	// 	Index:  0,
+	// 	Index:  1,
 	// }))
 
-	pageId, ptr, err := fl.Fit(500)
-	fmt.Println(pageId, ptr, err)
+	// pageId, ptr, err := fl.Fit(3100)
+	// fmt.Println(pageId, ptr, err)
+
+	fmt.Println(fl.Set(&freelist.Pointer{
+		PageId: 4,
+		Index:  0,
+	}, 3500))
 
 	err = fl.Print()
 	if err != nil {
