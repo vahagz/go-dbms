@@ -1,6 +1,9 @@
 package freelist
 
-import "bytes"
+import (
+	"bytes"
+	"fmt"
+)
 
 const itemSize = 22
 
@@ -29,6 +32,21 @@ func (p *page) init() {
 	for i := uint16(0); i < count; i++ {
 		p.free[i] = i
 	}
+}
+
+func (p *page) addItem(itm *item) (*Pointer, error) {
+	if len(p.free) == 0 {
+		return nil, fmt.Errorf("not enough free space in page => %v", p.id)
+	}
+
+	itmIndex := p.free[0]
+	p.free = p.free[1:]
+	p.dirty = true
+	p.items[itmIndex] = itm
+	return &Pointer{
+		PageId: p.id,
+		Index:  itmIndex,
+	}, nil
 }
 
 func (p *page) MarshalBinary() ([]byte, error) {

@@ -12,6 +12,14 @@ type item struct {
 	prev *Pointer
 }
 
+func (i *item) isHead() bool {
+	return i.prev == nil
+}
+
+func (i *item) isTail() bool {
+	return i.next == nil
+}
+
 func (i *item) setPrev(itm *item) {
 	if itm == nil {
 		i.prev = nil

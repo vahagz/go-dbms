@@ -164,11 +164,15 @@ import (
 	"go-dbms/pkg/freelist"
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
+	r "math/rand"
 	"os"
 	"path"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
+
+var rand = r.New(r.NewSource(time.Now().Unix()))
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
@@ -180,7 +184,7 @@ func main() {
 
 	fl, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.Options{
 		Allocator:        p,
-		PreAlloc:         5,
+		PreAlloc:         100,
 		TargetPageSize:   uint16(p.PageSize()),
 		FreelistPageSize: uint16(os.Getpagesize()),
 	})
@@ -188,16 +192,29 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	defer fl.Close()
-	defer p.Close()
+	start := time.Now()
+	exitFunc := func() {
+		// fmt.Println("TOTAL DURATION =>", time.Since(start))
+		_ = fl.Close()
+		_ = p.Close()
+	}
+	logrus.RegisterExitHandler(exitFunc)
+	defer exitFunc()
 
-	// const n = 2
-	// p.Alloc(n)
-	// _, err = fl.Add(n, uint16(2000))
-	// // _, err = fl.Add(n, uint16(os.Getpagesize()))
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
+
+	for i := 1; i <= 1000; i++ {
+		// p.Alloc(i)
+		_, err = fl.AddMem(uint64(i), uint16(rand.Intn(4096)))
+		if err != nil {
+			logrus.Fatal(err)
+		}
+	}
+	fmt.Println("ADD DURATION =>", time.Since(start))
+	start = time.Now()
+	if err := fl.Flush(); err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println("FLUSH DURATION =>", time.Since(start))
 
 	// fmt.Println(fl.Get(&freelist.Pointer{
 	// 	PageId: 4,
@@ -207,13 +224,14 @@ func main() {
 	// pageId, ptr, err := fl.Fit(3100)
 	// fmt.Println(pageId, ptr, err)
 
-	fmt.Println(fl.Set(&freelist.Pointer{
-		PageId: 4,
-		Index:  0,
-	}, 3500))
+	// if err = fl.Set(&freelist.Pointer{
+	// 	PageId: 1,
+	// 	Index:  2,
+	// }, 0); err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
-	err = fl.Print()
-	if err != nil {
+	if err = fl.Print(); err != nil {
 		logrus.Fatal(err)
 	}
 }
