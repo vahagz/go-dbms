@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	metadataHeaderSize = 14
+	metadataHeaderSize = 16
 	metadataItemSize   = 6
 )
 
@@ -15,6 +15,7 @@ type metadata struct {
 
 	head         *Pointer
 	preAlloc     uint16
+	valSize      uint16
 	next         uint32
 	notFullPages map[uint32]uint16
 }
@@ -27,8 +28,12 @@ func (m *metadata) itemsPerPage() int {
 	return (int(m.pageSize) - metadataHeaderSize) / metadataItemSize
 }
 
-func (m *metadata) count() int {
-	return int(m.pageSize)
+func (m *metadata) updatePageFreeCount(p *page) {
+	m.dirty = true
+	m.notFullPages[p.id]--
+	if m.notFullPages[p.id] == 0 {
+		delete(m.notFullPages, p.id)
+	}
 }
 
 func (m *metadata) MarshalBinary() ([]byte, error) {
@@ -46,6 +51,9 @@ func (m *metadata) MarshalBinary() ([]byte, error) {
 	}
 
 	bin.PutUint16(buf[offset:offset+2], uint16(m.preAlloc))
+	offset += 2
+
+	bin.PutUint16(buf[offset:offset+2], uint16(m.valSize))
 	offset += 2
 
 	bin.PutUint32(buf[offset:offset+4], m.next)
@@ -83,6 +91,9 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	}
 
 	m.preAlloc = bin.Uint16(d[offset:offset+2])
+	offset += 2
+
+	m.valSize = bin.Uint16(d[offset:offset+2])
 	offset += 2
 
 	m.next = bin.Uint32(d[offset:offset+4])

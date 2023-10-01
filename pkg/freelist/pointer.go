@@ -1,6 +1,18 @@
 package freelist
 
+import (
+	"encoding"
+	"errors"
+)
+
 const PointerSize = 6
+
+var ErrInvalidPTR = errors.New("invalid pointer")
+
+type PTR interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
 
 type Pointer struct {
 	PageId uint32
@@ -9,7 +21,7 @@ type Pointer struct {
 
 func (p *Pointer) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, PointerSize)
-	
+
 	bin.PutUint32(buf[0:4], p.PageId)
 	bin.PutUint16(buf[4:6], p.Index)
 

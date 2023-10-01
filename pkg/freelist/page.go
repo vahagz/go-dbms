@@ -5,13 +5,12 @@ import (
 	"fmt"
 )
 
-const itemSize = 22
-
-func newPage(id uint32, pageSize uint16) *page {
+func newPage(id uint32, pageSize, valSize uint16) *page {
 	return &page{
 		id:       id,
 		dirty:    true,
 		pageSize: pageSize,
+		valSize:  valSize,
 		free:     []uint16{},
 		items:    map[uint16]*item{},
 	}
@@ -21,36 +20,58 @@ type page struct {
 	id       uint32
 	dirty    bool
 	pageSize uint16
+	valSize  uint16
 
 	free  []uint16
 	items map[uint16]*item
 }
 
 func (p *page) init() {
-	count := p.pageSize / itemSize
+	count := p.pageSize / (itemHeaderSize + p.valSize)
 	p.free = make([]uint16, count)
+	p.dirty = true
 	for i := uint16(0); i < count; i++ {
 		p.free[i] = i
 	}
 }
 
-func (p *page) addItem(itm *item) (*Pointer, error) {
-	if len(p.free) == 0 {
+func (p *page) isFull() bool {
+	return len(p.free) == 0
+}
+
+func (p *page) add(val []byte) (*item, error) {
+	if p.isFull() {
 		return nil, fmt.Errorf("not enough free space in page => %v", p.id)
 	}
 
 	itmIndex := p.free[0]
 	p.free = p.free[1:]
 	p.dirty = true
+
+	itm := &item{
+		val: val,
+		self: &Pointer{
+			PageId: p.id,
+			Index:  itmIndex,
+		},
+	}
 	p.items[itmIndex] = itm
-	return &Pointer{
-		PageId: p.id,
-		Index:  itmIndex,
-	}, nil
+
+	return itm, nil
+}
+
+func (p *page) del(index uint16) {
+	if _, ok := p.items[index]; !ok {
+		return
+	}
+	delete(p.items, index)
+	p.free = append(p.free, index)
+	p.dirty = true
 }
 
 func (p *page) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, p.pageSize)
+	itemSize := itemHeaderSize + p.valSize
 	itemCount := p.pageSize / itemSize
 	offset := uint16(0)
 
@@ -61,11 +82,8 @@ func (p *page) MarshalBinary() ([]byte, error) {
 			continue
 		}
 
-		bin.PutUint64(buf[offset:offset+8], item.val.pageId)
-		offset += 8
-
-		bin.PutUint16(buf[offset:offset+2], item.val.freeSpace)
-		offset += 2
+		copy(buf[offset:offset+p.valSize], item.val)
+		offset += p.valSize
 
 		if item.next != nil {
 			ptrBytes, err := item.next.MarshalBinary()
@@ -94,6 +112,7 @@ func (p *page) MarshalBinary() ([]byte, error) {
 }
 
 func (p *page) UnmarshalBinary(d []byte) error {
+	itemSize := itemHeaderSize + p.valSize
 	zeroValue := make([]byte, itemSize)
 	ptrZeroValue := make([]byte, 6)
 	itemCount := p.pageSize / itemSize
@@ -107,15 +126,11 @@ func (p *page) UnmarshalBinary(d []byte) error {
 		}
 
 		itm := &item{
-			val:  &value{},
-			next: nil,
+			val: make([]byte, p.valSize),
 		}
 
-		itm.val.pageId = bin.Uint64(d[offset:offset+8])
-		offset += 8
-
-		itm.val.freeSpace = bin.Uint16(d[offset:offset+2])
-		offset += 2
+		itm.val = d[offset:offset+p.valSize]
+		offset += p.valSize
 
 		if bytes.Equal(d[offset:offset+6], ptrZeroValue) {
 			offset += 6

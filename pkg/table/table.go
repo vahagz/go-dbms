@@ -242,7 +242,7 @@ func (t *Table) metaPath() string {
 }
 
 func (t *Table) indexPath(name string) string {
-	return path.Join(t.path, indexPath, fmt.Sprintf("%s.idx", name))
+	return path.Join(t.path, indexPath, name)
 }
 
 func (t *Table) readMeta(opts *Options) error {

@@ -159,10 +159,10 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/freelist"
-	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -177,61 +177,109 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
-	p, err := pager.Open(path.Join(pwd, "test", "test.dat"), os.Getpagesize(), false, 0664)
-	if err != nil {
-		logrus.Fatal(err)
-	}
 
-	fl, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.Options{
-		Allocator:        p,
-		PreAlloc:         100,
-		TargetPageSize:   uint16(p.PageSize()),
-		FreelistPageSize: uint16(os.Getpagesize()),
+	ll, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.LinkedListOptions{
+		PageSize: uint16(os.Getpagesize()),
+		PreAlloc: 5,
+		ValSize:  8,
 	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
+	// p, err := pager.Open(path.Join(pwd, "test", "test.dat"), os.Getpagesize(), false, 0664)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// subfl, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.Options{
+	// 	PreAlloc:         5,
+	// 	TargetPageSize:   uint16(os.Getpagesize()),
+	// 	FreelistPageSize: uint16(os.Getpagesize()),
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// var fl freelist.Freelist
+	// tree, err := bptree.Open(path.Join(pwd, "test", "bptree_freelist.idx"), &bptree.Options{
+	// 	ReadOnly:     false,
+	// 	FileMode:     0664,
+	// 	MaxKeySize:   10,
+	// 	MaxValueSize: 0,
+	// 	PageSize:     os.Getpagesize(),
+	// 	PreAlloc:     10,
+	// 	FreelistOptions: &freelist.Options{
+	// 		Allocator:      p,
+	// 		PreAlloc:       5,
+	// 		TargetPageSize: uint16(os.Getpagesize()),
+	// 	},
+	// }, subfl)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// fl = tree
+
 	start := time.Now()
 	exitFunc := func() {
-		// fmt.Println("TOTAL DURATION =>", time.Since(start))
-		_ = fl.Close()
-		_ = p.Close()
+		fmt.Println("TOTAL DURATION =>", time.Since(start))
+		_ = ll.Close()
+		// _ = p.Close()
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
 
-	for i := 1; i <= 1000; i++ {
-		// p.Alloc(i)
-		_, err = fl.AddMem(uint64(i), uint16(rand.Intn(4096)))
-		if err != nil {
-			logrus.Fatal(err)
-		}
-	}
-	fmt.Println("ADD DURATION =>", time.Since(start))
-	start = time.Now()
-	if err := fl.Flush(); err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println("FLUSH DURATION =>", time.Since(start))
+	// for i := 1; i <= 10; i++ {
+	// 	// p.Alloc(i)
+	// 	_, err = fl.AddMem(uint64(i), uint16(rand.Intn(4096)))
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+	// fmt.Println("ADD DURATION =>", time.Since(start))
+	// start = time.Now()
+	// if err := fl.WriteAll(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("FLUSH DURATION =>", time.Since(start))
 
 	// fmt.Println(fl.Get(&freelist.Pointer{
 	// 	PageId: 4,
 	// 	Index:  1,
 	// }))
 
-	// pageId, ptr, err := fl.Fit(3100)
+	// pageId, ptr, err := fl.Alloc(30)
 	// fmt.Println(pageId, ptr, err)
 
-	// if err = fl.Set(&freelist.Pointer{
-	// 	PageId: 1,
-	// 	Index:  2,
-	// }, 0); err != nil {
+	// if err = fl.Set(&bptree.Pointer{
+	// 	FreeSpace: 1501,
+	// 	PageId:    7,
+	// }, 1000); err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
-	if err = fl.Print(); err != nil {
+	for i := 0; i < 10; i++ {
+		val := make([]byte, 8)
+		binary.BigEndian.PutUint64(val, uint64(rand.Int63n(100)))
+		_, err := ll.Push(val)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+	}
+	
+	if err = ll.Print(); err != nil {
+		logrus.Fatal(err)
+	}
+
+	_, val, err := ll.Pop(2)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(val)
+
+	if err = ll.Print(); err != nil {
 		logrus.Fatal(err)
 	}
 }

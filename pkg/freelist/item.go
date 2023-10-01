@@ -1,15 +1,16 @@
 package freelist
 
-type value struct {
-	pageId    uint64
-	freeSpace uint16
-}
+const itemHeaderSize = 12
 
 type item struct {
-	val  *value
 	self *Pointer
+
+	// header
 	next *Pointer
 	prev *Pointer
+
+	// actual value
+	val []byte
 }
 
 func (i *item) isHead() bool {

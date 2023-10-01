@@ -1,8 +1,13 @@
 package freelist
 
-type Options struct {
-	Allocator        Allocator
-	PreAlloc         int
-	TargetPageSize   uint16
-	FreelistPageSize uint16
+type LinkedListOptions struct {
+	PageSize uint16
+	PreAlloc uint16
+	ValSize  uint16
+}
+
+type LinkedFreelistOptions struct {
+	PageSize   uint16
+	Allocator  Allocator
+	RemoveFunc RemoveFunc
 }
