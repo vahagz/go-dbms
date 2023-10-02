@@ -121,6 +121,30 @@ func (p *Pager) Alloc(n int) (uint64, error) {
 	return nextID, p.mmap()
 }
 
+// Free deallocates 'n' sequential pages from end of file
+func (p *Pager) Free(n int) error {
+	if p.file == nil {
+		return os.ErrClosed
+	} else if p.readOnly {
+		return ErrReadOnly
+	}
+
+	if n > int(p.count) {
+		n = int(p.count)
+	}
+	targetSize := p.fileSize - int64(n*p.pageSize)
+
+	_ = p.unmap()
+	if err := p.file.Truncate(targetSize); err != nil {
+		return err
+	}
+
+	p.fileSize = targetSize
+	p.computeCount()
+
+	return p.mmap()
+}
+
 // Read reads one page of data from the underlying file or mmapped region if
 // enabled.
 func (p *Pager) Read(id uint64) ([]byte, error) {

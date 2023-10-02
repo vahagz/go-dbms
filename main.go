@@ -161,8 +161,8 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"go-dbms/pkg/array"
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/freelist"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -175,17 +175,17 @@ import (
 var rand = r.New(r.NewSource(time.Now().Unix()))
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
-	pwd, _ := os.Getwd()
+	// logrus.SetLevel(logrus.DebugLevel)
+	// pwd, _ := os.Getwd()
 
-	ll, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.LinkedListOptions{
-		PageSize: uint16(os.Getpagesize()),
-		PreAlloc: 5,
-		ValSize:  8,
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// ll, err := freelist.Open(path.Join(pwd, "test", "freelist.bin"), &freelist.LinkedListOptions{
+	// 	PageSize: uint16(os.Getpagesize()),
+	// 	PreAlloc: 5,
+	// 	ValSize:  8,
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// p, err := pager.Open(path.Join(pwd, "test", "test.dat"), os.Getpagesize(), false, 0664)
 	// if err != nil {
@@ -221,14 +221,14 @@ func main() {
 
 	// fl = tree
 
-	start := time.Now()
-	exitFunc := func() {
-		fmt.Println("TOTAL DURATION =>", time.Since(start))
-		_ = ll.Close()
-		// _ = p.Close()
-	}
-	logrus.RegisterExitHandler(exitFunc)
-	defer exitFunc()
+	// start := time.Now()
+	// exitFunc := func() {
+	// 	fmt.Println("TOTAL DURATION =>", time.Since(start))
+	// 	_ = ll.Close()
+	// 	// _ = p.Close()
+	// }
+	// logrus.RegisterExitHandler(exitFunc)
+	// defer exitFunc()
 
 
 	// for i := 1; i <= 10; i++ {
@@ -260,32 +260,91 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	for i := 0; i < 10; i++ {
-		val := make([]byte, 8)
-		binary.BigEndian.PutUint64(val, uint64(rand.Int63n(100)))
-		_, err := ll.Push(val)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-	}
+	// for i := 0; i < 10; i++ {
+	// 	val := make([]byte, 8)
+	// 	binary.BigEndian.PutUint64(val, uint64(rand.Int63n(100)))
+	// 	_, err := ll.Push(val)
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
 	
-	if err = ll.Print(); err != nil {
-		logrus.Fatal(err)
-	}
+	// if err = ll.Print(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
-	_, val, err := ll.Pop(2)
+	// _, val, err := ll.Pop(2)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(val)
+
+	// if err = ll.Print(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+
+	logrus.SetLevel(logrus.DebugLevel)
+	pwd, _ := os.Getwd()
+
+	arr, err := array.Open[*number, number](path.Join(pwd, "test", "array.bin"), &array.ArrayOptions{
+		PageSize: uint16(os.Getpagesize()),
+		PreAlloc: 5,
+		ElemSize: 8,
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	fmt.Println(val)
+	
+	start := time.Now()
+	exitFunc := func() {
+		fmt.Println("TOTAL DURATION =>", time.Since(start))
+		_ = arr.Close()
+	}
+	logrus.RegisterExitHandler(exitFunc)
+	defer exitFunc()
 
-	if err = ll.Print(); err != nil {
+	// if err := arr.Truncate(100); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// for i := 0; i < 10000; i++ {
+	// 	_, err = arr.Push(num(uint64(rand.Int63n(5000))))
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+
+	// err = arr.Set(666666, num(555))
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// itm, err := arr.Get(0)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(*itm)
+
+	if err := arr.Print(); err != nil {
 		logrus.Fatal(err)
 	}
 }
 
-
-
+func num(n uint64) *number {
+	a := number(n)
+	return &a
+}
+type number uint64
+func (n *number) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(*n))
+	return buf, nil
+}
+func (n *number) UnmarshalBinary(d []byte) error {
+	*n = number(binary.BigEndian.Uint64(d[0:8]))
+	return nil
+}
 
 
 func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
