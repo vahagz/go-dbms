@@ -287,11 +287,15 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
 
-	arr, err := array.Open[*number, number](path.Join(pwd, "test", "array.bin"), &array.ArrayOptions{
-		PageSize: uint16(os.Getpagesize()),
-		PreAlloc: 5,
-		ElemSize: 8,
-	})
+	var err error
+	var arr array.ArrayADS[*array.Number[uint16], array.Number[uint16]]
+	arr, err = array.Open[*array.Number[uint16], array.Number[uint16]](
+		path.Join(pwd, "test", "array.bin"),
+		&array.ArrayOptions{
+			PageSize: uint16(os.Getpagesize()),
+			PreAlloc: 5,
+		},
+	)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -304,15 +308,25 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	// if err := arr.Truncate(100); err != nil {
+	// if err := arr.Truncate(2); err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
-	// for i := 0; i < 10000; i++ {
-	// 	_, err = arr.Push(num(uint64(rand.Int63n(5000))))
+	// for i := 0; i < 10; i++ {
+	// 	n := array.NewNumber(uint16(rand.Int63n(5000)))
+	// 	index, err := arr.PushMem(n)
 	// 	if err != nil {
 	// 		logrus.Fatal(err)
 	// 	}
+	// 	fmt.Println(index, n.Value())
+	// }
+
+	// for arr.Size() > 0 {
+	// 	itm, err := arr.PopMem()
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	fmt.Println(arr.Size(), itm.Value())
 	// }
 
 	// err = arr.Set(666666, num(555))

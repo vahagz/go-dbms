@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go-dbms/pkg/pager"
+	"go-dbms/util/helpers"
 )
 
 var bin = binary.BigEndian
@@ -28,13 +29,16 @@ func Open[T elementer[U], U any](fileName string, opts *ArrayOptions) (*Array[T,
 type ArrayADS[T elementer[U], U any] interface {
 	Push(elem T) (uint64, error)
 	PushMem(elem T) (uint64, error)
-	Get(index uint64) (T, error)
+	Pop() (T, error)
+	PopMem() (T, error)
 	Set(index uint64, elem T) (error)
 	SetMem(index uint64, elem T) (error)
+	Get(index uint64) (T, error)
 	Size() uint64
+	Cap() uint64
 	Truncate(size uint64) error
-	Scan(index uint64, reverse bool, scanFn func(index uint64, elem T) (bool, error)) error
-	WriteAll() error
+	TruncateMem(size uint64) error
+	Drain() error
 	Close() error
 	Print() error
 }
@@ -63,7 +67,30 @@ func (arr *Array[T, U]) PushMem(elem T) (uint64, error) {
 	p.elems = append(p.elems, elem)
 	arr.meta.dirty = true
 	arr.meta.size++
-	return uint64(len(p.elems) - 1), nil
+	return arr.index(&pointer{
+		pageId: p.id,
+		index: uint16(len(p.elems) - 1),
+	}), nil
+}
+
+func (arr *Array[T, U]) Pop() (T, error) {
+	elem, err := arr.PopMem()
+	if err != nil {
+		return nil, err
+	}
+	return elem, arr.writeAll()
+}
+
+func (arr *Array[T, U]) PopMem() (T, error) {
+	elem, err := arr.Get(arr.Size() - 1)
+	if err != nil {
+		if err == ErrOutOfBounds {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return elem, arr.TruncateMem(arr.Size() - 1)
 }
 
 func (arr *Array[T, U]) Get(index uint64) (T, error) {
@@ -108,99 +135,93 @@ func (arr *Array[T, U]) Size() uint64 {
 }
 
 func (arr *Array[T, U]) Truncate(size uint64) error {
-	if size == arr.meta.size {
-		return nil
+	if err := arr.TruncateMem(size); err != nil {
+		return err
 	}
+	return arr.writeAll()
+}
 
-	ptr := arr.pointer(size - 1)
-	cap := arr.cap()
-
-	if size > arr.meta.size {
-		if size <= cap {
-			return nil
-		}
-
-		_, err := arr.pager.Alloc(int(ptr.pageId - arr.pager.Count() + 1))
+func (arr *Array[T, U]) TruncateMem(size uint64) error {
+	if size == 0 {
+		err := arr.pager.Free(int(arr.pager.Count() - 1))
 		if err != nil {
 			return err
 		}
 
-		return nil
-	}
-
-	if size > cap - arr.elemsPerPage() {
+		arr.pages = map[uint64]*page[T, U]{}
 		arr.meta.dirty = true
 		arr.meta.size = size
 		return nil
 	}
 
-	shrinkCount := int(arr.pager.Count() - ptr.pageId - 1)
-	err := arr.pager.Free(shrinkCount)
-	if err != nil {
-		return err
-	}
+	lastPageId := arr.pager.Count() - 1
+	ptr := arr.pointer(size - 1)
 
-	for i := 0; i < shrinkCount; i++ {
-		delete(arr.pages, arr.pager.Count() - uint64(i) - 1)
-	}
-
-	arr.meta.dirty = true
-	arr.meta.size = size
-
-	return nil
-}
-
-func (arr *Array[T, U]) Scan(index uint64, reverse bool, scanFn func(index uint64, elem T) (bool, error)) error {
-	if arr.meta.size == 0 {
-		return nil
-	}
-
-	ptr := arr.pointer(index)
-	if !arr.isValid(ptr) {
-		return ErrOutOfBounds
-	}
-
-	var lastPageId uint64
-	var incr int
-	if reverse {
-		lastPageId = ptr.pageId
-		incr = -1
-	} else {
-		lastPageId = arr.pager.Count() - ptr.pageId
-		incr = 1
-	}
-
-	n := 0
-	L: for pageId := ptr.pageId; pageId <= lastPageId; pageId += uint64(incr) {
-		p, err := arr.fetch(pageId)
+	if ptr.pageId > lastPageId {
+		_, err := arr.pager.Alloc(int(ptr.pageId - lastPageId))
 		if err != nil {
 			return err
 		}
 
-		for index, elem := range p.elems {
-			n++
-			stop, err := scanFn(
-				arr.index(&pointer{
-					pageId: pageId,
-					index:  uint16(index),
-				}),
-				elem,
-			)
-			if err != nil {
-				return err
-			} else if stop {
-				return nil
-			}
+		return nil
+	}
 
-			if n >= int(arr.meta.size) {
-				break L
-			}
+	shrinkCount := int(lastPageId - ptr.pageId)
+	if shrinkCount > 0 {
+		err := arr.pager.Free(shrinkCount)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := 0; i < shrinkCount; i++ {
+		delete(arr.pages, lastPageId - uint64(i))
+	}
+
+	arr.meta.dirty = true
+	arr.meta.size = helpers.Min(arr.meta.size, size)
+	_, err := arr.lastPage()
+	return err
+}
+
+func (arr *Array[T, U]) Scan(opts *ScanOptions, scanFn func(index uint64, elem T) (bool, error)) error {
+	if arr.meta.size == 0 {
+		return nil
+	} else if opts.Start >= arr.Size() {
+		return ErrOutOfBounds
+	}
+
+	var lowerBound uint64 = 0
+	var upperBound uint64 = arr.Size() - 1
+
+	if opts.Reverse {
+		opts.Start--
+	}
+
+	// L: for pageId := ptr.pageId; pageId <= lastPageId; pageId += uint64(step) {
+	for i := opts.Start; i >= lowerBound && i < upperBound; {
+		elem, err := arr.Get(i)
+		if err != nil {
+			return err
+		}
+
+		stop, err := scanFn(i, elem)
+		if err != nil {
+			return err
+		} else if stop {
+			return nil
+		}
+
+		if opts.Reverse {
+			i -= opts.Step
+		} else {
+			i += opts.Step
 		}
 	}
 	return nil
 }
 
-func (arr *Array[T, U]) WriteAll() error {
+func (arr *Array[T, U]) Drain() error {
 	return arr.writeAll()
 }
 
@@ -212,11 +233,12 @@ func (arr *Array[T, U]) Close() error {
 }
 
 func (arr *Array[T, U]) Print() error {
-	if err := arr.Scan(0, false, func(index uint64, elem T) (bool, error) {
-		fmt.Println(index, *elem)
-		return false, nil
-	}); err != nil {
-		return err
+	for i := uint64(0); i < arr.Size(); i++ {
+		elem, err := arr.Get(i)
+		if err != nil {
+			return err
+		}
+		fmt.Println(i, *elem)
 	}
 	fmt.Println("meta", arr.meta)
 	return nil
@@ -240,53 +262,38 @@ func (arr *Array[T, U]) fetch(id uint64) (*page[T, U], error) {
 }
 
 func (arr *Array[T, U]) lastPage() (*page[T, U], error) {
+	var err error
 	var pid uint64 = 0
-	ptr := arr.pointer(arr.Size() - 1)
+	ptr := arr.pointer(arr.Size())
 
 	if arr.isValid(ptr) {
 		pid = ptr.pageId
-	} else if arr.pager.Count() > 1 {
-		pid = 1
-	}
-
-	if pid != 0 {
-		p, err := arr.fetch(pid)
+	} else {
+		pid, err = arr.pager.Alloc(1)
 		if err != nil {
 			return nil, err
 		}
-	
-		if !arr.isFull(p) {
-			if len(p.elems) >= int(ptr.index)+1 {
-				p.dirty = true
-				p.elems = p.elems[:ptr.index+1]
-			}
-			return p, nil
-		}
 	}
 
-	pid, err := arr.pager.Alloc(1)
-	if err != nil {
-		return nil, err
-	}
-	
 	p, err := arr.fetch(pid)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(p.elems) >= int(ptr.index)+1 {
+	if len(p.elems) > int(ptr.index) {
 		p.dirty = true
-		p.elems = p.elems[:ptr.index+1]
+		p.elems = p.elems[:ptr.index]
 	}
 	return p, nil
 }
 
-func (arr *Array[T, U]) cap() uint64 {
+func (arr *Array[T, U]) Cap() uint64 {
 	return (arr.pager.Count() - 1) * arr.elemsPerPage()
 }
 
 func (arr *Array[T, U]) elemsPerPage() uint64 {
-	return uint64((arr.meta.pageSize - pageHeaderSize) / arr.meta.elemSize)
+	var e T
+	return uint64((arr.meta.pageSize - pageHeaderSize) / e.Size())
 }
 
 func (arr *Array[T, U]) pointer(index uint64) *pointer {
@@ -302,7 +309,10 @@ func (arr *Array[T, U]) index(ptr *pointer) uint64 {
 }
 
 func (arr *Array[T, U]) isValid(ptr *pointer) bool {
-	return arr.index(ptr) < arr.meta.size
+	return 1 <= ptr.pageId &&
+		ptr.pageId < arr.pager.Count() &&
+		0 <= ptr.index &&
+		ptr.index < uint16(arr.elemsPerPage())
 }
 
 func (arr *Array[T, U]) isFull(p *page[T, U]) bool {
@@ -330,7 +340,6 @@ func (arr *Array[T, U]) init(opts *ArrayOptions) error {
 		size:     0,
 		pageSize: opts.PageSize,
 		preAlloc: opts.PreAlloc,
-		elemSize: opts.ElemSize,
 	}
 
 	_, err := arr.pager.Alloc(1 + int(opts.PreAlloc))
