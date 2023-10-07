@@ -300,8 +300,10 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	
+	file := path.Join(pwd, "test", "rbtree.bin")
+	// os.Remove(file)
 	t, err := rbtree.Open(
-		path.Join(pwd, "test", "rbtree.bin"),
+		file,
 		&rbtree.Options{
 			PageSize: uint16(os.Getpagesize()),
 			KeySize:  19,
@@ -311,18 +313,38 @@ func main() {
 		logrus.Fatal(err)
 	}
 	
+	// elems := make([]uint16, 100)
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
+		// fmt.Println(elems)
 		// _ = arr.Close()
 		_ = t.Close()
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
+	// b := make([]byte, 19)
+	// els := []uint16{
+	// 	804,
+	// 	589,
+	// 	706,
+	// 	478,
+	// 	376,
+	// 	337,
+	// }
+	// for _, elem := range els {
+	// 	binary.BigEndian.PutUint16(b, elem)
+	// 	if err := t.Insert(b); err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+
 	b := make([]byte, 19)
-	for i := 0; i < 100; i++ {
-		binary.BigEndian.PutUint16(b, uint16(rand.Int31n(1000)))
+	for i := 0; i < 1000; i++ {
+		elem := uint16(rand.Int31n(1000))
+		// elems[i] = elem
+		binary.BigEndian.PutUint16(b, elem)
 		if err := t.Insert(b); err != nil {
 			logrus.Fatal(i, err)
 		}

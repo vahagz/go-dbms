@@ -186,7 +186,7 @@ func (tree *RBTree) fix(n *node) error {
 		// second and third subcases
 		// second subcase, turning to third
 		if np.right == n.ptr.raw {
-			err := tree.leftRotate(np)
+			ng, n, err = tree.leftRotate(np)
 			if err != nil {
 				return errors.Wrap(err, "failed to left rotate parent")
 			}
@@ -225,7 +225,7 @@ func (tree *RBTree) fix(n *node) error {
 	// second and third subcases
 	// second subcase, turning to third
 	if np.left == n.ptr.raw {
-		err := tree.rightRotate(np)
+		ng, n, err = tree.rightRotate(np)
 		if err != nil {
 			return errors.Wrap(err, "failed to right rotate parent")
 		}
@@ -295,14 +295,14 @@ func (tree *RBTree) insert(n *node) error {
 	return nil
 }
 
-func (tree *RBTree) leftRotate(x *node) error {
+func (tree *RBTree) leftRotate(x *node) (*node, *node, error) {
 	if x.right == 0 {
-		return errors.New("no right node in x to perform left rotation")
+		return nil, nil, errors.New("no right node in x to perform left rotation")
 	}
 
 	y, err := tree.fetch(x.right)
 	if err != nil {
-		return errors.Wrap(err, "failed to fetch node")
+		return nil, nil, errors.Wrap(err, "failed to fetch node")
 	}
 
 	x.dirty = true
@@ -310,7 +310,7 @@ func (tree *RBTree) leftRotate(x *node) error {
 	if y.left != 0 {
 		yl, err := tree.fetch(y.left)
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch node")
+			return nil, nil, errors.Wrap(err, "failed to fetch node")
 		}
 
 		yl.dirty = true
@@ -324,7 +324,7 @@ func (tree *RBTree) leftRotate(x *node) error {
 	if x.parent != 0 {
 		xp, err := tree.fetch(x.parent)
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch node")
+			return nil, nil, errors.Wrap(err, "failed to fetch node")
 		}
 
 		xp.dirty = true
@@ -340,17 +340,17 @@ func (tree *RBTree) leftRotate(x *node) error {
 	}
 
 	x.parent = y.ptr.raw
-	return nil
+	return x, y, nil
 }
 
-func (tree *RBTree) rightRotate(y *node) error {
+func (tree *RBTree) rightRotate(y *node) (*node, *node, error) {
 	if y.left == 0 {
-		return errors.New("no left node in y to perform right rotation")
+		return nil, nil, errors.New("no left node in y to perform right rotation")
 	}
 
 	x, err := tree.fetch(y.left)
 	if err != nil {
-		return errors.Wrap(err, "failed to fetch node")
+		return nil, nil, errors.Wrap(err, "failed to fetch node")
 	}
 
 	y.dirty = true
@@ -358,7 +358,7 @@ func (tree *RBTree) rightRotate(y *node) error {
 	if x.right != 0 {
 		xr, err := tree.fetch(x.right)
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch node")
+			return nil, nil, errors.Wrap(err, "failed to fetch node")
 		}
 
 		xr.dirty = true
@@ -372,7 +372,7 @@ func (tree *RBTree) rightRotate(y *node) error {
 	if y.parent != 0 {
 		yp, err := tree.fetch(y.parent)
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch node")
+			return nil, nil, errors.Wrap(err, "failed to fetch node")
 		}
 
 		yp.dirty = true
@@ -388,7 +388,7 @@ func (tree *RBTree) rightRotate(y *node) error {
 	}
 
 	y.parent = x.ptr.raw
-	return nil
+	return x, y, nil
 }
 
 func (tree *RBTree) pointer(rawPtr uint32) *pointer {
