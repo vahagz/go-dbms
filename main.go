@@ -161,8 +161,8 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"go-dbms/pkg/array"
 	"go-dbms/pkg/column"
+	"go-dbms/pkg/rbtree"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -288,12 +288,23 @@ func main() {
 	pwd, _ := os.Getwd()
 
 	var err error
-	var arr array.ArrayADS[*array.Number[uint16], array.Number[uint16]]
-	arr, err = array.Open[*array.Number[uint16], array.Number[uint16]](
-		path.Join(pwd, "test", "array.bin"),
-		&array.ArrayOptions{
+	// var arr array.ArrayADS[*array.Number[uint16], array.Number[uint16]]
+	// arr, err = array.Open[*array.Number[uint16], array.Number[uint16]](
+	// 	path.Join(pwd, "test", "array.bin"),
+	// 	&array.ArrayOptions{
+	// 		PageSize: uint16(os.Getpagesize()),
+	// 		PreAlloc: 5,
+	// 	},
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	
+	t, err := rbtree.Open(
+		path.Join(pwd, "test", "rbtree.bin"),
+		&rbtree.Options{
 			PageSize: uint16(os.Getpagesize()),
-			PreAlloc: 5,
+			KeySize:  19,
 		},
 	)
 	if err != nil {
@@ -302,11 +313,33 @@ func main() {
 	
 	start := time.Now()
 	exitFunc := func() {
-		fmt.Println("TOTAL DURATION =>", time.Since(start))
-		_ = arr.Close()
+		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
+		// _ = arr.Close()
+		_ = t.Close()
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
+
+	b := make([]byte, 19)
+	for i := 0; i < 100; i++ {
+		binary.BigEndian.PutUint16(b, uint16(rand.Int31n(1000)))
+		if err := t.Insert(b); err != nil {
+			logrus.Fatal(i, err)
+		}
+	}
+
+	err = t.Scan(nil, func(key []byte) (bool, error) {
+		fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	// err = t.Print()
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// if err := arr.Truncate(2); err != nil {
 	// 	logrus.Fatal(err)
@@ -340,9 +373,9 @@ func main() {
 	// }
 	// fmt.Println(*itm)
 
-	if err := arr.Print(); err != nil {
-		logrus.Fatal(err)
-	}
+	// if err := arr.Print(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
 }
 
 func num(n uint64) *number {

@@ -1,6 +1,6 @@
 package rbtree
 
-func newPage(id uint64, meta *metadata) *page {
+func newPage(id uint32, meta *metadata) *page {
 	return &page{
 		dirty:       true,
 		id:          id,
@@ -13,7 +13,7 @@ func newPage(id uint64, meta *metadata) *page {
 
 type page struct {
 	dirty       bool
-	id          uint64
+	id          uint32
 	size        uint16
 	nodeKeySize uint16
 	nodeSize    uint16
@@ -34,13 +34,14 @@ func (p *page) MarshalBinary() ([]byte, error) {
 }
 
 func (p *page) UnmarshalBinary(d []byte) error {
-	pageOffset := p.id * uint64(p.size)
+	pageOffset := p.id * uint32(p.size)
 	for i := range p.nodes {
 		n := newNode(&pointer{
-			raw:    pageOffset + uint64(i),
+			raw:    pageOffset + uint32(i*int(p.nodeSize)),
 			pageId: p.id,
 			index:  uint16(i),
 		}, p.nodeKeySize)
+		n.dirty = false
 
 		err := n.UnmarshalBinary(d[i*int(p.nodeSize) : (i+1)*int(p.nodeSize)])
 		if err != nil {

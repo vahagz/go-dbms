@@ -1,6 +1,6 @@
 package rbtree
 
-const nodeFixedSize = 25
+const nodeFixedSize = 13
 
 func newNode(ptr *pointer, keySize uint16) *node {
 	return &node{
@@ -8,14 +8,15 @@ func newNode(ptr *pointer, keySize uint16) *node {
 		ptr:   ptr,
 		size:  nodeFixedSize + keySize,
 		key:   make([]byte, keySize),
+		color: NODE_COLOR_RED,
 	}
 }
 
 type color byte
 
 const (
-	NODE_RED color = iota
-	NODE_BLACK
+	NODE_COLOR_RED color = iota
+	NODE_COLOR_BLACK
 )
 
 type node struct {
@@ -23,28 +24,28 @@ type node struct {
 	ptr   *pointer
 	size  uint16
 
-	left   uint64
-	right  uint64
-	parent uint64
+	left   uint32
+	right  uint32
+	parent uint32
 	color  color
 	key    []byte
 }
 
 func (n *node) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, n.size)
-	bin.PutUint64(buf[0:8], n.left)
-	bin.PutUint64(buf[8:16], n.right)
-	bin.PutUint64(buf[16:32], n.parent)
-	buf[32] = byte(n.color)
-	copy(buf[32:], n.key)
+	bin.PutUint32(buf[0:4], n.left)
+	bin.PutUint32(buf[4:8], n.right)
+	bin.PutUint32(buf[8:12], n.parent)
+	buf[12] = byte(n.color)
+	copy(buf[13:], n.key)
 	return buf, nil
 }
 
 func (n *node) UnmarshalBinary(d []byte) error {
-	n.left = bin.Uint64(d[0:8])
-	n.right = bin.Uint64(d[8:16])
-	n.parent = bin.Uint64(d[16:32])
-	n.color = color(d[32])
-	copy(n.key, d[32:])
+	n.left = bin.Uint32(d[0:4])
+	n.right = bin.Uint32(d[4:8])
+	n.parent = bin.Uint32(d[8:12])
+	n.color = color(d[12])
+	copy(n.key, d[13:])
 	return nil
 }

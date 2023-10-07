@@ -1,7 +1,7 @@
 package rbtree
 
 type pointer struct {
-	raw    uint64
-	pageId uint64
+	raw    uint32
+	pageId uint32
 	index  uint16
 }
