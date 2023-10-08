@@ -1,6 +1,6 @@
 package rbtree
 
-const metadataSize = 16
+const metadataSize = 20
 
 type metadata struct {
 	dirty bool
@@ -9,6 +9,7 @@ type metadata struct {
 	nodeKeySize uint16
 	top         uint32
 	rootPtr     uint32
+	nullPtr     uint32
 	count       uint32
 }
 
@@ -18,7 +19,8 @@ func (m *metadata) MarshalBinary() ([]byte, error) {
 	bin.PutUint16(buf[2:4], m.nodeKeySize)
 	bin.PutUint32(buf[4:8], m.top)
 	bin.PutUint32(buf[8:12], m.rootPtr)
-	bin.PutUint32(buf[12:16], m.count)
+	bin.PutUint32(buf[12:16], m.nullPtr)
+	bin.PutUint32(buf[16:20], m.count)
 	return buf, nil
 }
 
@@ -27,6 +29,7 @@ func (m *metadata) UnmarshalBinary(d []byte) error {
 	m.nodeKeySize = bin.Uint16(d[2:4])
 	m.top = bin.Uint32(d[4:8])
 	m.rootPtr = bin.Uint32(d[8:12])
-	m.count = bin.Uint32(d[12:16])
+	m.nullPtr = bin.Uint32(d[12:16])
+	m.count = bin.Uint32(d[16:20])
 	return nil
 }

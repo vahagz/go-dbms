@@ -6,6 +6,7 @@ func newPage(id uint32, meta *metadata) *page {
 		id:          id,
 		size:        meta.pageSize,
 		nodeKeySize: meta.nodeKeySize,
+		nodeNullPtr: meta.nullPtr,
 		nodeSize:    nodeFixedSize + meta.nodeKeySize,
 		nodes:       make([]*node, meta.pageSize/(nodeFixedSize+meta.nodeKeySize)),
 	}
@@ -16,6 +17,7 @@ type page struct {
 	id          uint32
 	size        uint16
 	nodeKeySize uint16
+	nodeNullPtr uint32
 	nodeSize    uint16
 
 	nodes []*node
@@ -40,7 +42,7 @@ func (p *page) UnmarshalBinary(d []byte) error {
 			raw:    pageOffset + uint32(i*int(p.nodeSize)),
 			pageId: p.id,
 			index:  uint16(i),
-		}, p.nodeKeySize)
+		}, p.nodeKeySize, p.nodeNullPtr)
 		n.dirty = false
 
 		err := n.UnmarshalBinary(d[i*int(p.nodeSize) : (i+1)*int(p.nodeSize)])

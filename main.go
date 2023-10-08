@@ -341,8 +341,8 @@ func main() {
 	// }
 
 	b := make([]byte, 19)
-	for i := 0; i < 1000; i++ {
-		elem := uint16(rand.Int31n(1000))
+	for i := 0; i < 1; i++ {
+		elem := uint16(rand.Int31n(4000))
 		// elems[i] = elem
 		binary.BigEndian.PutUint16(b, elem)
 		if err := t.InsertMem(b); err != nil {
