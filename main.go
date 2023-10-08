@@ -313,11 +313,11 @@ func main() {
 		logrus.Fatal(err)
 	}
 	
-	// elems := make([]uint16, 100)
+	elems := make([]uint16, 0, 10)
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
-		// fmt.Println(elems)
+		fmt.Println(elems)
 		// _ = arr.Close()
 		_ = t.Close()
 	}
@@ -341,9 +341,9 @@ func main() {
 	// }
 
 	b := make([]byte, 19)
-	for i := 0; i < 1; i++ {
-		elem := uint16(rand.Int31n(4000))
-		// elems[i] = elem
+	for i := 0; i < 5; i++ {
+		elem := uint16(rand.Int31n(256))
+		elems = append(elems, elem)
 		binary.BigEndian.PutUint16(b, elem)
 		if err := t.InsertMem(b); err != nil {
 			logrus.Fatal(i, err)
@@ -353,13 +353,35 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	err = t.Scan(nil, func(key []byte) (bool, error) {
-		fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
+	fmt.Println(elems)
+
+	// gb := make([]byte, 19)
+	// binary.BigEndian.PutUint16(gb, 242)
+	// if v, err := t.Get(gb); err != nil {
+	// 	logrus.Error(err)
+	// } else {
+	// 	fmt.Println(binary.BigEndian.Uint16(v))
+	// }
+
+	db := make([]byte, 19)
+	for i := 0; i < 5; i++ {
+		// index := rand.Intn(len(elems))
+		elem := elems[i]
+		// elems = append(elems[:index], elems[index+1:]...)
+		binary.BigEndian.PutUint16(db, elem)
+		fmt.Println("deleting", elem)
+		if err := t.Delete(db); err != nil {
+			logrus.Fatal(err)
+		}
 	}
+
+	// err = t.Scan(nil, func(key []byte) (bool, error) {
+	// 	fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// err = t.Print()
 	// if err != nil {

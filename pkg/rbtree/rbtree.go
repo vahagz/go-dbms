@@ -68,6 +68,41 @@ func (tree *RBTree) InsertMem(k []byte) error {
 	return errors.Wrap(tree.insert(n[0]), "failed to insert node")
 }
 
+func (tree *RBTree) Get(k []byte) ([]byte, error) {
+	if len(k) != int(tree.meta.nodeKeySize) {
+		return nil, errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
+	}
+
+	n, err := tree.get(k)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get element")
+	} else if n != nil {
+		return n.key, nil
+	}
+	return nil, nil
+}
+
+func (tree *RBTree) Delete(k []byte) error {
+	if err := tree.DeleteMem(k); err != nil {
+		return err
+	}
+	return errors.Wrap(tree.writeAll(), "failed to write all")
+}
+
+func (tree *RBTree) DeleteMem(k []byte) error {
+	if len(k) != int(tree.meta.nodeKeySize) {
+		return errors.Wrap(ErrInvalidKeySize, "delete key size missmatch")
+	}
+
+	n, err := tree.get(k)
+	if err != nil {
+		return errors.Wrap(err, "failed to alloc 1 node")
+	}
+	
+	copy(n.key, k)
+	return errors.Wrap(tree.delete(n), "failed to delete node")
+}
+
 func (tree *RBTree) Scan(t *node, scanFn func(key []byte) (bool, error)) error {
 	if tree.root == nil {
 		return nil
@@ -79,8 +114,8 @@ func (tree *RBTree) Scan(t *node, scanFn func(key []byte) (bool, error)) error {
 	var err error
 	s := stack.New[*node](tree.height())
 	curr := t
-	for curr != nil || s.Size() > 0 {
-		for curr != nil {
+	for curr != nil && curr.ptr.raw != tree.meta.nullPtr || s.Size() > 0 {
+		for curr != nil && curr.ptr.raw != tree.meta.nullPtr {
 			s.Push(curr)
 			if curr.left == tree.meta.nullPtr {
 				break
@@ -141,16 +176,284 @@ func (tree *RBTree) Close() error {
 	return errors.Wrap(err, "failed to close RBTree")
 }
 
-// func (tree *RBTree) fixDelete(n *node) error {
+func (tree *RBTree) get(k []byte) (*node, error) {
+	var err error
+	n := tree.root
+	for n.ptr.raw != tree.meta.nullPtr {
+		cmp := bytes.Compare(n.key, k)
+		if cmp == -1 {
+			n, err = tree.fetch(n.right)
+		} else if cmp == 1 {
+			n, err = tree.fetch(n.left)
+		} else {
+			return n, nil
+		}
 
-// }
+		if err != nil {
+			return nil, errors.Wrap(err, ErrNodeFetch.Error())
+		}
+	}
+	return nil, nil
+}
 
-// func (tree *RBTree) delete(n *node) error {
+func (tree *RBTree) height() int {
+	return 2 * int(math.Ceil(math.Log2(float64(tree.meta.count)))) + 1
+}
 
-// }
+func (tree *RBTree) fixDelete(x *node) error {
+	for x.ptr.raw != tree.meta.rootPtr && x.isBlack() {
+		xp, err := tree.fetch(x.parent)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		if x.ptr.raw == xp.left {
+			w, err := tree.fetch(xp.right)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			if w.isRed() { // case 1
+				w.dirty = true
+				xp.dirty = true
+				w.setBlack()
+				xp.setRed()
+
+				if err := tree.leftRotate(xp); err != nil {
+					return errors.Wrap(err, "failed to left rotate")
+				}
+
+				w, err = tree.fetch(xp.right)
+				if err != nil {
+					return errors.Wrap(err, ErrNodeFetch.Error())
+				}
+			}
+
+			wl, err := tree.fetch(w.left)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			wr, err := tree.fetch(w.right)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			if wl.isBlack() && wr.isBlack() { // case 2
+				w.dirty = true
+				w.setRed()
+				x = xp
+			} else { // case 3, 4
+				if wr.isBlack() { // case 3
+					wl.dirty = true
+					w.dirty = true
+					wl.setBlack()
+					w.setRed()
+
+					xPtr := x.ptr.raw
+					if err := tree.rightRotate(w); err != nil {
+						return errors.Wrap(err, "failed to right rotate")
+					}
+
+					x, err = tree.fetch(xPtr)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+					xp, err = tree.fetch(x.parent)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+					w, err = tree.fetch(xp.right)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+				}
+
+				// case 4
+				w.dirty = true
+				xp.dirty = true
+				wr.dirty = true
+				w.setFlag(FT_COLOR, xp.getFlag(FT_COLOR))
+				xp.setBlack()
+				wr.setBlack()
+
+				if err := tree.leftRotate(xp); err != nil {
+					return errors.Wrap(err, "failed to left rotate")
+				}
+				x = tree.root
+			}
+		} else {
+			w, err := tree.fetch(xp.left)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			if w.isRed() { // case 1
+				w.dirty = true
+				xp.dirty = true
+				w.setBlack()
+				xp.setRed()
+
+				if err := tree.rightRotate(xp); err != nil {
+					return errors.Wrap(err, "failed to right rotate")
+				}
+
+				w, err = tree.fetch(xp.left)
+				if err != nil {
+					return errors.Wrap(err, ErrNodeFetch.Error())
+				}
+			}
+
+			wl, err := tree.fetch(w.right)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			wr, err := tree.fetch(w.left)
+			if err != nil {
+				return errors.Wrap(err, ErrNodeFetch.Error())
+			}
+
+			if wl.isBlack() && wr.isBlack() { // case 2
+				w.dirty = true
+				w.setRed()
+				x = xp
+			} else { // case 3, 4
+				if wr.isBlack() { // case 3
+					wl.dirty = true
+					w.dirty = true
+					wl.setBlack()
+					w.setRed()
+
+					xPtr := x.ptr.raw
+					if err := tree.leftRotate(w); err != nil {
+						return errors.Wrap(err, "failed to left rotate")
+					}
+
+					x, err = tree.fetch(xPtr)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+					xp, err = tree.fetch(x.parent)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+					w, err = tree.fetch(xp.left)
+					if err != nil {
+						return errors.Wrap(err, ErrNodeFetch.Error())
+					}
+				}
+
+				// case 4
+				w.dirty = true
+				xp.dirty = true
+				wr.dirty = true
+				w.setFlag(FT_COLOR, xp.getFlag(FT_COLOR))
+				xp.setBlack()
+				wr.setBlack()
+
+				if err := tree.rightRotate(xp); err != nil {
+					return errors.Wrap(err, "failed to right rotate")
+				}
+				x = tree.root
+			}
+		}
+	}
+
+	x.dirty = true
+	x.setBlack()
+	return nil
+}
+
+func (tree *RBTree) delete(z *node) error {
+	var x *node
+	var err error
+	y := z
+	yOriginalColor := y.getFlag(FT_COLOR)
+
+	if z.left == tree.meta.nullPtr { // no children or only right
+		x, err = tree.fetch(z.right)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		if err := tree.transplant(z, x); err != nil {
+			return errors.Wrap(err, "failed to transplant")
+		}
+	} else if z.right == tree.meta.nullPtr { // only left child
+		x, err = tree.fetch(z.left)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		if err := tree.transplant(z, x); err != nil {
+			return errors.Wrap(err, "failed to transplant")
+		}
+	} else { // both children
+		zr, err := tree.fetch(z.right)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		y, err = tree.minimum(zr)
+		if err != nil {
+			return errors.Wrap(err, "failed to get minimum of subtree")
+		}
+
+		yOriginalColor = y.getFlag(FT_COLOR)
+		x, err = tree.fetch(y.right)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		if y.parent == z.ptr.raw { // y is direct child of z
+			x.dirty = true
+			x.parent = y.ptr.raw
+		} else {
+			if err := tree.transplant(y, x); err != nil {
+				return errors.Wrap(err, "failed to transplant")
+			}
+			y.dirty = true
+			x.dirty = true
+			y.right = z.right
+			x.parent = y.ptr.raw
+		}
+
+		if err := tree.transplant(z, y); err != nil {
+			return errors.Wrap(err, "failed to transplant")
+		}
+
+		y.dirty = true
+		y.left = z.left
+		yl, err := tree.fetch(y.left)
+		if err != nil {
+			return errors.Wrap(err, ErrNodeFetch.Error())
+		}
+
+		yl.dirty = true
+    yl.parent = y.ptr.raw
+    y.setFlag(FT_COLOR, z.getFlag(FT_COLOR))
+	}
+
+	if yOriginalColor == FV_COLOR_BLACK {
+		return errors.Wrap(tree.fixDelete(x), "failed to fix deletion")
+	}
+	return nil
+}
+
+func (tree *RBTree) minimum(t *node) (*node, error) {
+	var err error
+	for t.left != tree.meta.nullPtr {
+		t, err = tree.fetch(t.left)
+		if err != nil {
+			return nil, errors.Wrap(err, ErrNodeFetch.Error())
+		}
+	}
+	return t, nil
+}
 
 func (tree *RBTree) transplant(u, v *node) error {
-	if u.parent == 0 { // u is root
+	if u.parent == tree.meta.nullPtr { // u is root
 		tree.meta.dirty = true
 		tree.meta.rootPtr = v.ptr.raw
 		tree.root = v
@@ -160,6 +463,7 @@ func (tree *RBTree) transplant(u, v *node) error {
 			return errors.Wrap(err, ErrNodeFetch.Error())
 		}
 
+		up.dirty = true
 		if u.ptr.raw == up.left { // u is left child
 			up.left = v.ptr.raw
 		} else { // u is right child
@@ -167,12 +471,9 @@ func (tree *RBTree) transplant(u, v *node) error {
 		}
 	}
 
+	v.dirty = true
 	v.parent = u.parent
 	return nil
-}
-
-func (tree *RBTree) height() int {
-	return 2 * int(math.Ceil(math.Log2(float64(tree.meta.count)))) + 1
 }
 
 func (tree *RBTree) fixInsert(z *node) error {
