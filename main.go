@@ -345,9 +345,12 @@ func main() {
 		elem := uint16(rand.Int31n(1000))
 		// elems[i] = elem
 		binary.BigEndian.PutUint16(b, elem)
-		if err := t.Insert(b); err != nil {
+		if err := t.InsertMem(b); err != nil {
 			logrus.Fatal(i, err)
 		}
+	}
+	if err := t.WriteAll(); err != nil {
+		logrus.Fatal(err)
 	}
 
 	err = t.Scan(nil, func(key []byte) (bool, error) {

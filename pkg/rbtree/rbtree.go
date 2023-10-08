@@ -48,6 +48,13 @@ type RBTree struct {
 }
 
 func (tree *RBTree) Insert(k []byte) error {
+	if err := tree.InsertMem(k); err != nil {
+		return err
+	}
+	return errors.Wrap(tree.writeAll(), "failed to write all")
+}
+
+func (tree *RBTree) InsertMem(k []byte) error {
 	if len(k) != int(tree.meta.nodeKeySize) {
 		return errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
 	}
@@ -58,12 +65,7 @@ func (tree *RBTree) Insert(k []byte) error {
 	}
 	
 	copy(n[0].key, k)
-
-	err = tree.insert(n[0])
-	if err != nil {
-		return errors.Wrap(err, "failed to insert node")
-	}
-	return tree.writeAll()
+	return errors.Wrap(tree.insert(n[0]), "failed to insert node")
 }
 
 func (tree *RBTree) Scan(t *node, scanFn func(key []byte) (bool, error)) error {
@@ -122,6 +124,10 @@ func (tree *RBTree) Print() error {
 		fmt.Println(nodes)
 	}
 	return nil
+}
+
+func (tree *RBTree) WriteAll() error {
+	return tree.writeAll()
 }
 
 func (tree *RBTree) Close() error {
@@ -519,7 +525,7 @@ func (tree *RBTree) writeAll() error {
 		}
 	}
 
-	return tree.writeMeta()
+	return errors.Wrap(tree.writeMeta(), "failed to write meta")
 }
 
 func (tree *RBTree) writeMeta() error {
