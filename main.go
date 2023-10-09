@@ -326,12 +326,19 @@ func main() {
 
 	// b := make([]byte, 19)
 	// els := []uint16{
-	// 	804,
-	// 	589,
-	// 	706,
-	// 	478,
-	// 	376,
-	// 	337,
+	// 	10,
+	// 	20,
+	// 	30,
+	// 	100,
+	// 	90,
+	// 	40,
+	// 	50,
+	// 	60,
+	// 	70,
+	// 	80,
+	// 	150,
+	// 	110,
+	// 	120,
 	// }
 	// for _, elem := range els {
 	// 	binary.BigEndian.PutUint16(b, elem)
@@ -340,8 +347,28 @@ func main() {
 	// 	}
 	// }
 
+	// if err := t.Print(5); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	
+	// db := make([]byte, 19)
+
+	// binary.BigEndian.PutUint16(db, 60)
+	// fmt.Println("deleting", 60)
+	// if err := t.Delete(db); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// binary.BigEndian.PutUint16(db, 120)
+	// fmt.Println("deleting", 120)
+	// if err := t.Delete(db); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+
 	b := make([]byte, 19)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 100; i++ {
 		elem := uint16(rand.Int31n(256))
 		elems = append(elems, elem)
 		binary.BigEndian.PutUint16(b, elem)
@@ -363,8 +390,9 @@ func main() {
 	// 	fmt.Println(binary.BigEndian.Uint16(v))
 	// }
 
+	// elems = []uint16{0, 0, 6, 12, 15, 15, 17, 18, 19, 19, 24, 24, 25, 30, 32, 33, 33, 34, 34, 36, 39, 42, 42, 43, 47, 49, 51, 52, 61, 66, 73, 74, 76, 78, 79, 80, 80, 83, 85, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101, 107, 112, 118, 122, 124, 126, 129, 132, 136, 140, 140, 142, 145, 145, 145, 172, 184, 189, 192, 192, 193, 195, 199, 200, 201, 202, 202, 202, 207, 210, 211, 212, 214, 216, 216, 219, 226, 227, 229, 233, 234, 235, 237, 238, 241, 245, 245, 245, 246, 254, 255}
 	db := make([]byte, 19)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 100; i++ {
 		// index := rand.Intn(len(elems))
 		elem := elems[i]
 		// elems = append(elems[:index], elems[index+1:]...)
@@ -375,13 +403,13 @@ func main() {
 		}
 	}
 
-	// err = t.Scan(nil, func(key []byte) (bool, error) {
-	// 	fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
+	err = t.Scan(0, func(key []byte) (bool, error) {
+		fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	// err = t.Print()
 	// if err != nil {

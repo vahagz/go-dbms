@@ -38,11 +38,7 @@ func (p *page) MarshalBinary() ([]byte, error) {
 func (p *page) UnmarshalBinary(d []byte) error {
 	pageOffset := p.id * uint32(p.size)
 	for i := range p.nodes {
-		n := newNode(&pointer{
-			raw:    pageOffset + uint32(i*int(p.nodeSize)),
-			pageId: p.id,
-			index:  uint16(i),
-		}, p.nodeKeySize, p.nodeNullPtr)
+		n := newNode(pageOffset+uint32(i*int(p.nodeSize)), p.nodeKeySize)
 		n.dirty = false
 
 		err := n.UnmarshalBinary(d[i*int(p.nodeSize) : (i+1)*int(p.nodeSize)])

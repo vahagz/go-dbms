@@ -2,13 +2,11 @@ package rbtree
 
 const nodeFixedSize = 13
 
-func newNode(ptr *pointer, keySize uint16, nullPtr uint32) *node {
+func newNode(ptr uint32, keySize uint16) *node {
 	return &node{
 		dirty: true,
 		ptr:   ptr,
 		size:  nodeFixedSize + keySize,
-		left:  nullPtr,
-		right: nullPtr,
 		key:   make([]byte, keySize),
 		flags: FV_COLOR_RED,
 	}
@@ -29,7 +27,7 @@ const (
 
 type node struct {
 	dirty bool
-	ptr   *pointer
+	ptr   uint32
 	size  uint16
 
 	left   uint32
@@ -48,14 +46,17 @@ func (n *node) isRed() bool {
 }
 
 func (n *node) setBlack() {
+	n.dirty = true
 	n.setFlag(FT_COLOR, FV_COLOR_BLACK)
 }
 
 func (n *node) setRed() {
+	n.dirty = true
 	n.setFlag(FT_COLOR, FV_COLOR_RED)
 }
 
 func (n *node) setFlag(ft flagType, fv flagVaue) {
+	n.dirty = true
 	mask := ^(byte(1) << ft)
 	mask &= byte(n.flags)
 	n.flags = flagVaue(mask) | fv
