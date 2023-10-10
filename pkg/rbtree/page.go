@@ -1,17 +1,5 @@
 package rbtree
 
-func newPage(id uint32, meta *metadata) *page {
-	return &page{
-		dirty:       true,
-		id:          id,
-		size:        meta.pageSize,
-		nodeKeySize: meta.nodeKeySize,
-		nodeNullPtr: meta.nullPtr,
-		nodeSize:    nodeFixedSize + meta.nodeKeySize,
-		nodes:       make([]*node, meta.pageSize/(nodeFixedSize+meta.nodeKeySize)),
-	}
-}
-
 type page struct {
 	dirty       bool
 	id          uint32

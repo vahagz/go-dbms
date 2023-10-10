@@ -178,18 +178,20 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	b := make([]byte, 19)
 	// elems = []uint16{1}
+	b := make([]byte, 19)
 	for i := 0; i < 1000; i++ {
 		// elem := elems[i]
 		elem := uint16(rand.Int31n(256))
 		elems = append(elems, elem)
 		binary.BigEndian.PutUint16(b, elem)
-		if err := t.Insert(b); err != nil {
+		if err := t.InsertMem(b); err != nil {
 			logrus.Fatal(i, err)
 		}
 	}
-	// fmt.Println(elems)
+	if err := t.WriteAll(); err != nil {
+		logrus.Fatal(err)
+	}
 
 	// elems = []uint16{1}
 	db := make([]byte, 19)
@@ -198,9 +200,12 @@ func main() {
 		elem := elems[i]
 		// elems = append(elems[:index], elems[index+1:]...)
 		binary.BigEndian.PutUint16(db, elem)
-		if err := t.Delete(db); err != nil {
+		if err := t.DeleteMem(db); err != nil {
 			logrus.Fatal(err)
 		}
+	}
+	if err := t.WriteAll(); err != nil {
+		logrus.Fatal(err)
 	}
 
 	// db := make([]byte, 19)

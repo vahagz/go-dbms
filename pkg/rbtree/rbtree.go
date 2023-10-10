@@ -59,16 +59,16 @@ func (tree *RBTree) InsertMem(k []byte) error {
 		return errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
 	}
 
-	n, err := tree.alloc(1)
+	n, err := tree.alloc()
 	if err != nil {
 		return errors.Wrap(err, "failed to alloc 1 node")
 	}
 
-	tree.fetch(n[0]).left = tree.meta.nullPtr
-	tree.fetch(n[0]).right = tree.meta.nullPtr
-	tree.fetch(n[0]).setRed()
-	copy(tree.fetch(n[0]).key, k)
-	tree.insert(n[0])
+	tree.fetch(n).left = tree.meta.nullPtr
+	tree.fetch(n).right = tree.meta.nullPtr
+	tree.fetch(n).setRed()
+	copy(tree.fetch(n).key, k)
+	tree.insert(n)
 	return nil
 }
 
@@ -547,26 +547,22 @@ func (tree *RBTree) fetchPage(id uint32) *page {
 	return p
 }
 
-func (tree *RBTree) alloc(n int) ([]uint32, error) {
+func (tree *RBTree) alloc() (uint32, error) {
 	topPtr := tree.pointer(tree.meta.top)
-	requestedLastPtr := tree.pointer(tree.meta.top + uint32((n - 1) * int(tree.nodeSize)))
 
-	if requestedLastPtr.pageId > topPtr.pageId || topPtr.index == 0 {
+	if topPtr.index == 0 {
 		var err error
-		_, err = tree.pager.Alloc(int(requestedLastPtr.pageId - topPtr.pageId + 1))
+		_, err = tree.pager.Alloc(1)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to alloc page")
+			return 0, errors.Wrap(err, "failed to alloc page")
 		}
 	}
 
-	nodes := make([]uint32, n)
-	for i := 0; i < n; i++ {
-		nodes[i] = tree.meta.top + uint32(i * int(tree.nodeSize))
-	}
+	ptr := tree.meta.top
+	tree.meta.dirty = true
+	tree.meta.top += uint32(tree.nodeSize)
 
-	tree.meta.top += uint32(n * int(tree.nodeSize))
-
-	return nodes, nil
+	return ptr, nil
 }
 
 func (tree *RBTree) free(ptr uint32) error {
@@ -650,12 +646,11 @@ func (tree *RBTree) init(opts *Options) error {
 		top:         uint32(opts.PageSize),
 	}
 
-	n, err := tree.alloc(1)
+	nullNode, err := tree.alloc()
 	if err != nil {
 		return errors.Wrap(err, "failed to alloc null node")
 	}
 
-	nullNode := n[0]
 	tree.fetch(nullNode).setBlack()
 
 	tree.meta.dirty = true
