@@ -77,11 +77,11 @@ func (tree *RBTree) Get(k []byte) ([]byte, error) {
 		return nil, errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
 	}
 
-	ptr := tree.get(k)
-	if ptr != tree.meta.nullPtr {
-		return tree.fetch(ptr).key, nil
+	ptr, err := tree.get(k)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to find key")
 	}
-	return nil, nil
+	return tree.fetch(ptr).key, nil
 }
 
 func (tree *RBTree) Delete(k []byte) error {
@@ -96,9 +96,9 @@ func (tree *RBTree) DeleteMem(k []byte) error {
 		return errors.Wrap(ErrInvalidKeySize, "delete key size missmatch")
 	}
 
-	ptr := tree.get(k)
-	if ptr == tree.meta.nullPtr {
-		return ErrNotFound
+	ptr, err := tree.get(k)
+	if err != nil {
+		return errors.Wrapf(err, "failed to find key to delete => %v", k)
 	}
 
 	copy(tree.fetch(ptr).key, k)
@@ -106,16 +106,21 @@ func (tree *RBTree) DeleteMem(k []byte) error {
 	return nil
 }
 
-func (tree *RBTree) Scan(t uint32, scanFn func(key []byte) (bool, error)) error {
+func (tree *RBTree) Scan(k []byte, scanFn func(key []byte) (bool, error)) error {
 	if tree.meta.rootPtr == tree.meta.nullPtr {
 		return nil
 	}
-	if t == 0 {
-		t = tree.meta.rootPtr
+
+	curr := tree.meta.rootPtr
+	if k != nil {
+		var err error
+		curr, err = tree.get(k)
+		if err != nil && err != ErrNotFound {
+			return errors.Wrap(err, "failed to find key")
+		}
 	}
 
 	s := stack.New[uint32](tree.height())
-	curr := t
 	for curr != 0 && curr != tree.meta.nullPtr || s.Size() > 0 {
 		for curr != 0 && curr != tree.meta.nullPtr {
 			s.Push(curr)
@@ -158,7 +163,7 @@ func (tree *RBTree) print(root uint32, space int, count int) error {
 	// }
 	// return nil
 
-	if (root == 0) {
+	if root == 0 {
 		return nil
 	}
 
@@ -166,7 +171,9 @@ func (tree *RBTree) print(root uint32, space int, count int) error {
 	space += count
 
 	// Process right child first
-	tree.print(tree.fetch(root).right, space, count)
+	if root != tree.meta.nullPtr {
+		tree.print(tree.fetch(root).right, space, count)
+	}
 
 	// Print current node after space
 	// count
@@ -177,7 +184,9 @@ func (tree *RBTree) print(root uint32, space int, count int) error {
 	fmt.Println(binary.BigEndian.Uint16(tree.fetch(root).key), tree.fetch(root).getFlag(FT_COLOR))
 
 	// Process left child
-	tree.print(tree.fetch(root).left, space, count)
+	if root != tree.meta.nullPtr {
+		tree.print(tree.fetch(root).left, space, count)
+	}
 	return nil
 }
 
@@ -196,7 +205,7 @@ func (tree *RBTree) Close() error {
 	return errors.Wrap(err, "failed to close RBTree")
 }
 
-func (tree *RBTree) get(k []byte) uint32 {
+func (tree *RBTree) get(k []byte) (uint32, error) {
 	ptr := tree.meta.rootPtr
 	for ptr != tree.meta.nullPtr {
 		cmp := bytes.Compare(tree.fetch(ptr).key, k)
@@ -205,10 +214,10 @@ func (tree *RBTree) get(k []byte) uint32 {
 		} else if cmp == 1 {
 			ptr = tree.fetch(ptr).left
 		} else {
-			return ptr
+			return ptr, nil
 		}
 	}
-	return tree.meta.nullPtr
+	return ptr, ErrNotFound
 }
 
 func (tree *RBTree) height() int {
@@ -324,6 +333,10 @@ func (tree *RBTree) delete(z uint32) {
 	if yOriginalColor == FV_COLOR_BLACK {
 		tree.fixDelete(x)
 	}
+
+	tree.free(z)
+	tree.meta.dirty = true
+	tree.meta.count--
 }
 
 func (tree *RBTree) minimum(x uint32) uint32 {
@@ -554,6 +567,61 @@ func (tree *RBTree) alloc(n int) ([]uint32, error) {
 	tree.meta.top += uint32(n * int(tree.nodeSize))
 
 	return nodes, nil
+}
+
+func (tree *RBTree) free(ptr uint32) error {
+	lastNodePtr := tree.meta.top - uint32(tree.nodeSize)
+
+	if ptr != lastNodePtr {
+		lastNode := tree.fetch(lastNodePtr)
+		parent := tree.fetch(lastNode.parent)
+
+		parent.dirty = true
+		if lastNodePtr == parent.left {
+			parent.left = ptr
+		} else {
+			parent.right = ptr
+		}
+
+		freedNode := tree.fetch(ptr)
+		freedNode.dirty = true
+		freedNode.flags = lastNode.flags
+		freedNode.key = lastNode.key
+		freedNode.left = lastNode.left
+		freedNode.parent = lastNode.parent
+		freedNode.right = lastNode.right
+		freedNode.size = lastNode.size
+
+		if freedNode.right != tree.meta.nullPtr {
+			fr := tree.fetch(freedNode.right)
+			fr.dirty = true
+			fr.parent = ptr
+		}
+		
+		if freedNode.left != tree.meta.nullPtr {
+			fl := tree.fetch(freedNode.left)
+			fl.dirty = true
+			fl.parent = ptr
+		}
+
+		if lastNodePtr == tree.meta.rootPtr {
+			tree.meta.rootPtr = ptr
+		}
+	}
+
+	lnPtr := tree.pointer(lastNodePtr)
+	topPtr := tree.pointer(tree.meta.top)
+	if lnPtr.pageId < topPtr.pageId {
+		err := tree.pager.Free(1)
+		if err != nil {
+			return errors.Wrap(err, "failed to free last page")
+		}
+		delete(tree.pages, topPtr.pageId)
+	}
+
+	tree.meta.dirty = true
+	tree.meta.top -= uint32(tree.nodeSize)
+	return nil
 }
 
 func (tree *RBTree) open(opts *Options) error {
