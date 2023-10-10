@@ -154,12 +154,12 @@ func main() {
 	pwd, _ := os.Getwd()
 
 	file := path.Join(pwd, "test", "rbtree.bin")
-	os.Remove(file)
+	// os.Remove(file)
 	t, err := rbtree.Open(
 		file,
 		&rbtree.Options{
 			PageSize: uint16(os.Getpagesize()),
-			KeySize:  19,
+			KeySize:  2,
 		},
 	)
 	if err != nil {
@@ -179,7 +179,7 @@ func main() {
 	defer exitFunc()
 
 	// elems = []uint16{1}
-	b := make([]byte, 19)
+	b := make([]byte, 2)
 	for i := 0; i < 1000; i++ {
 		// elem := elems[i]
 		elem := uint16(rand.Int31n(256))
@@ -194,13 +194,27 @@ func main() {
 	}
 
 	// elems = []uint16{1}
-	db := make([]byte, 19)
-	for i := 0; i < len(elems); i++ {
-		// index := rand.Intn(len(elems))
-		elem := elems[i]
-		// elems = append(elems[:index], elems[index+1:]...)
-		binary.BigEndian.PutUint16(db, elem)
-		if err := t.DeleteMem(db); err != nil {
+	// db := make([]byte, 2)
+	// for i := 0; i < len(elems); i++ {
+	// 	// index := rand.Intn(len(elems))
+	// 	elem := elems[i]
+	// 	// elems = append(elems[:index], elems[index+1:]...)
+	// 	binary.BigEndian.PutUint16(db, elem)
+	// 	if err := t.DeleteMem(db); err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+	// if err := t.WriteAll(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	keys := make([][]byte, 0, t.Count())
+	err = t.Scan(nil, func(key []byte) (bool, error) {
+		keys = append(keys, key)
+		return false, nil
+	})
+	for _, key := range keys {
+		if err := t.DeleteMem(key); err != nil {
 			logrus.Fatal(err)
 		}
 	}

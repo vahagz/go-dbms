@@ -41,9 +41,7 @@ type RBTree struct {
 	pager    *pager.Pager
 	pages    map[uint32]*page // node cache to avoid IO
 	meta     *metadata        // metadata about tree structure
-	// root     *node            // current root node
-	// null     *node            // nil leaf node
-	degree   uint16
+	degree   uint16           // number of nodes per page
 	nodeSize uint16
 }
 
@@ -145,6 +143,10 @@ func (tree *RBTree) Scan(k []byte, scanFn func(key []byte) (bool, error)) error 
 	}
 
 	return nil
+}
+
+func (tree *RBTree) Count() int {
+	return int(tree.meta.count)
 }
 
 func (tree *RBTree) Print(count int) error {
@@ -506,10 +508,13 @@ func (tree *RBTree) rightRotate(x uint32) {
 
 func (tree *RBTree) pointer(rawPtr uint32) *pointer {
 	return &pointer{
-		raw:    rawPtr,
 		pageId: rawPtr / uint32(tree.meta.pageSize),
 		index:  (uint16(rawPtr) % tree.meta.pageSize) / tree.nodeSize,
 	}
+}
+
+func (tree *RBTree) pointerRaw(ptr *pointer) uint32 {
+	return ptr.pageId * uint32(tree.meta.pageSize) + uint32(ptr.index * tree.nodeSize)
 }
 
 func (tree *RBTree) page(id uint32) *page {
@@ -560,13 +565,26 @@ func (tree *RBTree) alloc() (uint32, error) {
 
 	ptr := tree.meta.top
 	tree.meta.dirty = true
-	tree.meta.top += uint32(tree.nodeSize)
+	if topPtr.index == tree.degree - 1 {
+		topPtr.pageId++
+		topPtr.index = 0
+	} else {
+		topPtr.index++
+	}
+	tree.meta.top = tree.pointerRaw(topPtr)
 
 	return ptr, nil
 }
 
 func (tree *RBTree) free(ptr uint32) error {
-	lastNodePtr := tree.meta.top - uint32(tree.nodeSize)
+	lnPtr := tree.pointer(tree.meta.top)
+	if lnPtr.index == 0 {
+		lnPtr.pageId--
+		lnPtr.index = tree.degree - 1
+	} else {
+		lnPtr.index--
+	}
+	lastNodePtr := tree.pointerRaw(lnPtr)
 
 	if ptr != lastNodePtr {
 		lastNode := tree.fetch(lastNodePtr)
@@ -605,7 +623,6 @@ func (tree *RBTree) free(ptr uint32) error {
 		}
 	}
 
-	lnPtr := tree.pointer(lastNodePtr)
 	topPtr := tree.pointer(tree.meta.top)
 	if lnPtr.pageId < topPtr.pageId {
 		err := tree.pager.Free(1)
@@ -616,7 +633,8 @@ func (tree *RBTree) free(ptr uint32) error {
 	}
 
 	tree.meta.dirty = true
-	tree.meta.top -= uint32(tree.nodeSize)
+	tree.meta.top = lastNodePtr
+
 	return nil
 }
 
