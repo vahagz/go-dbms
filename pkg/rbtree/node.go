@@ -4,7 +4,7 @@ import "github.com/pkg/errors"
 
 const nodeFixedSize = 13
 
-func newNode[K EntryKey, V EntryVal](ptr uint32, e *Entry[K, V]) *node[K, V] {
+func newNode[K, V EntryItem](ptr uint32, e *Entry[K, V]) *node[K, V] {
 	return &node[K, V]{
 		dirty: true,
 		ptr:   ptr,
@@ -26,7 +26,7 @@ const (
 	FT_COLOR flagType = 0
 )
 
-type node[K EntryKey, V EntryVal] struct {
+type node[K, V EntryItem] struct {
 	dirty bool
 	ptr   uint32
 

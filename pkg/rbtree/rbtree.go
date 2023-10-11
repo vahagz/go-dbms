@@ -13,7 +13,7 @@ import (
 
 var bin = binary.BigEndian
 
-func Open[K EntryKey, V EntryVal](fileName string, opts *Options) (*RBTree[K, V], error) {
+func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error) {
 	p, err := pager.Open(fileName, int(opts.PageSize), false, 0664)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to Open rbtree")
@@ -36,7 +36,7 @@ func Open[K EntryKey, V EntryVal](fileName string, opts *Options) (*RBTree[K, V]
 	return tree, nil
 }
 
-type RBTree[K EntryKey, V EntryVal] struct {
+type RBTree[K, V EntryItem] struct {
 	file     string
 	pager    *pager.Pager
 	pages    map[uint32]*page[K, V] // node cache to avoid IO
@@ -76,17 +76,19 @@ func (tree *RBTree[K, V]) InsertMem(e *Entry[K, V]) error {
 	return nil
 }
 
-func (tree *RBTree[K, V]) Get(key K) (V, error) {
-	var v V
+func (tree *RBTree[K, V]) Get(key K) (*Entry[K, V], error) {
+	var e *Entry[K, V]
 	if key.Size() != int(tree.meta.nodeKeySize) {
-		return v, errors.Wrap(ErrInvalidKeySize, "insert entry size missmatch")
+		return e, errors.Wrap(ErrInvalidKeySize, "insert entry size missmatch")
 	}
 
 	ptr, err := tree.get(key)
-	if err != nil {
-		return v, errors.Wrap(err, "failed to find key")
+	if err != nil && err != ErrNotFound {
+		return e, errors.Wrap(err, "failed to find key")
+	} else if ptr == tree.meta.nullPtr {
+		return e, ErrNotFound
 	}
-	return tree.fetch(ptr).entry.Val, nil
+	return &Entry[K, V]{key, tree.fetch(ptr).entry.Val}, err
 }
 
 func (tree *RBTree[K, V]) Delete(key K) error {
@@ -111,7 +113,7 @@ func (tree *RBTree[K, V]) DeleteMem(key K) error {
 	return nil
 }
 
-func (tree *RBTree[K, V]) Scan(key K, scanFn func(entry *Entry[K, V]) (bool, error)) error {
+func (tree *RBTree[K, V]) Scan(key K, scanFn func(key K, val V) (bool, error)) error {
 	if tree.meta.rootPtr == tree.meta.nullPtr {
 		return nil
 	}
@@ -136,8 +138,9 @@ func (tree *RBTree[K, V]) Scan(key K, scanFn func(entry *Entry[K, V]) (bool, err
 			curr = tree.fetch(curr).left
 		}
 
-		curr = s.Pop();
-		stop, err := scanFn(tree.fetch(curr).entry)
+		curr = s.Pop()
+		e := tree.fetch(curr).entry
+		stop, err := scanFn(e.Key, e.Val)
 		if stop || err != nil {
 			return err
 		}
@@ -225,6 +228,7 @@ func (tree *RBTree[K, V]) get(e K) (uint32, error) {
 		return 0, errors.Wrap(err, "failed to marshal entry")
 	}
 
+	lastGreaterPtr := tree.meta.nullPtr
 	ptr := tree.meta.rootPtr
 	for ptr != tree.meta.nullPtr {
 		k, err := tree.fetch(ptr).entry.MarshalBinary()
@@ -236,12 +240,13 @@ func (tree *RBTree[K, V]) get(e K) (uint32, error) {
 		if cmp == -1 {
 			ptr = tree.fetch(ptr).right
 		} else if cmp == 1 {
+			lastGreaterPtr = ptr
 			ptr = tree.fetch(ptr).left
 		} else {
 			return ptr, nil
 		}
 	}
-	return ptr, ErrNotFound
+	return lastGreaterPtr, ErrNotFound
 }
 
 func (tree *RBTree[K, V]) height() int {

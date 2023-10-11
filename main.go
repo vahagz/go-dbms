@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/rbtree"
@@ -149,37 +148,6 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 // 	// }
 // }
 
-func newEntry(freeSpace uint16, pageId uint64) *rbtree.Entry[*Pointer, *rbtree.DummyVal] {
-	return &rbtree.Entry[*Pointer, *rbtree.DummyVal]{
-		Key: &Pointer{freeSpace, pageId},
-		Val: &rbtree.DummyVal{},
-	}
-}
-
-func newKey(freeSpace uint16, pageId uint64) *Pointer {
-	return &Pointer{freeSpace, pageId}
-}
-
-type Pointer struct {
-	freeSpace uint16
-	pageId    uint64
-}
-
-func (p *Pointer) New() rbtree.EntryKey {return &Pointer{}}
-func (p *Pointer) Size() int {return 10}
-func (p *Pointer) IsNil() bool {return p == nil}
-func (p *Pointer) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, p.Size())
-	binary.BigEndian.PutUint16(buf[0:2], p.freeSpace)
-	binary.BigEndian.PutUint64(buf[2:10], p.pageId)
-	return buf, nil
-}
-func (p *Pointer) UnmarshalBinary(d []byte) error {
-	p.freeSpace = binary.BigEndian.Uint16(d[0:2])
-	p.pageId = binary.BigEndian.Uint64(d[2:10])
-	return nil
-}
-
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
@@ -264,8 +232,8 @@ func main() {
 	if err := t.Print(5); err != nil {
 		logrus.Fatal(err)
 	}
-	err = t.Scan(nil, func(entry *rbtree.Entry[*Pointer, *rbtree.DummyVal]) (bool, error) {
-		fmt.Printf("(%d %d), ", entry.Key.freeSpace, entry.Key.pageId)
+	err = t.Scan(nil, func(key *Pointer, val *rbtree.DummyVal) (bool, error) {
+		fmt.Printf("(%d %d), ", key.freeSpace, key.pageId)
 		return false, nil
 	})
 	if err != nil {

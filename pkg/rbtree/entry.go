@@ -6,22 +6,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Entry[K EntryKey, V EntryVal] struct {
+type Entry[K, V EntryItem] struct {
 	Key K
 	Val V
 }
 
-type EntryKey interface {
-	New() EntryKey
+type EntryItem interface {
+	New() EntryItem
 	Size() int
 	IsNil() bool
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-}
-
-type EntryVal interface {
-	New() EntryVal
-	Size() int
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
@@ -73,7 +66,7 @@ func (e *Entry[K, V]) UnmarshalBinary(d []byte) error {
 
 
 type DummyVal struct{}
-func (v *DummyVal) New() EntryVal {return &DummyVal{}}
+func (v *DummyVal) New() EntryItem {return &DummyVal{}}
 func (v *DummyVal) Size() int {return 0}
 func (v *DummyVal) IsNil() bool {return v == nil}
 func (v *DummyVal) MarshalBinary() ([]byte, error) {return nil, nil}

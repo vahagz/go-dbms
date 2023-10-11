@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -20,7 +21,7 @@ func init() {
 			}
 
 			return &DataTypeVARCHARMeta{
-				Cap: convert(args[0], new(uint16)),
+				Cap: helpers.Convert(args[0], new(uint16)),
 			}
 		},
 	}

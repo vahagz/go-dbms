@@ -1,6 +1,6 @@
 package rbtree
 
-type page[K EntryKey, V EntryVal] struct {
+type page[K, V EntryItem] struct {
 	dirty       bool
 	id          uint32
 	size        uint16
