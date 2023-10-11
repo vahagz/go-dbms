@@ -190,12 +190,12 @@ func (tree *RBTree[K, V]) print(root uint32, space int, count int) error {
 	for i := count; i < space; i++ {
 		fmt.Print(" ")
 	}
-	k, err := tree.fetch(root).MarshalBinary()
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal entry")
-	}
 
-	fmt.Println(binary.BigEndian.Uint16(k), tree.fetch(root).getFlag(FT_COLOR))
+	fmt.Println(
+		tree.fetch(root).entry.Key,
+		tree.fetch(root).entry.Val,
+		tree.fetch(root).getFlag(FT_COLOR),
+	)
 
 	// Process left child
 	if root != tree.meta.nullPtr {

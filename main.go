@@ -156,6 +156,10 @@ func newEntry(freeSpace uint16, pageId uint64) *rbtree.Entry[*Pointer, *rbtree.D
 	}
 }
 
+func newKey(freeSpace uint16, pageId uint64) *Pointer {
+	return &Pointer{freeSpace, pageId}
+}
+
 type Pointer struct {
 	freeSpace uint16
 	pageId    uint64
@@ -194,41 +198,30 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	elems := make([]uint16, 0, 10)
-	_ = elems
+	entries := make([]*rbtree.Entry[*Pointer, *rbtree.DummyVal], 0)
+	_ = entries
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
-		// fmt.Println(elems)
-		// _ = arr.Close()
 		_ = t.Close()
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	// elems = []uint16{1}
-	// b := make([]byte, 2)
-	for i := 0; i < 100; i++ {
-		// elem := elems[i]
-		// elem := rand.Int31n(4095)
-		// elems = append(elems, elem)
-		ptr := newEntry(uint16(rand.Int31n(256)), uint64(i))
-		if err := t.InsertMem(ptr); err != nil {
-			logrus.Fatal(i, err)
+	for i := 0; i < 10; i++ {
+		entry := newEntry(uint16(rand.Int31n(256)), uint64(i))
+		entries = append(entries, entry)
+		if err := t.InsertMem(entry); err != nil {
+			logrus.Fatal(err)
 		}
 	}
 	if err := t.WriteAll(); err != nil {
 		logrus.Fatal(err)
 	}
 
-	// elems = []uint16{1}
-	// db := make([]byte, 2)
-	// for i := 0; i < len(elems); i++ {
-	// 	// index := rand.Intn(len(elems))
-	// 	elem := elems[i]
-	// 	// elems = append(elems[:index], elems[index+1:]...)
-	// 	binary.BigEndian.PutUint16(db, elem)
-	// 	if err := t.DeleteMem(db); err != nil {
+	// // entries = []*rbtree.Entry[*Pointer, *rbtree.DummyVal]{}
+	// for i := 0; i < len(entries); i++ {
+	// 	if err := t.DeleteMem(entries[i].Key); err != nil {
 	// 		logrus.Fatal(err)
 	// 	}
 	// }
@@ -268,9 +261,9 @@ func main() {
 	// 	fmt.Println(binary.BigEndian.Uint16(v))
 	// }
 
-	// if err := t.Print(5); err != nil {
-	// 	logrus.Fatal(err)
-	// }
+	if err := t.Print(5); err != nil {
+		logrus.Fatal(err)
+	}
 	err = t.Scan(nil, func(entry *rbtree.Entry[*Pointer, *rbtree.DummyVal]) (bool, error) {
 		fmt.Printf("(%d %d), ", entry.Key.freeSpace, entry.Key.pageId)
 		return false, nil
