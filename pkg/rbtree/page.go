@@ -1,16 +1,16 @@
 package rbtree
 
-type page struct {
+type page[K EntryKey, V EntryVal] struct {
 	dirty       bool
 	id          uint32
 	size        uint16
 	nodeNullPtr uint32
-	entry       Entry
+	entry       *Entry[K, V]
 
-	nodes []*node
+	nodes []*node[K, V]
 }
 
-func (p *page) MarshalBinary() ([]byte, error) {
+func (p *page[K, V]) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, p.size)
 	for i, n := range p.nodes {
 		if b, err := n.MarshalBinary(); err != nil {
@@ -22,11 +22,11 @@ func (p *page) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-func (p *page) UnmarshalBinary(d []byte) error {
+func (p *page[K, V]) UnmarshalBinary(d []byte) error {
 	pageOffset := p.id * uint32(p.size)
 	nodeSize := nodeFixedSize + p.entry.Size()
 	for i := range p.nodes {
-		e := p.entry.New()
+		e := p.entry.new()
 		n := newNode(pageOffset+uint32(i*nodeSize), e)
 		n.dirty = false
 

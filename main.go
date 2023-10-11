@@ -149,17 +149,45 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 // 	// }
 // }
 
+func newEntry(freeSpace uint16, pageId uint64) *rbtree.Entry[*Pointer, *rbtree.DummyVal] {
+	return &rbtree.Entry[*Pointer, *rbtree.DummyVal]{
+		Key: &Pointer{freeSpace, pageId},
+		Val: &rbtree.DummyVal{},
+	}
+}
+
+type Pointer struct {
+	freeSpace uint16
+	pageId    uint64
+}
+
+func (p *Pointer) New() rbtree.EntryKey {return &Pointer{}}
+func (p *Pointer) Size() int {return 10}
+func (p *Pointer) IsNil() bool {return p == nil}
+func (p *Pointer) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, p.Size())
+	binary.BigEndian.PutUint16(buf[0:2], p.freeSpace)
+	binary.BigEndian.PutUint64(buf[2:10], p.pageId)
+	return buf, nil
+}
+func (p *Pointer) UnmarshalBinary(d []byte) error {
+	p.freeSpace = binary.BigEndian.Uint16(d[0:2])
+	p.pageId = binary.BigEndian.Uint64(d[2:10])
+	return nil
+}
+
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
 
 	file := path.Join(pwd, "test", "rbtree.bin")
 	// os.Remove(file)
-	t, err := rbtree.Open(
+	t, err := rbtree.Open[*Pointer, *rbtree.DummyVal](
 		file,
 		&rbtree.Options{
 			PageSize: uint16(os.Getpagesize()),
-			KeySize:  2,
+			KeySize:  10,
+			ValSize:  0,
 		},
 	)
 	if err != nil {
@@ -179,13 +207,13 @@ func main() {
 	defer exitFunc()
 
 	// elems = []uint16{1}
-	b := make([]byte, 2)
-	for i := 0; i < 1000; i++ {
+	// b := make([]byte, 2)
+	for i := 0; i < 100; i++ {
 		// elem := elems[i]
-		elem := uint16(rand.Int31n(256))
-		elems = append(elems, elem)
-		binary.BigEndian.PutUint16(b, elem)
-		if err := t.InsertMem(b); err != nil {
+		// elem := rand.Int31n(4095)
+		// elems = append(elems, elem)
+		ptr := newEntry(uint16(rand.Int31n(256)), uint64(i))
+		if err := t.InsertMem(ptr); err != nil {
 			logrus.Fatal(i, err)
 		}
 	}
@@ -208,19 +236,19 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	keys := make([][]byte, 0, t.Count())
-	err = t.Scan(nil, func(key []byte) (bool, error) {
-		keys = append(keys, key)
-		return false, nil
-	})
-	for _, key := range keys {
-		if err := t.DeleteMem(key); err != nil {
-			logrus.Fatal(err)
-		}
-	}
-	if err := t.WriteAll(); err != nil {
-		logrus.Fatal(err)
-	}
+	// keys := make([]*Pointer, 0, t.Count())
+	// err = t.Scan(nil, func(entry *rbtree.Entry[*Pointer, *rbtree.DummyVal]) (bool, error) {
+	// 	keys = append(keys, entry.Key)
+	// 	return false, nil
+	// })
+	// for _, key := range keys {
+	// 	if err := t.DeleteMem(key); err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+	// if err := t.WriteAll(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// db := make([]byte, 19)
 	// binary.BigEndian.PutUint16(db, 191)
@@ -243,8 +271,8 @@ func main() {
 	// if err := t.Print(5); err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	err = t.Scan(nil, func(key []byte) (bool, error) {
-		fmt.Printf("%d, ", binary.BigEndian.Uint16(key))
+	err = t.Scan(nil, func(entry *rbtree.Entry[*Pointer, *rbtree.DummyVal]) (bool, error) {
+		fmt.Printf("(%d %d), ", entry.Key.freeSpace, entry.Key.pageId)
 		return false, nil
 	})
 	if err != nil {
