@@ -4,9 +4,8 @@ type page struct {
 	dirty       bool
 	id          uint32
 	size        uint16
-	nodeKeySize uint16
 	nodeNullPtr uint32
-	nodeSize    uint16
+	entry       Entry
 
 	nodes []*node
 }
@@ -25,11 +24,13 @@ func (p *page) MarshalBinary() ([]byte, error) {
 
 func (p *page) UnmarshalBinary(d []byte) error {
 	pageOffset := p.id * uint32(p.size)
+	nodeSize := nodeFixedSize + p.entry.Size()
 	for i := range p.nodes {
-		n := newNode(pageOffset+uint32(i*int(p.nodeSize)), p.nodeKeySize)
+		e := p.entry.New()
+		n := newNode(pageOffset+uint32(i*nodeSize), e)
 		n.dirty = false
 
-		err := n.UnmarshalBinary(d[i*int(p.nodeSize) : (i+1)*int(p.nodeSize)])
+		err := n.UnmarshalBinary(d[i*nodeSize : (i+1)*nodeSize])
 		if err != nil {
 			return err
 		}

@@ -1,13 +1,14 @@
 package rbtree
 
+import "github.com/pkg/errors"
+
 const nodeFixedSize = 13
 
-func newNode(ptr uint32, keySize uint16) *node {
+func newNode(ptr uint32, e Entry) *node {
 	return &node{
 		dirty: true,
 		ptr:   ptr,
-		size:  nodeFixedSize + keySize,
-		key:   make([]byte, keySize),
+		entry: e,
 		flags: FV_COLOR_RED,
 	}
 }
@@ -28,12 +29,11 @@ const (
 type node struct {
 	dirty bool
 	ptr   uint32
-	size  uint16
 
 	left   uint32
 	right  uint32
 	parent uint32
-	key    []byte
+	entry  Entry
 	flags  flagVaue
 }
 
@@ -67,12 +67,18 @@ func (n *node) getFlag(ft flagType) flagVaue {
 }
 
 func (n *node) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, n.size)
+	buf := make([]byte, nodeFixedSize+n.entry.Size())
 	bin.PutUint32(buf[0:4], n.left)
 	bin.PutUint32(buf[4:8], n.right)
 	bin.PutUint32(buf[8:12], n.parent)
 	buf[12] = byte(n.flags)
-	copy(buf[13:], n.key)
+
+	b, err := n.entry.MarshalBinary()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal entry")
+	}
+
+	copy(buf[13:], b)
 	return buf, nil
 }
 
@@ -81,6 +87,6 @@ func (n *node) UnmarshalBinary(d []byte) error {
 	n.right = bin.Uint32(d[4:8])
 	n.parent = bin.Uint32(d[8:12])
 	n.flags = flagVaue(d[12])
-	copy(n.key, d[13:])
+	n.entry.UnmarshalBinary(d[13:])
 	return nil
 }

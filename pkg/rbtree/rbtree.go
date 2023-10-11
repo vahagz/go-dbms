@@ -2,6 +2,7 @@ package rbtree
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/binary"
 	"fmt"
 	"go-dbms/pkg/pager"
@@ -13,13 +14,13 @@ import (
 
 var bin = binary.LittleEndian
 
-func Open(fileName string, opts *Options) (*RBTree, error) {
+func Open[T Entry](fileName string, opts *Options) (*RBTree[T], error) {
 	p, err := pager.Open(fileName, int(opts.PageSize), false, 0664)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to Open rbtree")
 	}
 
-	tree := &RBTree{
+	tree := &RBTree[T]{
 		file:     fileName,
 		pager:    p,
 		pages:    map[uint32]*page{},
@@ -36,7 +37,7 @@ func Open(fileName string, opts *Options) (*RBTree, error) {
 	return tree, nil
 }
 
-type RBTree struct {
+type RBTree[T Entry] struct {
 	file     string
 	pager    *pager.Pager
 	pages    map[uint32]*page // node cache to avoid IO
@@ -45,15 +46,15 @@ type RBTree struct {
 	nodeSize uint16
 }
 
-func (tree *RBTree) Insert(k []byte) error {
-	if err := tree.InsertMem(k); err != nil {
+func (tree *RBTree[T]) Insert(e T) error {
+	if err := tree.InsertMem(e); err != nil {
 		return err
 	}
 	return errors.Wrap(tree.writeAll(), "failed to write all")
 }
 
-func (tree *RBTree) InsertMem(k []byte) error {
-	if len(k) != int(tree.meta.nodeKeySize) {
+func (tree *RBTree[T]) InsertMem(e T) error {
+	if e.Size() != int(tree.meta.nodeKeySize) {
 		return errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
 	}
 
@@ -65,31 +66,31 @@ func (tree *RBTree) InsertMem(k []byte) error {
 	tree.fetch(n).left = tree.meta.nullPtr
 	tree.fetch(n).right = tree.meta.nullPtr
 	tree.fetch(n).setRed()
-	copy(tree.fetch(n).key, k)
+	tree.fetch(n).entry = e
 	tree.insert(n)
 	return nil
 }
 
-func (tree *RBTree) Get(k []byte) ([]byte, error) {
-	if len(k) != int(tree.meta.nodeKeySize) {
+func (tree *RBTree[T]) Get(e encoding.BinaryMarshaler) ([]byte, error) {
+	if e.Size() != int(tree.meta.nodeKeySize) {
 		return nil, errors.Wrap(ErrInvalidKeySize, "insert key size missmatch")
 	}
 
-	ptr, err := tree.get(k)
+	ptr, err := tree.get(e)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find key")
 	}
 	return tree.fetch(ptr).key, nil
 }
 
-func (tree *RBTree) Delete(k []byte) error {
+func (tree *RBTree[T]) Delete(k []byte) error {
 	if err := tree.DeleteMem(k); err != nil {
 		return err
 	}
 	return errors.Wrap(tree.writeAll(), "failed to write all")
 }
 
-func (tree *RBTree) DeleteMem(k []byte) error {
+func (tree *RBTree[T]) DeleteMem(k []byte) error {
 	if len(k) != int(tree.meta.nodeKeySize) {
 		return errors.Wrap(ErrInvalidKeySize, "delete key size missmatch")
 	}
@@ -104,7 +105,7 @@ func (tree *RBTree) DeleteMem(k []byte) error {
 	return nil
 }
 
-func (tree *RBTree) Scan(k []byte, scanFn func(key []byte) (bool, error)) error {
+func (tree *RBTree[T]) Scan(k []byte, scanFn func(key []byte) (bool, error)) error {
 	if tree.meta.rootPtr == tree.meta.nullPtr {
 		return nil
 	}
@@ -145,15 +146,15 @@ func (tree *RBTree) Scan(k []byte, scanFn func(key []byte) (bool, error)) error 
 	return nil
 }
 
-func (tree *RBTree) Count() int {
+func (tree *RBTree[T]) Count() int {
 	return int(tree.meta.count)
 }
 
-func (tree *RBTree) Print(count int) error {
+func (tree *RBTree[T]) Print(count int) error {
 	return tree.print(tree.meta.rootPtr, 0, count)
 }
 
-func (tree *RBTree) print(root uint32, space int, count int) error {
+func (tree *RBTree[T]) print(root uint32, space int, count int) error {
 	// count := tree.pager.Count()
 	// for i := uint32(1); i < uint32(count); i++ {
 	// 	p := tree.page(i)
@@ -183,7 +184,12 @@ func (tree *RBTree) print(root uint32, space int, count int) error {
 	for i := count; i < space; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Println(binary.BigEndian.Uint16(tree.fetch(root).key), tree.fetch(root).getFlag(FT_COLOR))
+	k, err := tree.fetch(root).MarshalBinary()
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal entry")
+	}
+
+	fmt.Println(binary.BigEndian.Uint16(k), tree.fetch(root).getFlag(FT_COLOR))
 
 	// Process left child
 	if root != tree.meta.nullPtr {
@@ -192,11 +198,11 @@ func (tree *RBTree) print(root uint32, space int, count int) error {
 	return nil
 }
 
-func (tree *RBTree) WriteAll() error {
+func (tree *RBTree[T]) WriteAll() error {
 	return tree.writeAll()
 }
 
-func (tree *RBTree) Close() error {
+func (tree *RBTree[T]) Close() error {
 	if tree.pager == nil {
 		return nil
 	}
@@ -207,10 +213,20 @@ func (tree *RBTree) Close() error {
 	return errors.Wrap(err, "failed to close RBTree")
 }
 
-func (tree *RBTree) get(k []byte) (uint32, error) {
+func (tree *RBTree[T]) get(e Entry) (uint32, error) {
+	serachingKey, err := e.MarshalBinary()
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to marshal entry")
+	}
+
 	ptr := tree.meta.rootPtr
 	for ptr != tree.meta.nullPtr {
-		cmp := bytes.Compare(tree.fetch(ptr).key, k)
+		k, err := tree.fetch(ptr).entry.MarshalBinary()
+		if err != nil {
+			return 0, errors.Wrap(err, "failed to marshal entry")
+		}
+
+		cmp := bytes.Compare(k, serachingKey)
 		if cmp == -1 {
 			ptr = tree.fetch(ptr).right
 		} else if cmp == 1 {
@@ -222,11 +238,11 @@ func (tree *RBTree) get(k []byte) (uint32, error) {
 	return ptr, ErrNotFound
 }
 
-func (tree *RBTree) height() int {
+func (tree *RBTree[T]) height() int {
 	return 2 * int(math.Ceil(math.Log2(float64(tree.meta.count)))) + 1
 }
 
-func (tree *RBTree) fixDelete(x uint32) {
+func (tree *RBTree[T]) fixDelete(x uint32) {
 	for x != tree.meta.rootPtr && tree.fetch(x).isBlack() {
 		if x == tree.fetch(tree.fetch(x).parent).left {
 			w := tree.fetch(tree.fetch(x).parent).right
@@ -296,7 +312,7 @@ func (tree *RBTree) fixDelete(x uint32) {
 	tree.fetch(x).setBlack()
 }
 
-func (tree *RBTree) delete(z uint32) {
+func (tree *RBTree[T]) delete(z uint32) {
 	var x uint32
 	y := z
 	yOriginalColor := tree.fetch(y).getFlag(FT_COLOR)
@@ -341,14 +357,14 @@ func (tree *RBTree) delete(z uint32) {
 	tree.meta.count--
 }
 
-func (tree *RBTree) minimum(x uint32) uint32 {
+func (tree *RBTree[T]) minimum(x uint32) uint32 {
 	for tree.fetch(x).left != tree.meta.nullPtr {
 		x = tree.fetch(x).left
 	}
 	return x
 }
 
-func (tree *RBTree) transplant(u, v uint32) {
+func (tree *RBTree[T]) transplant(u, v uint32) {
 	if tree.fetch(u).parent == tree.meta.nullPtr { // u is root
 		tree.meta.dirty = true
 		tree.meta.rootPtr = v
@@ -365,7 +381,7 @@ func (tree *RBTree) transplant(u, v uint32) {
 	tree.fetch(v).parent = tree.fetch(u).parent
 }
 
-func (tree *RBTree) fixInsert(z uint32) {
+func (tree *RBTree[T]) fixInsert(z uint32) {
 	for tree.fetch(tree.fetch(z).parent).isRed() {
 		if tree.fetch(z).parent == tree.fetch(tree.fetch(tree.fetch(z).parent).parent).left { // first 3 cases
 			y := tree.fetch(tree.fetch(tree.fetch(z).parent).parent).right // z uncle
@@ -413,7 +429,7 @@ func (tree *RBTree) fixInsert(z uint32) {
 	tree.fetch(tree.meta.rootPtr).setBlack()
 }
 
-func (tree *RBTree) insert(z uint32) {
+func (tree *RBTree[T]) insert(z uint32) {
 	y := tree.meta.nullPtr
 	temp := tree.meta.rootPtr
 
@@ -448,7 +464,7 @@ func (tree *RBTree) insert(z uint32) {
 	tree.meta.count++
 }
 
-func (tree *RBTree) leftRotate(x uint32) {
+func (tree *RBTree[T]) leftRotate(x uint32) {
 	y := tree.fetch(x).right
 
 	tree.fetch(x).dirty = true
@@ -477,7 +493,7 @@ func (tree *RBTree) leftRotate(x uint32) {
 	tree.fetch(x).parent = y
 }
 
-func (tree *RBTree) rightRotate(x uint32) {
+func (tree *RBTree[T]) rightRotate(x uint32) {
 	y := tree.fetch(x).left
 
 	tree.fetch(x).dirty = true
@@ -506,29 +522,29 @@ func (tree *RBTree) rightRotate(x uint32) {
 	tree.fetch(x).parent = y
 }
 
-func (tree *RBTree) pointer(rawPtr uint32) *pointer {
+func (tree *RBTree[T]) pointer(rawPtr uint32) *pointer {
 	return &pointer{
 		pageId: rawPtr / uint32(tree.meta.pageSize),
 		index:  (uint16(rawPtr) % tree.meta.pageSize) / tree.nodeSize,
 	}
 }
 
-func (tree *RBTree) pointerRaw(ptr *pointer) uint32 {
+func (tree *RBTree[T]) pointerRaw(ptr *pointer) uint32 {
 	return ptr.pageId * uint32(tree.meta.pageSize) + uint32(ptr.index * tree.nodeSize)
 }
 
-func (tree *RBTree) page(id uint32) *page {
+func (tree *RBTree[T]) page(id uint32) *page {
+	var e T
 	return &page{
 		dirty: true,
 		id:    id,
 		size:  tree.meta.pageSize,
-		nodeSize: tree.meta.nodeKeySize + nodeFixedSize,
-		nodeKeySize: tree.meta.nodeKeySize,
+		entry: e.New(),
 		nodes: make([]*node, tree.degree),
 	}
 }
 
-func (tree *RBTree) fetch(rawPtr uint32) *node {
+func (tree *RBTree[T]) fetch(rawPtr uint32) *node {
 	if rawPtr == 0 {
 		panic(ErrInvalidPointer)
 	}
@@ -537,7 +553,7 @@ func (tree *RBTree) fetch(rawPtr uint32) *node {
 	return tree.fetchPage(ptr.pageId).nodes[ptr.index]
 }
 
-func (tree *RBTree) fetchPage(id uint32) *page {
+func (tree *RBTree[T]) fetchPage(id uint32) *page {
 	if p, ok := tree.pages[id]; ok {
 		return p
 	}
@@ -552,7 +568,7 @@ func (tree *RBTree) fetchPage(id uint32) *page {
 	return p
 }
 
-func (tree *RBTree) alloc() (uint32, error) {
+func (tree *RBTree[T]) alloc() (uint32, error) {
 	topPtr := tree.pointer(tree.meta.top)
 
 	if topPtr.index == 0 {
@@ -576,7 +592,7 @@ func (tree *RBTree) alloc() (uint32, error) {
 	return ptr, nil
 }
 
-func (tree *RBTree) free(ptr uint32) error {
+func (tree *RBTree[T]) free(ptr uint32) error {
 	lnPtr := tree.pointer(tree.meta.top)
 	if lnPtr.index == 0 {
 		lnPtr.pageId--
@@ -638,7 +654,7 @@ func (tree *RBTree) free(ptr uint32) error {
 	return nil
 }
 
-func (tree *RBTree) open(opts *Options) error {
+func (tree *RBTree[T]) open(opts *Options) error {
 	if tree.pager.Count() == 0 {
 		return tree.init(opts)
 	}
@@ -650,7 +666,7 @@ func (tree *RBTree) open(opts *Options) error {
 	return nil
 }
 
-func (tree *RBTree) init(opts *Options) error {
+func (tree *RBTree[T]) init(opts *Options) error {
 	_, err := tree.pager.Alloc(1)
 	if err != nil {
 		return errors.Wrap(err, "failed to alloc first page for meta")
@@ -678,7 +694,7 @@ func (tree *RBTree) init(opts *Options) error {
 	return nil
 }
 
-func (tree *RBTree) writeAll() error {
+func (tree *RBTree[T]) writeAll() error {
 	if tree.pager.ReadOnly() {
 		return nil
 	}
@@ -705,7 +721,7 @@ func (tree *RBTree) writeAll() error {
 	return errors.Wrap(tree.writeMeta(), "failed to write meta")
 }
 
-func (tree *RBTree) writeMeta() error {
+func (tree *RBTree[T]) writeMeta() error {
 	if tree.meta.dirty {
 		err := tree.pager.Marshal(0, tree.meta)
 		tree.meta.dirty = false
