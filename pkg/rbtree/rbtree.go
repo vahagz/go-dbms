@@ -107,7 +107,6 @@ func (tree *RBTree[K, V]) DeleteMem(key K) error {
 
 	ptr, err := tree.get(key)
 	if err != nil {
-		fmt.Println(ptr)
 		return errors.Wrapf(err, "failed to find key to delete => %v", key)
 	}
 
