@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
+	"go-dbms/pkg/allocator"
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/rbtree"
+	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -152,91 +153,49 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
 
-	file := path.Join(pwd, "test", "rbtree.bin")
-	// os.Remove(file)
-	t, err := rbtree.Open[*Pointer, *rbtree.DummyVal](
-		file,
-		&rbtree.Options{
-			PageSize: uint16(os.Getpagesize()),
-			KeySize:  10,
-			ValSize:  0,
+	pagerFile := path.Join(pwd, "test", "data.dat")
+	p, err := pager.Open(pagerFile, os.Getpagesize(), false, 0644)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	allocatorFile := path.Join(pwd, "test", "freelist")
+	// os.Remove(allocatorFile)
+	a, err := allocator.Open(
+		allocatorFile,
+		&allocator.Options{
+			TargetPageHeaderSize: 2,
+			TargetPageSize:       uint16(os.Getpagesize()),
+			TreePageSize:         uint16(os.Getpagesize()),
+			Pager:                p,
+			RemoveFunc:           nil,
 		},
 	)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	entries := make([]*rbtree.Entry[*Pointer, *rbtree.DummyVal], 0)
-	_ = entries
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
-		_ = t.Close()
+		if err := a.Close(); err != nil {
+			logrus.Error(err)
+		}
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	for i := 0; i < 10; i++ {
-		entry := newEntry(uint16(rand.Int31n(256)), uint64(i))
-		entries = append(entries, entry)
-		if err := t.InsertMem(entry); err != nil {
-			logrus.Fatal(err)
-		}
+	if pid, err := a.Alloc(1000); err != nil {
+		logrus.Fatal(err)
+	} else {
+		fmt.Println(pid)
 	}
-	if err := t.WriteAll(); err != nil {
+	
+	if err := a.Free(0, 1000); err != nil {
 		logrus.Fatal(err)
 	}
-
-	// // entries = []*rbtree.Entry[*Pointer, *rbtree.DummyVal]{}
-	// for i := 0; i < len(entries); i++ {
-	// 	if err := t.DeleteMem(entries[i].Key); err != nil {
-	// 		logrus.Fatal(err)
-	// 	}
-	// }
-	// if err := t.WriteAll(); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-	// keys := make([]*Pointer, 0, t.Count())
-	// err = t.Scan(nil, func(entry *rbtree.Entry[*Pointer, *rbtree.DummyVal]) (bool, error) {
-	// 	keys = append(keys, entry.Key)
-	// 	return false, nil
-	// })
-	// for _, key := range keys {
-	// 	if err := t.DeleteMem(key); err != nil {
-	// 		logrus.Fatal(err)
-	// 	}
-	// }
-	// if err := t.WriteAll(); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-	// db := make([]byte, 19)
-	// binary.BigEndian.PutUint16(db, 191)
-	// if err := t.Delete(db); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// binary.BigEndian.PutUint16(db, 227)
-	// if err := t.Delete(db); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-	// gb := make([]byte, 19)
-	// binary.BigEndian.PutUint16(gb, 242)
-	// if v, err := t.Get(gb); err != nil {
-	// 	logrus.Error(err)
-	// } else {
-	// 	fmt.Println(binary.BigEndian.Uint16(v))
-	// }
-
-	if err := t.Print(5); err != nil {
-		logrus.Fatal(err)
-	}
-	err = t.Scan(nil, func(key *Pointer, val *rbtree.DummyVal) (bool, error) {
-		fmt.Printf("(%d %d), ", key.freeSpace, key.pageId)
-		return false, nil
-	})
-	if err != nil {
+	
+	if err := a.Print(); err != nil {
 		logrus.Fatal(err)
 	}
 }

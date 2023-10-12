@@ -19,12 +19,14 @@ func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error)
 		return nil, errors.Wrap(err, "failed to Open rbtree")
 	}
 
+	var k K
+	var v V
 	tree := &RBTree[K, V]{
 		file:     fileName,
 		pager:    p,
 		pages:    map[uint32]*page[K, V]{},
-		degree:   opts.PageSize / (nodeFixedSize + opts.KeySize),
-		nodeSize: nodeFixedSize + opts.KeySize + opts.ValSize,
+		degree:   opts.PageSize / uint16(nodeFixedSize + k.Size() + v.Size()),
+		nodeSize: uint16(nodeFixedSize + k.Size() + v.Size()),
 		meta:     &metadata{},
 	}
 
@@ -71,7 +73,7 @@ func (tree *RBTree[K, V]) InsertMem(e *Entry[K, V]) error {
 	tree.fetch(n).left = tree.meta.nullPtr
 	tree.fetch(n).right = tree.meta.nullPtr
 	tree.fetch(n).setRed()
-	tree.fetch(n).entry = e
+	tree.fetch(n).entry = e.Copy()
 	tree.insert(n)
 	return nil
 }
@@ -88,7 +90,7 @@ func (tree *RBTree[K, V]) Get(key K) (*Entry[K, V], error) {
 	} else if ptr == tree.meta.nullPtr {
 		return e, ErrNotFound
 	}
-	return &Entry[K, V]{key, tree.fetch(ptr).entry.Val}, err
+	return tree.fetch(ptr).entry, err
 }
 
 func (tree *RBTree[K, V]) Delete(key K) error {
@@ -105,6 +107,7 @@ func (tree *RBTree[K, V]) DeleteMem(key K) error {
 
 	ptr, err := tree.get(key)
 	if err != nil {
+		fmt.Println(ptr)
 		return errors.Wrapf(err, "failed to find key to delete => %v", key)
 	}
 
@@ -222,8 +225,8 @@ func (tree *RBTree[K, V]) Close() error {
 	return errors.Wrap(err, "failed to close RBTree")
 }
 
-func (tree *RBTree[K, V]) get(e K) (uint32, error) {
-	serachingKey, err := e.MarshalBinary()
+func (tree *RBTree[K, V]) get(key K) (uint32, error) {
+	searchingKey, err := key.MarshalBinary()
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to marshal entry")
 	}
@@ -231,12 +234,12 @@ func (tree *RBTree[K, V]) get(e K) (uint32, error) {
 	lastGreaterPtr := tree.meta.nullPtr
 	ptr := tree.meta.rootPtr
 	for ptr != tree.meta.nullPtr {
-		k, err := tree.fetch(ptr).entry.MarshalBinary()
+		k, err := tree.fetch(ptr).entry.Key.MarshalBinary()
 		if err != nil {
 			return 0, errors.Wrap(err, "failed to marshal entry")
 		}
 
-		cmp := bytes.Compare(k, serachingKey)
+		cmp := bytes.Compare(k, searchingKey)
 		if cmp == -1 {
 			ptr = tree.fetch(ptr).right
 		} else if cmp == 1 {
@@ -705,13 +708,16 @@ func (tree *RBTree[K, V]) init(opts *Options) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to alloc first page for meta")
 	}
+	
+	var k K
+	var v V
 
 	tree.meta = &metadata{
 		dirty:    true,
 
 		pageSize:    opts.PageSize,
-		nodeKeySize: opts.KeySize,
-		nodeValSize: opts.ValSize,
+		nodeKeySize: uint16(k.Size()),
+		nodeValSize: uint16(v.Size()),
 		top:         uint32(opts.PageSize),
 	}
 

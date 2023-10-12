@@ -13,6 +13,7 @@ type Entry[K, V EntryItem] struct {
 
 type EntryItem interface {
 	New() EntryItem
+	Copy() EntryItem
 	Size() int
 	IsNil() bool
 	encoding.BinaryMarshaler
@@ -28,6 +29,13 @@ func (e *Entry[K, V]) new() *Entry[K, V] {
 
 func (e *Entry[K, V]) Size() int {
 	return e.Key.Size() + e.Val.Size()
+}
+
+func (e *Entry[K, V]) Copy() *Entry[K, V] {
+	cp := e.new()
+	cp.Key = e.Key.Copy().(K)
+	cp.Val = e.Val.Copy().(V)
+	return cp
 }
 
 func (e *Entry[K, V]) MarshalBinary() ([]byte, error) {
@@ -67,6 +75,7 @@ func (e *Entry[K, V]) UnmarshalBinary(d []byte) error {
 
 type DummyVal struct{}
 func (v *DummyVal) New() EntryItem {return &DummyVal{}}
+func (v *DummyVal) Copy() EntryItem {return &DummyVal{}}
 func (v *DummyVal) Size() int {return 0}
 func (v *DummyVal) IsNil() bool {return v == nil}
 func (v *DummyVal) MarshalBinary() ([]byte, error) {return nil, nil}
