@@ -1,9 +1,6 @@
 package bptree
 
-import (
-	"go-dbms/pkg/freelist"
-	"os"
-)
+import "os"
 
 // defaultOptions to be used by New().
 var defaultOptions = Options{
@@ -34,7 +31,7 @@ type Options struct {
 	// the better.
 	MaxKeySize int
 
-	// MaxValueSize represents the maximum size allowed for the value.
+	// MaxKeySize represents the maximum size allowed for the value.
 	// Put call with values larger than this will result in error.
 	// Branching factor reduces as this size increases. So smaller
 	// the better.
@@ -44,8 +41,6 @@ type Options struct {
 	// index is initialized. This helps avoid mmap/unmap and truncate
 	// overheads during insertions.
 	PreAlloc int
-
-	FreelistOptions *freelist.Options
 }
 
 type PutOptions struct {

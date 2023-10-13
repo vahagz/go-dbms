@@ -179,7 +179,6 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 		MaxKeySize:   keySize,
 		MaxValueSize: data.RecordPointerSize,
 		PageSize:     os.Getpagesize(),
-		PreAlloc:     100,
 	})
 	if err != nil {
 		return err

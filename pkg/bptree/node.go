@@ -1,4 +1,4 @@
-package pages
+package bptree
 
 import (
 	"bytes"
@@ -8,52 +8,52 @@ import (
 )
 
 const (
-	LeafNodeHeaderSz     = 19
-	InternalNodeHeaderSz = 3
+	leafNodeHeaderSz     = 19
+	internalNodeHeaderSz = 3
 
 	flagLeafNode     = uint8(0x0)
 	flagInternalNode = uint8(0x1)
 )
 
 // newNode initializes an in-memory leaf node and returns.
-func NewNode(id uint64) *Node {
-	return &Node{
-		Id:    id,
-		Dirty: true,
+func newNode(id uint64) *node {
+	return &node{
+		id:    id,
+		dirty: true,
 	}
 }
 
-type Entry struct {
-	Key [][]byte
-	Val []byte
+type entry struct {
+	key [][]byte
+	val []byte
 }
 
 // node represents an internal or leaf node in the B+ tree.
-type Node struct {
+type node struct {
 	// configs for read/write
-	Dirty bool
+	dirty bool
 
 	// node data
-	Id       uint64
-	Next     uint64
-	Prev     uint64
-	Entries  []Entry
-	Children []uint64
+	id       uint64
+	next     uint64
+	prev     uint64
+	entries  []entry
+	children []uint64
 }
 
 // search performs a binary search in the node entries for the given key
 // and returns the index where it should be and a flag indicating whether
 // key exists.
-func (n *Node) Search(key [][]byte) (startIdx int, endIdx int, found bool) {
+func (n *node) search(key [][]byte) (startIdx int, endIdx int, found bool) {
 	startIdx = -1
 	endIdx = -1
 
 	// leftmost search
-	left, right := 0, len(n.Entries)-1
+	left, right := 0, len(n.entries)-1
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := helpers.CompareMatrix(key, n.Entries[mid].Key)
+		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
 		if cmp == 0 {
 			startIdx = mid
 			right = mid - 1
@@ -65,11 +65,11 @@ func (n *Node) Search(key [][]byte) (startIdx int, endIdx int, found bool) {
 	}
 
 	// rightmost search
-	left, right = 0, len(n.Entries)-1
+	left, right = 0, len(n.entries)-1
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := helpers.CompareMatrix(key, n.Entries[mid].Key)
+		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
 		if cmp == 0 {
 			endIdx = mid
 			left = mid + 1
@@ -86,11 +86,11 @@ func (n *Node) Search(key [][]byte) (startIdx int, endIdx int, found bool) {
 	}
 
 	// not found, searching index where should be inserted
-	left, right = 0, len(n.Entries)-1
+	left, right = 0, len(n.entries)-1
 	for left <= right {
 		mid := (right + left) / 2
 
-		cmp := helpers.CompareMatrix(key, n.Entries[mid].Key)
+		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
 		if cmp == 0 {
 			return mid, mid, true
 		} else if cmp > 0 {
@@ -103,114 +103,114 @@ func (n *Node) Search(key [][]byte) (startIdx int, endIdx int, found bool) {
 }
 
 // insertChild adds the given child at appropriate location under the node.
-func (n *Node) InsertChild(idx int, child *Node) {
-	n.Dirty = true
-	n.Children = append(n.Children, 0)
-	copy(n.Children[idx+1:], n.Children[idx:])
-	n.Children[idx] = child.Id
+func (n *node) insertChild(idx int, child *node) {
+	n.dirty = true
+	n.children = append(n.children, 0)
+	copy(n.children[idx+1:], n.children[idx:])
+	n.children[idx] = child.id
 }
 
 // insertAt inserts the entry at the given index into the node.
-func (n *Node) InsertAt(idx int, e Entry) {
-	n.Dirty = true
-	n.Entries = append(n.Entries, Entry{})
-	copy(n.Entries[idx+1:], n.Entries[idx:])
-	n.Entries[idx] = e
+func (n *node) insertAt(idx int, e entry) {
+	n.dirty = true
+	n.entries = append(n.entries, entry{})
+	copy(n.entries[idx+1:], n.entries[idx:])
+	n.entries[idx] = e
 }
 
 // removeAt removes the entry at given index and returns the value
 // that existed.
-func (n *Node) RemoveAt(idx int) Entry {
-	n.Dirty = true
-	e := n.Entries[idx]
-	n.Entries = append(n.Entries[:idx], n.Entries[idx:]...)
+func (n *node) removeAt(idx int) entry {
+	n.dirty = true
+	e := n.entries[idx]
+	n.entries = append(n.entries[:idx], n.entries[idx:]...)
 	return e
 }
 
 // update updates the value of the entry with given index.
-func (n *Node) Update(entryIdx int, val []byte) {
-	if !bytes.Equal(val, n.Entries[entryIdx].Val) {
-		n.Dirty = true
-		n.Entries[entryIdx].Val = val
+func (n *node) update(entryIdx int, val []byte) {
+	if !bytes.Equal(val, n.entries[entryIdx].val) {
+		n.dirty = true
+		n.entries[entryIdx].val = val
 	}
 }
 
 // isLeaf returns true if this node has no children. (i.e., it is
 // a leaf node.)
-func (n *Node) IsLeaf() bool { return len(n.Children) == 0 }
+func (n *node) isLeaf() bool { return len(n.children) == 0 }
 
-func (n *Node) String() string {
+func (n *node) String() string {
 	s := "{"
-	for _, e := range n.Entries {
-		s += fmt.Sprintf("'%s' ", e.Key)
+	for _, e := range n.entries {
+		s += fmt.Sprintf("'%s' ", e.key)
 	}
 	s += "} "
 	s += fmt.Sprintf(
 		"[id=%d, size=%d, leaf=%t, %d<-n->%d]",
-		n.Id, len(n.Entries), n.IsLeaf(), n.Prev, n.Next,
+		n.id, len(n.entries), n.isLeaf(), n.prev, n.next,
 	)
 
 	return s
 }
 
-func (n *Node) Size() int {
-	if n.IsLeaf() {
-		sz := LeafNodeHeaderSz
-		for i := 0; i < len(n.Entries); i++ {
+func (n *node) size() int {
+	if n.isLeaf() {
+		sz := leafNodeHeaderSz
+		for i := 0; i < len(n.entries); i++ {
 			// 2 for the colCount size, 2 for the value size
-			sz += 2 + 2 + len(n.Entries[i].Val)
-			for j := 0; j < len(n.Entries[i].Key); j++ {
+			sz += 2 + 2 + len(n.entries[i].val)
+			for j := 0; j < len(n.entries[i].key); j++ {
 				// 2 for key size
-				sz += 2 + len(n.Entries[i].Key[j])
+				sz += 2 + len(n.entries[i].key[j])
 			}
 		}
 		return sz
 	}
 
-	sz := InternalNodeHeaderSz + 4 // +4 for the extra child pointer
-	for i := 0; i < len(n.Entries); i++ {
+	sz := internalNodeHeaderSz + 4 // +4 for the extra child pointer
+	for i := 0; i < len(n.entries); i++ {
 		// 4 for the child pointer, 2 for the key size
-		sz += 4 + 2 + len(n.Entries[i].Key)
+		sz += 4 + 2 + len(n.entries[i].key)
 	}
 	return sz
 }
 
-func (n *Node) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, n.Size())
+func (n *node) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, n.size())
 	offset := 0
 
-	if n.IsLeaf() {
+	if n.isLeaf() {
 		// Note: update leafNodeHeaderSz if this is updated.
 		buf[offset] = flagLeafNode
 		offset++
 
-		bin.PutUint16(buf[offset:offset+2], uint16(len(n.Entries)))
+		bin.PutUint16(buf[offset:offset+2], uint16(len(n.entries)))
 		offset += 2
 
-		bin.PutUint64(buf[offset:offset+8], n.Next)
+		bin.PutUint64(buf[offset:offset+8], n.next)
 		offset += 8
 
-		bin.PutUint64(buf[offset:offset+8], n.Prev)
+		bin.PutUint64(buf[offset:offset+8], n.prev)
 		offset += 8
 
-		for i := 0; i < len(n.Entries); i++ {
-			e := n.Entries[i]
+		for i := 0; i < len(n.entries); i++ {
+			e := n.entries[i]
 
-			bin.PutUint16(buf[offset:offset+2], uint16(len(e.Val)))
+			bin.PutUint16(buf[offset:offset+2], uint16(len(e.val)))
 			offset += 2
 
-			copy(buf[offset:], e.Val)
-			offset += len(e.Val)
+			copy(buf[offset:], e.val)
+			offset += len(e.val)
 
-			bin.PutUint16(buf[offset:offset+2], uint16(len(e.Key)))
+			bin.PutUint16(buf[offset:offset+2], uint16(len(e.key)))
 			offset += 2
 
-			for j := range e.Key {
-				bin.PutUint16(buf[offset:offset+2], uint16(len(e.Key[j])))
+			for j := range e.key {
+				bin.PutUint16(buf[offset:offset+2], uint16(len(e.key[j])))
 				offset += 2
 
-				copy(buf[offset:], e.Key[j])
-				offset += len(e.Key[j])
+				copy(buf[offset:], e.key[j])
+				offset += len(e.key[j])
 			}
 		}
 	} else {
@@ -218,35 +218,35 @@ func (n *Node) MarshalBinary() ([]byte, error) {
 		buf[offset] = flagInternalNode
 		offset++
 
-		bin.PutUint16(buf[offset:offset+2], uint16(len(n.Entries)))
+		bin.PutUint16(buf[offset:offset+2], uint16(len(n.entries)))
 		offset += 2
 
 		// write the 0th pointer
-		bin.PutUint64(buf[offset:offset+8], n.Children[0])
+		bin.PutUint64(buf[offset:offset+8], n.children[0])
 		offset += 8
 
-		for i := 0; i < len(n.Entries); i++ {
-			e := n.Entries[i]
+		for i := 0; i < len(n.entries); i++ {
+			e := n.entries[i]
 
-			bin.PutUint64(buf[offset:offset+4], uint64(n.Children[i+1]))
+			bin.PutUint64(buf[offset:offset+4], uint64(n.children[i+1]))
 			offset += 8
 
-			bin.PutUint16(buf[offset:offset+2], uint16(len(e.Key)))
+			bin.PutUint16(buf[offset:offset+2], uint16(len(e.key)))
 			offset += 2
 
-			for j := range e.Key {
-				bin.PutUint16(buf[offset:offset+2], uint16(len(e.Key[j])))
+			for j := range e.key {
+				bin.PutUint16(buf[offset:offset+2], uint16(len(e.key[j])))
 				offset += 2
 				
-				copy(buf[offset:], e.Key[j])
-				offset += len(e.Key[j])
+				copy(buf[offset:], e.key[j])
+				offset += len(e.key[j])
 			}
 		}
 	}
 	return buf, nil
 }
 
-func (n *Node) UnmarshalBinary(d []byte) error {
+func (n *node) UnmarshalBinary(d []byte) error {
 	if n == nil {
 		return errors.New("cannot unmarshal into nil node")
 	}
@@ -257,36 +257,36 @@ func (n *Node) UnmarshalBinary(d []byte) error {
 		entryCount := int(bin.Uint16(d[offset : offset+2]))
 		offset += 2
 
-		n.Next = bin.Uint64(d[offset : offset+8])
+		n.next = bin.Uint64(d[offset : offset+8])
 		offset += 8
 
-		n.Prev = bin.Uint64(d[offset : offset+8])
+		n.prev = bin.Uint64(d[offset : offset+8])
 		offset += 8
 
 		for i := 0; i < entryCount; i++ {
-			e := Entry{}
+			e := entry{}
 			
 			valSz := int(bin.Uint16(d[offset : offset+2]))
 			offset += 2
 
-			e.Val = make([]byte, valSz)
-			copy(e.Val, d[offset:offset+valSz])
+			e.val = make([]byte, valSz)
+			copy(e.val, d[offset:offset+valSz])
 			offset += valSz
 
 			colCount := int(bin.Uint16(d[offset : offset+2]))
 			offset += 2
 
-			e.Key = make([][]byte, colCount)
+			e.key = make([][]byte, colCount)
 			for j := 0; j < colCount; j++ {
 				keySz := int(bin.Uint16(d[offset : offset+2]))
 				offset += 2
 
-				e.Key[j] = make([]byte, keySz)
-				copy(e.Key[j], d[offset:offset+keySz])
+				e.key[j] = make([]byte, keySz)
+				copy(e.key[j], d[offset:offset+keySz])
 				offset += keySz
 			}
 
-			n.Entries = append(n.Entries, e)
+			n.entries = append(n.entries, e)
 		}
 	} else {
 		// internal node
@@ -294,7 +294,7 @@ func (n *Node) UnmarshalBinary(d []byte) error {
 		offset += 2
 
 		// read the left most child pointer
-		n.Children = append(n.Children, bin.Uint64(d[offset:offset+8]))
+		n.children = append(n.children, bin.Uint64(d[offset:offset+8]))
 		offset += 8 // we are at offset 11 now
 
 		for i := 0; i < entryCount; i++ {
@@ -314,8 +314,8 @@ func (n *Node) UnmarshalBinary(d []byte) error {
 				offset += int(keySz)
 			}
 
-			n.Children = append(n.Children, childPtr)
-			n.Entries = append(n.Entries, Entry{Key: key})
+			n.children = append(n.children, childPtr)
+			n.entries = append(n.entries, entry{key: key})
 		}
 
 	}
