@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"go-dbms/pkg/allocator"
+	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
@@ -153,7 +153,7 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
 
-	pagerFile := path.Join(pwd, "test", "data.dat")
+	pagerFile := path.Join(pwd, "test", "heap.dat")
 	p, err := pager.Open(pagerFile, os.Getpagesize(), false, 0644)
 	if err != nil {
 		logrus.Fatal(err)
@@ -164,11 +164,9 @@ func main() {
 	a, err := allocator.Open(
 		allocatorFile,
 		&allocator.Options{
-			TargetPageHeaderSize: 2,
-			TargetPageSize:       uint16(os.Getpagesize()),
-			TreePageSize:         uint16(os.Getpagesize()),
-			Pager:                p,
-			RemoveFunc:           nil,
+			TargetPageSize: uint16(os.Getpagesize()),
+			TreePageSize:   uint16(os.Getpagesize()),
+			Pager:          p,
 		},
 	)
 	if err != nil {
@@ -184,16 +182,46 @@ func main() {
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
-
-	if pid, err := a.Alloc(1000); err != nil {
-		logrus.Fatal(err)
-	} else {
-		fmt.Println(pid)
-	}
 	
-	if err := a.Free(0, 1000); err != nil {
+	ptr6, err := a.Alloc(100)
+	if err != nil {
 		logrus.Fatal(err)
 	}
+	fmt.Println(ptr6)
+
+	ptr2, err := a.Alloc(1500)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(ptr2)
+
+	ptr3, err := a.Alloc(1000)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(ptr3)
+	
+	if err := a.Free(ptr2); err != nil {
+		logrus.Fatal(err)
+	}
+
+	ptr1, err := a.Alloc(500)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(ptr1)
+
+	ptr4, err := a.Alloc(700)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(ptr4)
+
+	ptr5, err := a.Alloc(700)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(ptr5)
 	
 	if err := a.Print(); err != nil {
 		logrus.Fatal(err)

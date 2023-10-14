@@ -172,6 +172,35 @@ func (p *Pager) Read(id uint64) ([]byte, error) {
 	return buf, err
 }
 
+// ReadAt reads length count of bytes starting from offset
+func (p *Pager) ReadAt(dst []byte, offset uint64) error {
+	if offset + uint64(len(dst)) > uint64(p.fileSize) {
+		return fmt.Errorf("invalid file offset (filesize=%d, offset=%d)", p.fileSize, offset)
+	} else if p.file == nil {
+		return os.ErrClosed
+	}
+
+	if p.data != nil {
+		n := copy(dst, p.data[offset:])
+		if n < len(dst) {
+			return io.EOF
+		}
+
+		p.reads++
+		return nil
+	}
+
+	n, err := p.file.ReadAt(dst, int64(offset))
+	if n < len(dst) {
+		return io.EOF
+	}
+	if err != nil {
+		return err
+	}
+	p.reads++
+	return nil
+}
+
 // Write writes one page of data to the page with given id. Returns error if
 // the data is larger than a page.
 func (p *Pager) Write(id uint64, d []byte) error {
@@ -192,6 +221,33 @@ func (p *Pager) Write(id uint64, d []byte) error {
 	}
 
 	_, err := p.file.WriteAt(d, p.offset(id))
+	if err != nil {
+		return err
+	}
+	p.writes++
+	return nil
+}
+
+// ReadAt reads length count of bytes starting from offset
+func (p *Pager) WriteAt(src []byte, offset uint64) error {
+	if offset + uint64(len(src)) > uint64(p.fileSize) {
+		return fmt.Errorf("invalid file offset (filesize=%d, offset=%d)", p.fileSize, offset)
+	} else if p.file == nil {
+		return os.ErrClosed
+	} else if p.readOnly {
+		return ErrReadOnly
+	}
+
+	if p.data != nil {
+		copy(p.data[offset:], src)
+		p.writes++
+		return nil
+	}
+
+	n, err := p.file.WriteAt(src, int64(offset))
+	if n < len(src) {
+		return io.EOF
+	}
 	if err != nil {
 		return err
 	}

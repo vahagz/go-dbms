@@ -38,12 +38,6 @@ func Open(filename string, opts *Options) (*Allocator, error) {
 	}, nil
 }
 
-type Pager interface {
-	Alloc(size int) (uint64, error)
-}
-
-type RemoveFunc func(pageId uint64, freeSpace uint16) bool
-
 type Allocator struct {
 	freeSpaceRBT         *rbtree.RBTree[*ItemFP, *rbtree.DummyVal]
 	pageIdRBT            *rbtree.RBTree[*ItemPF, *rbtree.DummyVal]
