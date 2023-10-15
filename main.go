@@ -182,50 +182,69 @@ func main() {
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
+
+	// ptr1, err := a.Alloc(4050)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("alloc 1", ptr1)
+
+	// ptr2, err := a.Alloc(100)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("alloc 2", ptr2)
+
+	// if err := a.Free(ptr2); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("free 2")
 	
-	ptr6, err := a.Alloc(100)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println(ptr6)
+	// ptr3, err := a.Alloc(2000)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("alloc 3", ptr3)
 
-	ptr2, err := a.Alloc(1500)
-	if err != nil {
+	if ptr, err := a.Alloc(1024 * 1024); err != nil {
 		logrus.Fatal(err)
-	}
-	fmt.Println(ptr2)
-
-	ptr3, err := a.Alloc(1000)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println(ptr3)
-	
-	if err := a.Free(ptr2); err != nil {
+	} else if err := a.Free(ptr); err != nil {
 		logrus.Fatal(err)
 	}
 
-	ptr1, err := a.Alloc(500)
-	if err != nil {
-		logrus.Fatal(err)
+	pointers := make([]allocator.Pointable, 0, 1000)
+	var totalAllocated uint32 = 0
+	var totalFreed uint32 = 0
+	for i := 0; i < 1000; i++ {
+		size := uint32(rand.Int31n(4096))
+		totalAllocated += size
+		ptr, err := a.Alloc(size)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		pointers = append(pointers, ptr)
+		// fmt.Println("alloc", ptr)
+		
+		if rand.Int31n(2) == 0 {
+			totalFreed += size
+			i := rand.Intn(len(pointers))
+			ptr := pointers[i]
+			pointers[i] = pointers[len(pointers)-1]
+			pointers = pointers[:len(pointers)-1]
+			if err := a.Free(ptr); err != nil {
+				logrus.Fatal(err)
+			}
+			// fmt.Println("free")
+		}
 	}
-	fmt.Println(ptr1)
+	allocFreeDuration := time.Since(start)
 
-	ptr4, err := a.Alloc(700)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println(ptr4)
-
-	ptr5, err := a.Alloc(700)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println(ptr5)
-	
 	if err := a.Print(); err != nil {
 		logrus.Fatal(err)
 	}
+	fmt.Println("allocFreeDuration", allocFreeDuration)
+	fmt.Println("totalAllocated", totalAllocated)
+	fmt.Println("totalFreed", totalFreed)
 }
 
 func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
