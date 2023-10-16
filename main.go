@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/column"
@@ -206,45 +207,91 @@ func main() {
 	// }
 	// fmt.Println("alloc 3", ptr3)
 
-	if ptr, err := a.Alloc(1024 * 1024); err != nil {
-		logrus.Fatal(err)
-	} else if err := a.Free(ptr); err != nil {
-		logrus.Fatal(err)
-	}
 
-	pointers := make([]allocator.Pointable, 0, 1000)
-	var totalAllocated uint32 = 0
-	var totalFreed uint32 = 0
-	for i := 0; i < 1000; i++ {
-		size := uint32(rand.Int31n(4096))
-		totalAllocated += size
-		ptr, err := a.Alloc(size)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		pointers = append(pointers, ptr)
-		// fmt.Println("alloc", ptr)
+	// item1 := &binaryMarshalerUnmarshaler{
+	// 	[]interface{}{1,true,"dasdas"},
+	// }
+	// ptr, err := a.Alloc(uint32(item1.Size()))
+	// fmt.Println(ptr)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// if err := ptr.Set(item1); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+
+	// item2 := &binaryMarshalerUnmarshaler{[]interface{}{}}
+	// ptr := a.Pointer(23, uint32(item1.Size()))
+	// fmt.Println(ptr)
+	// if err := ptr.Get(item2); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(item2.item)
+
+
+	// fmt.Println(ptr)
+	// if err := a.Free(ptr); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+
+	// if ptr, err := a.Alloc(1024 * 1024); err != nil {
+	// 	logrus.Fatal(err)
+	// } else if err := a.Free(ptr); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// pointers := make([]allocator.Pointable, 0, 1000)
+	// var totalAllocated uint32 = 0
+	// var totalFreed uint32 = 0
+	// for i := 0; i < 1000; i++ {
+	// 	size := uint32(rand.Int31n(4096))
+	// 	totalAllocated += size
+	// 	ptr, err := a.Alloc(size)
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	pointers = append(pointers, ptr)
+	// 	// fmt.Println("alloc", ptr)
 		
-		if rand.Int31n(2) == 0 {
-			totalFreed += size
-			i := rand.Intn(len(pointers))
-			ptr := pointers[i]
-			pointers[i] = pointers[len(pointers)-1]
-			pointers = pointers[:len(pointers)-1]
-			if err := a.Free(ptr); err != nil {
-				logrus.Fatal(err)
-			}
-			// fmt.Println("free")
-		}
-	}
-	allocFreeDuration := time.Since(start)
+	// 	if rand.Int31n(2) == 0 {
+	// 		totalFreed += size
+	// 		i := rand.Intn(len(pointers))
+	// 		ptr := pointers[i]
+	// 		pointers[i] = pointers[len(pointers)-1]
+	// 		pointers = pointers[:len(pointers)-1]
+	// 		if err := a.Free(ptr); err != nil {
+	// 			logrus.Fatal(err)
+	// 		}
+	// 		// fmt.Println("free")
+	// 	}
+	// }
+	// allocFreeDuration := time.Since(start)
 
-	if err := a.Print(); err != nil {
-		logrus.Fatal(err)
-	}
-	fmt.Println("allocFreeDuration", allocFreeDuration)
-	fmt.Println("totalAllocated", totalAllocated)
-	fmt.Println("totalFreed", totalFreed)
+	// if err := a.Print(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println("allocFreeDuration", allocFreeDuration)
+	// fmt.Println("totalAllocated", totalAllocated)
+	// fmt.Println("totalFreed", totalFreed)
+}
+
+type binaryMarshalerUnmarshaler struct {
+	item interface{}
+}
+
+func (b *binaryMarshalerUnmarshaler) Size() int {
+	bytes, _ := b.MarshalBinary()
+	return len(bytes)
+}
+
+func (b *binaryMarshalerUnmarshaler) MarshalBinary() ([]byte, error) {
+	return json.Marshal(b.item)
+}
+
+func (b *binaryMarshalerUnmarshaler) UnmarshalBinary(d []byte) error {
+	return json.Unmarshal(d, &b.item)
 }
 
 func sprintData(columns []*column.Column, data []map[string]types.DataType) string {

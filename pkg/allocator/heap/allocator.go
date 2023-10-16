@@ -124,8 +124,8 @@ func (a *Allocator) Free(p Pointable) error {
 	return errors.Wrap(ptr.writeMeta(), "failed to update freed ptr meta")
 }
 
-func (a *Allocator) Pointer() Pointable {
-	return &pointer{0, &pointerMetadata{}, a.pager}
+func (a *Allocator) Pointer(addr uint64, size uint32) Pointable {
+	return &pointer{addr, &pointerMetadata{false, size}, a.pager}
 }
 
 func (a *Allocator) Print() error {

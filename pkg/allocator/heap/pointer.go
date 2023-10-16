@@ -19,6 +19,7 @@ const pointerSize = 12
 type Pointable interface {
 	Get(into encoding.BinaryUnmarshaler) error
 	Set(from encoding.BinaryMarshaler) error
+	Addr() uint64
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
@@ -49,6 +50,10 @@ func (p *pointer) Set(from encoding.BinaryMarshaler) error {
 		return ErrInvalidPointer
 	}
 	return nil
+}
+
+func (p *pointer) Addr() uint64 {
+	return p.ptr
 }
 
 func (p *pointer) MarshalBinary() ([]byte, error) {
