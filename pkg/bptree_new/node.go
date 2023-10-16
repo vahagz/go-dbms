@@ -5,10 +5,7 @@ import (
 )
 
 func newNode(id uint64) *node {
-	return &node{
-		id:    id,
-		dirty: true,
-	}
+	return &node{dirty: true}
 }
 
 type Key interface {
@@ -27,11 +24,26 @@ type Entry struct {
 }
 
 type node struct {
-	id       uint64
 	dirty    bool
 
 	next     uint64
 	prev     uint64
 	entries  []Entry
 	children []uint64
+}
+
+func (n *node) IsDirty() bool {
+	return n.dirty
+}
+
+func (n *node) Dirty(v bool) {
+	n.dirty = v
+}
+
+func (n *node) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (n *node) UnmarshalBinary(d []byte) error {
+	return nil
 }

@@ -14,7 +14,7 @@ var ErrInvalidPointer = errors.New("invalid pointer")
 var ErrUnmarshal = errors.New("unmarshal error")
 var ErrMarshal = errors.New("marshal error")
 
-const pointerSize = 12
+const PointerSize = 12
 
 type binaryMarshalerUnmarshaler interface {
 	encoding.BinaryMarshaler
@@ -61,7 +61,7 @@ func (p *pointer) Addr() uint64 {
 }
 
 func (p *pointer) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, pointerSize)
+	buf := make([]byte, PointerSize)
 	bin.PutUint32(buf[0:4], p.meta.size)
 	bin.PutUint64(buf[4:12], p.ptr)
 	return buf, nil

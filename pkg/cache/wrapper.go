@@ -1,21 +1,31 @@
-package allocator
+package cache
 
 import (
+	"encoding"
 	"fmt"
+
+	allocator "go-dbms/pkg/allocator/heap"
 
 	"github.com/pkg/errors"
 )
 
-func Wrap[T any, U bmu[T]](ptr Pointable) WrappedPointable[T, U] {
-	return &pointerWrapper[T, U]{ptr}
+type binaryMarshalerUnmarshaler interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
+
+type Dirtyable interface {
+	IsDirty() bool
+	Dirty(v bool)
 }
 
 type bmu[T any] interface {
 	*T
 	binaryMarshalerUnmarshaler
+	Dirtyable
 }
 
-type WrappedPointable[T any, U bmu[T]] interface {
+type Pointable[T any, U bmu[T]] interface {
 	Get() U
 	Set(val U)
 	Addr() uint64
@@ -23,21 +33,23 @@ type WrappedPointable[T any, U bmu[T]] interface {
 }
 
 type pointerWrapper[T any, U bmu[T]] struct {
-	ptr Pointable
+	cache *Cache[T, U]
+	ptr   allocator.Pointable
+	val   U
 }
 
 func (p *pointerWrapper[T, U]) Get() U {
 	var t T
 	itm := U(&t)
 	if err := p.ptr.Get(itm); err != nil {
-		panic(errors.Wrap(err, ErrMarshal.Error()))
+		panic(errors.Wrap(err, allocator.ErrMarshal.Error()))
 	}
 	return itm
 }
 
 func (p *pointerWrapper[T, U]) Set(itm U) {
 	if err := p.ptr.Set(itm); err != nil {
-		panic(errors.Wrap(err, ErrMarshal.Error()))
+		panic(errors.Wrap(err, allocator.ErrMarshal.Error()))
 	}
 }
 
