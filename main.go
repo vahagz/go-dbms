@@ -209,25 +209,21 @@ func main() {
 
 
 	// item1 := &binaryMarshalerUnmarshaler{
-	// 	[]interface{}{1,true,"dasdas"},
+	// 	map[string][]int{"dsadsads":{1,2,3}},
 	// }
-	// ptr, err := a.Alloc(uint32(item1.Size()))
-	// fmt.Println(ptr)
+	// pt, err := a.Alloc(uint32(item1.Size()))
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	// if err := ptr.Set(item1); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-
-	// item2 := &binaryMarshalerUnmarshaler{[]interface{}{}}
-	// ptr := a.Pointer(23, uint32(item1.Size()))
+	// ptr := allocator.Wrap[binaryMarshalerUnmarshaler](pt)
 	// fmt.Println(ptr)
-	// if err := ptr.Get(item2); err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// fmt.Println(item2.item)
+	// ptr.Set(item1)
+	// fmt.Println(ptr.Get())
+
+
+	// ptr := allocator.Wrap[binaryMarshalerUnmarshaler](a.Pointer(77, uint32(item1.Size())))
+	// fmt.Println(ptr)
+	// fmt.Println(ptr.Get())
 
 
 	// fmt.Println(ptr)

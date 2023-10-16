@@ -16,12 +16,16 @@ var ErrMarshal = errors.New("marshal error")
 
 const pointerSize = 12
 
+type binaryMarshalerUnmarshaler interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
+
 type Pointable interface {
 	Get(into encoding.BinaryUnmarshaler) error
 	Set(from encoding.BinaryMarshaler) error
 	Addr() uint64
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
+	binaryMarshalerUnmarshaler
 }
 
 type pointer struct {
