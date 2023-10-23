@@ -33,7 +33,7 @@ type Allocator struct {
 	targetPageSize uint16
 	pager          *pager.Pager
 	meta           *metadata
-	metaPtr        *pointer
+	metaPtr        *Pointer
 }
 
 func (a *Allocator) Alloc(size uint32) (Pointable, error) {
@@ -51,7 +51,7 @@ func (a *Allocator) Alloc(size uint32) (Pointable, error) {
 		if err := a.shrink(entry, shrinkSize); err != nil {
 			return nil, errors.Wrap(err, "failed to shrink allocated space")
 		}
-		return ptr, errors.Wrap(ptr.writeMeta(), "failed to update allocated pointer meta")
+		return ptr, errors.Wrap(ptr.writeMeta(), "failed to update allocated Pointer meta")
 	}
 
 	requiredTotalSize := a.meta.top + uint64(requiredSize)
@@ -71,9 +71,9 @@ func (a *Allocator) Alloc(size uint32) (Pointable, error) {
 }
 
 func (a *Allocator) Free(p Pointable) error {
-	ptr, ok := p.(*pointer)
+	ptr, ok := p.(*Pointer)
 	if !ok {
-		return errors.New("invalid pointer type")
+		return errors.New("invalid Pointer type")
 	}
 
 	if ptr.ptr + uint64(ptr.meta.size) + pointerMetaSize == a.meta.top {
@@ -125,7 +125,7 @@ func (a *Allocator) Free(p Pointable) error {
 }
 
 func (a *Allocator) Pointer(addr uint64, size uint32) Pointable {
-	return &pointer{addr, &pointerMetadata{false, size}, a.pager}
+	return &Pointer{addr, &pointerMetadata{false, size}, a.pager}
 }
 
 func (a *Allocator) Print() error {
@@ -186,15 +186,15 @@ func (a *Allocator) writeMeta() error {
 	return a.metaPtr.Set(a.meta)
 }
 
-func (a *Allocator) createPointer(ptr uint64, size uint32) *pointer {
-	return &pointer{
+func (a *Allocator) createPointer(ptr uint64, size uint32) *Pointer {
+	return &Pointer{
 		ptr:   ptr,
 		meta:  &pointerMetadata{free: false, size: size},
 		pager: a.pager,
 	}
 }
 
-func (a *Allocator) newPointer(size uint32) *pointer {
+func (a *Allocator) newPointer(size uint32) *Pointer {
 	ptr := a.createPointer(a.meta.top + pointerMetaSize, size)
 	a.meta.top += uint64(size) +  2 * pointerMetaSize
 	return ptr

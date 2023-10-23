@@ -22,6 +22,8 @@ var (
 	// ErrImmutable should be returned by backends when write operation
 	// (put/del) is attempted on a readonly.
 	ErrImmutable = errors.New("operation not allowed in read-only mode")
+	
+	ErrNotFound = errors.New("not found")
 )
 
 // Index represents the indexing scheme to be used by Kiwi database

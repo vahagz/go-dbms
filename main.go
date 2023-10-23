@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	allocator "go-dbms/pkg/allocator/heap"
+	"go-dbms/pkg/cache"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
@@ -174,6 +175,8 @@ func main() {
 		logrus.Fatal(err)
 	}
 
+	c := cache.NewCache[binaryMarshalerUnmarshaler](3, a)
+
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
@@ -183,6 +186,57 @@ func main() {
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
+
+
+	val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
+	ptr, err := a.Alloc(val.Size())
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	cPtr := c.Add(ptr)
+	cPtr.Lock().Set(val).Flush()
+
+	for i := 0; i < 5; i++ {
+		val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
+		ptr, err := a.Alloc(val.Size())
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		cPtr := c.Add(ptr)
+		cPtr.Lock().Set(val).Flush().Unlock()
+
+		fmt.Println("=====================================")
+		fmt.Println(c.Get(a.Pointer(23, 16)))
+		fmt.Println(c.Get(a.Pointer(49, 16)))
+		fmt.Println(c.Get(a.Pointer(75, 16)))
+		fmt.Println(c.Get(a.Pointer(101, 16)))
+		fmt.Println(c.Get(a.Pointer(127, 16)))
+		fmt.Println(c.Get(a.Pointer(153, 16)))
+	}
+
+	cPtr.Unlock()
+	fmt.Println("=====================================")
+	fmt.Println(c.Get(a.Pointer(23, 16)))
+	fmt.Println(c.Get(a.Pointer(49, 16)))
+	fmt.Println(c.Get(a.Pointer(75, 16)))
+	fmt.Println(c.Get(a.Pointer(101, 16)))
+	fmt.Println(c.Get(a.Pointer(127, 16)))
+	fmt.Println(c.Get(a.Pointer(153, 16)))
+
+
+	// cPtr := c.Add(a.Pointer(49, 16))
+	// cPtr.RLock()
+	// go func() {
+	// 	time.Sleep(5*time.Second)
+	// 	fmt.Println("RUnlock", cPtr.Get())
+	// 	cPtr.RUnlock()
+	// }()
+
+	// cPtr.Lock()
+	// fmt.Println("Lock", cPtr.Get())
+	// cPtr.Unlock()
+
+
 
 	// ptr1, err := a.Alloc(4050)
 	// if err != nil {
@@ -274,20 +328,29 @@ func main() {
 }
 
 type binaryMarshalerUnmarshaler struct {
-	item interface{}
+	dirty bool
+	Item  interface{} `json:"item"`
 }
 
-func (b *binaryMarshalerUnmarshaler) Size() int {
+func (b *binaryMarshalerUnmarshaler) IsDirty() bool {
+	return b.dirty
+}
+
+func (b *binaryMarshalerUnmarshaler) Dirty(v bool) {
+	b.dirty = v
+}
+
+func (b *binaryMarshalerUnmarshaler) Size() uint32 {
 	bytes, _ := b.MarshalBinary()
-	return len(bytes)
+	return uint32(len(bytes))
 }
 
 func (b *binaryMarshalerUnmarshaler) MarshalBinary() ([]byte, error) {
-	return json.Marshal(b.item)
+	return json.Marshal(b)
 }
 
 func (b *binaryMarshalerUnmarshaler) UnmarshalBinary(d []byte) error {
-	return json.Unmarshal(d, &b.item)
+	return json.Unmarshal(d, &b)
 }
 
 func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
