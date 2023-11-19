@@ -20,33 +20,34 @@ type Dirtyable interface {
 	Dirty(v bool)
 }
 
-type bmu[T any] interface {
-	*T
+type pointable interface {
 	binaryMarshalerUnmarshaler
 	Dirtyable
+	IsNil() bool
 }
 
-type Pointable[T any, U bmu[T]] interface {
-	RLock() *pointerWrapper[T, U]
-	RUnlock() *pointerWrapper[T, U]
-	Lock() *pointerWrapper[T, U]
-	Unlock() *pointerWrapper[T, U]
-	Get() U
-	Set(val U) *pointerWrapper[T, U]
-	Flush() *pointerWrapper[T, U]
+type Pointable[T pointable] interface {
+	RLock() *pointerWrapper[T]
+	RUnlock() *pointerWrapper[T]
+	Lock() *pointerWrapper[T]
+	Unlock() *pointerWrapper[T]
+	Get() T
+	Set(val T) *pointerWrapper[T]
+	Flush() *pointerWrapper[T]
+	Ptr() allocator.Pointable
 
 	binaryMarshalerUnmarshaler
 }
 
-type pointerWrapper[T any, U bmu[T]] struct {
-	cache    *Cache[T, U]
+type pointerWrapper[T pointable] struct {
+	cache    *Cache[T]
 	ptr      allocator.Pointable
-	val      U
+	val      T
 	accessed bool
 	lock     *sync.RWMutex
 }
 
-func (p *pointerWrapper[T, U]) RLock() *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) RLock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
 	p.cache.locked[p.ptr.Addr()] = p
 	p.cache.lock.Unlock()
@@ -55,7 +56,7 @@ func (p *pointerWrapper[T, U]) RLock() *pointerWrapper[T, U] {
 	return p
 }
 
-func (p *pointerWrapper[T, U]) RUnlock() *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) RUnlock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
 	delete(p.cache.locked, p.ptr.Addr())
 	p.cache.lock.Unlock()
@@ -64,7 +65,7 @@ func (p *pointerWrapper[T, U]) RUnlock() *pointerWrapper[T, U] {
 	return p
 }
 
-func (p *pointerWrapper[T, U]) Lock() *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) Lock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
 	p.cache.locked[p.ptr.Addr()] = p
 	p.cache.lock.Unlock()
@@ -73,7 +74,7 @@ func (p *pointerWrapper[T, U]) Lock() *pointerWrapper[T, U] {
 	return p
 }
 
-func (p *pointerWrapper[T, U]) Unlock() *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) Unlock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
 	delete(p.cache.locked, p.ptr.Addr())
 	p.cache.lock.Unlock()
@@ -82,13 +83,12 @@ func (p *pointerWrapper[T, U]) Unlock() *pointerWrapper[T, U] {
 	return p
 }
 
-func (p *pointerWrapper[T, U]) Get() U {
+func (p *pointerWrapper[T]) Get() T {
 	if p.accessed {
 		return p.val
 	}
 
-	var t T
-	itm := U(&t)
+	itm := p.cache.newItem()
 	if err := p.ptr.Get(itm); err != nil {
 		panic(errors.Wrap(err, allocator.ErrUnmarshal.Error()))
 	}
@@ -98,28 +98,37 @@ func (p *pointerWrapper[T, U]) Get() U {
 	return itm
 }
 
-func (p *pointerWrapper[T, U]) Set(val U) *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) Set(val T) *pointerWrapper[T] {
 	p.accessed = true
 	p.val = val
 	val.Dirty(true)
 	return p
 }
 
-func (p *pointerWrapper[T, U]) Flush() *pointerWrapper[T, U] {
+func (p *pointerWrapper[T]) Flush() *pointerWrapper[T] {
+	if p.val.IsNil() || !p.val.IsDirty() {
+		return p
+	}
+
 	if err := p.ptr.Set(p.val); err != nil {
 		panic(errors.Wrap(err, allocator.ErrMarshal.Error()))
 	}
+	p.val.Dirty(false)
 	return p
 }
 
-func (p *pointerWrapper[T, U]) MarshalBinary() ([]byte, error) {
+func (p *pointerWrapper[T]) Ptr() allocator.Pointable {
+	return p.ptr
+}
+
+func (p *pointerWrapper[T]) MarshalBinary() ([]byte, error) {
 	return p.ptr.MarshalBinary()
 }
 
-func (p *pointerWrapper[T, U]) UnmarshalBinary(d []byte) error {
+func (p *pointerWrapper[T]) UnmarshalBinary(d []byte) error {
 	return p.ptr.UnmarshalBinary(d)
 }
 
-func (p *pointerWrapper[T, U]) Format(f fmt.State, c rune) {
+func (p *pointerWrapper[T]) Format(f fmt.State, c rune) {
 	f.Write([]byte(fmt.Sprintf("%v -> %v", p.ptr, p.val)))
 }

@@ -1,6 +1,6 @@
 package allocator
 
-const pointerMetaSize = 5
+const PointerMetaSize = 5
 
 type pointerMetadata struct {
 	free bool
@@ -8,7 +8,7 @@ type pointerMetadata struct {
 }
 
 func (m *pointerMetadata) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, pointerMetaSize)
+	buf := make([]byte, PointerMetaSize)
 	if m.free {
 		buf[0] = 1
 	}

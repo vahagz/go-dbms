@@ -25,6 +25,7 @@ type Pointable interface {
 	Get(into encoding.BinaryUnmarshaler) error
 	Set(from encoding.BinaryMarshaler) error
 	Addr() uint64
+	IsNil() bool
 	binaryMarshalerUnmarshaler
 }
 
@@ -60,6 +61,10 @@ func (p *Pointer) Addr() uint64 {
 	return p.ptr
 }
 
+func (p *Pointer) IsNil() bool {
+	return p.ptr == 0
+}
+
 func (p *Pointer) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, PointerSize)
 	bin.PutUint32(buf[0:4], p.meta.size)
@@ -79,15 +84,15 @@ func (p *Pointer) Format(f fmt.State, c rune) {
 
 func (p *Pointer) key() *freelistKey {
 	return &freelistKey{
-		ptr:  p.ptr - pointerMetaSize,
-		size: p.meta.size + 2 * pointerMetaSize,
+		ptr:  p.ptr - PointerMetaSize,
+		size: p.meta.size + 2 * PointerMetaSize,
 	}
 }
 
 func (p *Pointer) next() (*Pointer, error) {
 	nextPtrMeta := &pointerMetadata{}
-	nextPtrMetaBytes := make([]byte, pointerMetaSize)
-	err := p.pager.ReadAt(nextPtrMetaBytes, p.ptr + uint64(p.meta.size) + pointerMetaSize)
+	nextPtrMetaBytes := make([]byte, PointerMetaSize)
+	err := p.pager.ReadAt(nextPtrMetaBytes, p.ptr + uint64(p.meta.size) + PointerMetaSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read next Pointer meta")
 	}
@@ -98,7 +103,7 @@ func (p *Pointer) next() (*Pointer, error) {
 	}
 
 	return &Pointer{
-		ptr:   p.ptr + uint64(p.meta.size) + 2 * pointerMetaSize,
+		ptr:   p.ptr + uint64(p.meta.size) + 2 * PointerMetaSize,
 		meta:  nextPtrMeta,
 		pager: p.pager,
 	}, nil
@@ -106,8 +111,8 @@ func (p *Pointer) next() (*Pointer, error) {
 
 func (p *Pointer) prev() (*Pointer, error) {
 	prevPtrMeta := &pointerMetadata{}
-	prevPtrMetaBytes := make([]byte, pointerMetaSize)
-	err := p.pager.ReadAt(prevPtrMetaBytes, p.ptr - 2 * pointerMetaSize)
+	prevPtrMetaBytes := make([]byte, PointerMetaSize)
+	err := p.pager.ReadAt(prevPtrMetaBytes, p.ptr - 2 * PointerMetaSize)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read prev Pointer meta")
 	}
@@ -118,7 +123,7 @@ func (p *Pointer) prev() (*Pointer, error) {
 	}
 
 	return &Pointer{
-		ptr:   p.ptr - uint64(prevPtrMeta.size) - 2 * pointerMetaSize,
+		ptr:   p.ptr - uint64(prevPtrMeta.size) - 2 * PointerMetaSize,
 		meta:  prevPtrMeta,
 		pager: p.pager,
 	}, nil
@@ -129,7 +134,7 @@ func (p *Pointer) writeMeta() error {
 	if err != nil {
 		return ErrMarshal
 	}
-	if err := p.pager.WriteAt(bytes, p.ptr - pointerMetaSize); err != nil {
+	if err := p.pager.WriteAt(bytes, p.ptr - PointerMetaSize); err != nil {
 		return ErrInvalidPointer
 	}
 	if err := p.pager.WriteAt(bytes, p.ptr + uint64(p.meta.size)); err != nil {

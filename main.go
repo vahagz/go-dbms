@@ -3,10 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	allocator "go-dbms/pkg/allocator/heap"
-	"go-dbms/pkg/cache"
+	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -155,73 +153,135 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
 
-	pagerFile := path.Join(pwd, "test", "heap.dat")
-	p, err := pager.Open(pagerFile, os.Getpagesize(), false, 0644)
+	bptreeFile := path.Join(pwd, "test", "bptree")
+
+	tree, err := bptree.Open(bptreeFile, &bptree.Options{
+		PageSize: os.Getpagesize(),
+		MaxKeySize: 16,
+		MaxValueSize: 16,
+		Degree: 5,
+		KeyCols: 1,
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-
-	allocatorFile := path.Join(pwd, "test", "freelist")
-	// os.Remove(allocatorFile)
-	a, err := allocator.Open(
-		allocatorFile,
-		&allocator.Options{
-			TargetPageSize: uint16(os.Getpagesize()),
-			TreePageSize:   uint16(os.Getpagesize()),
-			Pager:          p,
-		},
-	)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	c := cache.NewCache[binaryMarshalerUnmarshaler](3, a)
 
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
-		if err := a.Close(); err != nil {
+		if err := tree.Close(); err != nil {
 			logrus.Error(err)
 		}
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-
-	val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
-	ptr, err := a.Alloc(val.Size())
+	err = tree.Put([][]byte{{1,2,3}}, []byte{54}, &bptree.PutOptions{
+		Uniq:   false,
+		Update: false,
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	cPtr := c.Add(ptr)
-	cPtr.Lock().Set(val).Flush()
 
-	for i := 0; i < 5; i++ {
-		val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
-		ptr, err := a.Alloc(val.Size())
-		if err != nil {
-			logrus.Fatal(err)
-		}
-		cPtr := c.Add(ptr)
-		cPtr.Lock().Set(val).Flush().Unlock()
+	// vals, err := tree.Get([][]byte{{2,3,4}})
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(vals)
 
-		fmt.Println("=====================================")
-		fmt.Println(c.Get(a.Pointer(23, 16)))
-		fmt.Println(c.Get(a.Pointer(49, 16)))
-		fmt.Println(c.Get(a.Pointer(75, 16)))
-		fmt.Println(c.Get(a.Pointer(101, 16)))
-		fmt.Println(c.Get(a.Pointer(127, 16)))
-		fmt.Println(c.Get(a.Pointer(153, 16)))
+
+	// vals, err := tree.Del([][]byte{{6,7,8}})
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(vals)
+
+	err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
+		fmt.Printf("key -> %v, val -> %v\n", key, val)
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
 	}
 
-	cPtr.Unlock()
-	fmt.Println("=====================================")
-	fmt.Println(c.Get(a.Pointer(23, 16)))
-	fmt.Println(c.Get(a.Pointer(49, 16)))
-	fmt.Println(c.Get(a.Pointer(75, 16)))
-	fmt.Println(c.Get(a.Pointer(101, 16)))
-	fmt.Println(c.Get(a.Pointer(127, 16)))
-	fmt.Println(c.Get(a.Pointer(153, 16)))
+
+
+
+
+
+	// pagerFile := path.Join(pwd, "test", "heap.dat")
+	// p, err := pager.Open(pagerFile, os.Getpagesize(), false, 0644)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// allocatorFile := path.Join(pwd, "test", "freelist")
+	// // os.Remove(allocatorFile)
+	// a, err := allocator.Open(
+	// 	allocatorFile,
+	// 	&allocator.Options{
+	// 		TargetPageSize: uint16(os.Getpagesize()),
+	// 		TreePageSize:   uint16(os.Getpagesize()),
+	// 		Pager:          p,
+	// 	},
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// c := cache.NewCache[binaryMarshalerUnmarshaler](3)
+
+	// start := time.Now()
+	// exitFunc := func() {
+	// 	fmt.Println("\nTOTAL DURATION =>", time.Since(start))
+	// 	if err := a.Close(); err != nil {
+	// 		logrus.Error(err)
+	// 	}
+	// }
+	// logrus.RegisterExitHandler(exitFunc)
+	// defer exitFunc()
+
+
+	// val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
+	// ptr, err := a.Alloc(val.Size())
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// cPtr := c.Add(ptr)
+	// cPtr.Lock().Set(val).Flush()
+
+	// for i := 0; i < 5; i++ {
+	// 	val := &binaryMarshalerUnmarshaler{Item: []int{rand.Intn(10),rand.Intn(10),rand.Intn(10)}}
+	// 	ptr, err := a.Alloc(val.Size())
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	cPtr := c.Add(ptr)
+	// 	cPtr.Lock().Set(val).Flush().Unlock()
+
+	// 	fmt.Println("=====================================")
+	// 	fmt.Println(c.Get(a.Pointer(23, 16)))
+	// 	fmt.Println(c.Get(a.Pointer(49, 16)))
+	// 	fmt.Println(c.Get(a.Pointer(75, 16)))
+	// 	fmt.Println(c.Get(a.Pointer(101, 16)))
+	// 	fmt.Println(c.Get(a.Pointer(127, 16)))
+	// 	fmt.Println(c.Get(a.Pointer(153, 16)))
+	// }
+
+	// cPtr.Unlock()
+	// fmt.Println("=====================================")
+	// fmt.Println(c.Get(a.Pointer(23, 16)))
+	// fmt.Println(c.Get(a.Pointer(49, 16)))
+	// fmt.Println(c.Get(a.Pointer(75, 16)))
+	// fmt.Println(c.Get(a.Pointer(101, 16)))
+	// fmt.Println(c.Get(a.Pointer(127, 16)))
+	// fmt.Println(c.Get(a.Pointer(153, 16)))
+
+	// _ = c
+	// val := &binaryMarshalerUnmarshaler{}
+	// err = a.Pointer(153, 16).Get(val)
+	// fmt.Println(val, err)
 
 
 	// cPtr := c.Add(a.Pointer(49, 16))

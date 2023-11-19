@@ -174,8 +174,6 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
-		ReadOnly:     false,
-		FileMode:     0664,
 		MaxKeySize:   keySize,
 		MaxValueSize: data.RecordPointerSize,
 		PageSize:     os.Getpagesize(),

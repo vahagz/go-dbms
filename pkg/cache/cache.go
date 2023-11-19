@@ -2,49 +2,39 @@ package cache
 
 import (
 	allocator "go-dbms/pkg/allocator/heap"
-	"go-dbms/pkg/customerrors"
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
-func NewCache[T any, U bmu[T]](size int, a *allocator.Allocator) *Cache[T, U] {
-	return &Cache[T, U]{
-		lock:   &sync.Mutex{},
-		size:   size,
-		items:  make(map[uint64]*pointerWrapper[T, U], size),
-		locked: map[uint64]*pointerWrapper[T, U]{},
-		keys:   make([]uint64, size),
-		index:  0,
+func NewCache[T pointable](size int, itemGenerator func() T) *Cache[T] {
+	return &Cache[T]{
+		lock:    &sync.Mutex{},
+		size:    size,
+		items:   make(map[uint64]*pointerWrapper[T], size),
+		locked:  map[uint64]*pointerWrapper[T]{},
+		keys:    make([]uint64, size),
+		index:   0,
+		newItem: itemGenerator,
 	}
 }
 
-type Cache[T any, U bmu[T]] struct {
-	lock   *sync.Mutex
-	a      allocator.Allocator
-	size   int
-	items  map[uint64]*pointerWrapper[T, U]
-	locked map[uint64]*pointerWrapper[T, U]
-	keys   []uint64
-	index  int
+type Cache[T pointable] struct {
+	lock    *sync.Mutex
+	size    int
+	items   map[uint64]*pointerWrapper[T]
+	locked  map[uint64]*pointerWrapper[T]
+	keys    []uint64
+	index   int
+	newItem func() T
 }
 
-func (c *Cache[T, U]) Pointer() Pointable[T, U] {
-	return &pointerWrapper[T, U]{
-		cache: c,
-		ptr:   c.a.Pointer(0, 0),
-		lock:  &sync.RWMutex{},
-	}
-}
-
-func (c *Cache[T, U]) Add(ptr allocator.Pointable) Pointable[T, U] {
+func (c *Cache[T]) Add(ptr allocator.Pointable) Pointable[T] {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	return c.add(ptr)
 }
 
-func (c *Cache[T, U]) add(ptr allocator.Pointable) Pointable[T, U] {
+func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 	addr := ptr.Addr()
 	if itm, ok := c.items[addr]; ok {
 		return itm
@@ -55,17 +45,12 @@ func (c *Cache[T, U]) add(ptr allocator.Pointable) Pointable[T, U] {
 	keyToDelete := c.keys[c.index]
 	ptrToDelete, ok := c.items[keyToDelete]
 	if ok {
-		if ptrToDelete.val != nil && ptrToDelete.val.IsDirty() {
-			err := ptrToDelete.ptr.Set(ptrToDelete.val)
-			if err != nil {
-				panic(errors.Wrap(err, "failed to flush ptr value to delete from cache"))
-			}
-		}
+		ptrToDelete.Flush()
 		delete(c.items, keyToDelete)
 	}
 
 	c.keys[c.index] = addr
-	c.items[addr] = &pointerWrapper[T, U]{
+	c.items[addr] = &pointerWrapper[T]{
 		cache: c,
 		ptr:   ptr,
 		lock:  &sync.RWMutex{},
@@ -79,19 +64,51 @@ func (c *Cache[T, U]) add(ptr allocator.Pointable) Pointable[T, U] {
 	return c.items[addr]
 }
 
-func (c *Cache[T, U]) Get(ptr allocator.Pointable) (Pointable[T, U], error) {
+func (c *Cache[T]) Get(ptr allocator.Pointable) Pointable[T] {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	return c.get(ptr)
 }
 
-func (c *Cache[T, U]) get(ptr allocator.Pointable) (Pointable[T, U], error) {
+func (c *Cache[T]) get(ptr allocator.Pointable) Pointable[T] {
 	addr := ptr.Addr()
 	if itm, ok := c.items[addr]; ok {
-		return itm, nil
+		return itm
 	} else if itm, ok := c.locked[addr]; ok {
-		return itm, nil
+		return itm
 	}
-	return nil, customerrors.ErrNotFound
+	return nil
+}
+
+func (c *Cache[T]) GetSet(ptr allocator.Pointable) Pointable[T] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if itm := c.get(ptr); itm == nil {
+		return c.add(ptr)
+	} else {
+		return itm
+	}
+}
+
+func (c *Cache[T]) Del(ptr allocator.Pointable) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.del(ptr)
+}
+
+func (c *Cache[T]) del(ptr allocator.Pointable) {
+	delete(c.items, ptr.Addr())
+}
+
+func (c *Cache[T]) Flush() {
+	for _, pw := range c.items {
+		pw.Lock().Flush().Unlock()
+	}
+
+	for _, pw := range c.locked {
+		pw.Lock().Flush().Unlock()
+	}
 }

@@ -10,7 +10,7 @@ import (
 
 func Open(filename string, opts *Options) (*Allocator, error) {
 	freelist, err := rbtree.Open[*freelistKey, *rbtree.DummyVal](
-		fmt.Sprintf("%s.bin", filename),
+		fmt.Sprintf("%s_freelist.bin", filename),
 		&rbtree.Options{
 			PageSize: opts.TreePageSize,
 		},
@@ -37,17 +37,17 @@ type Allocator struct {
 }
 
 func (a *Allocator) Alloc(size uint32) (Pointable, error) {
-	requiredSize := size + 2 * pointerMetaSize
+	requiredSize := size + 2 * PointerMetaSize
 	entry, err := a.freelist.Get(&freelistKey{0, requiredSize})
 	if err != nil && err != rbtree.ErrNotFound {
 		return nil, errors.Wrap(err, "failed to find free space from freelist")
 	} else if entry != nil {
 		shrinkSize := requiredSize
-		if entry.Key.size - shrinkSize < 2 * pointerMetaSize {
+		if entry.Key.size - shrinkSize < 2 * PointerMetaSize {
 			shrinkSize = entry.Key.size
 		}
 
-		ptr := a.createPointer(entry.Key.ptr + pointerMetaSize, shrinkSize - 2 * pointerMetaSize)
+		ptr := a.createPointer(entry.Key.ptr + PointerMetaSize, shrinkSize - 2 * PointerMetaSize)
 		if err := a.shrink(entry, shrinkSize); err != nil {
 			return nil, errors.Wrap(err, "failed to shrink allocated space")
 		}
@@ -76,19 +76,19 @@ func (a *Allocator) Free(p Pointable) error {
 		return errors.New("invalid Pointer type")
 	}
 
-	if ptr.ptr + uint64(ptr.meta.size) + pointerMetaSize == a.meta.top {
-		a.meta.top -= uint64(ptr.meta.size) + 2 * pointerMetaSize
+	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize == a.meta.top {
+		a.meta.top -= uint64(ptr.meta.size) + 2 * PointerMetaSize
 		return errors.Wrap(a.writeMeta(), "faield to update meta after free")
 	}
 
-	if ptr.ptr + uint64(ptr.meta.size) + pointerMetaSize < a.meta.top {
+	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize < a.meta.top {
 		nextPtr, err := ptr.next()
 		if err != nil {
 			return errors.Wrap(err, "failed to get freed ptr next ptr")
 		}
 
 		if nextPtr.meta.free {
-			ptr.meta.size += nextPtr.meta.size + 2 * pointerMetaSize
+			ptr.meta.size += nextPtr.meta.size + 2 * PointerMetaSize
 			err := a.freelist.Delete(nextPtr.key())
 			if err != nil {
 				return errors.Wrap(err, "failed to delete freelist item")
@@ -96,7 +96,7 @@ func (a *Allocator) Free(p Pointable) error {
 		}
 	}
 
-	if ptr.ptr - 2 * pointerMetaSize > 0 {
+	if ptr.ptr - 2 * PointerMetaSize > 0 {
 		prevPtr, err := ptr.prev()
 		if err != nil {
 			return errors.Wrap(err, "failed to get freed ptr prev ptr")
@@ -104,7 +104,7 @@ func (a *Allocator) Free(p Pointable) error {
 
 		if prevPtr.meta.free {
 			ptr.ptr = prevPtr.ptr
-			ptr.meta.size += prevPtr.meta.size + 2 * pointerMetaSize
+			ptr.meta.size += prevPtr.meta.size + 2 * PointerMetaSize
 			err := a.freelist.Delete(prevPtr.key())
 			if err != nil {
 				return errors.Wrap(err, "failed to delete freelist item")
@@ -124,8 +124,20 @@ func (a *Allocator) Free(p Pointable) error {
 	return errors.Wrap(ptr.writeMeta(), "failed to update freed ptr meta")
 }
 
+func (a *Allocator) Size() uint64 {
+	return a.meta.top
+}
+
+func (a *Allocator) FirstPointer(size uint32) Pointable {
+	return a.createPointer(metadataSize + 3 * PointerMetaSize, size)
+}
+
 func (a *Allocator) Pointer(addr uint64, size uint32) Pointable {
-	return &Pointer{addr, &pointerMetadata{false, size}, a.pager}
+	return a.createPointer(addr, size)
+}
+
+func (a *Allocator) Nil() Pointable {
+	return a.Pointer(0, 0)
 }
 
 func (a *Allocator) Print() error {
@@ -164,17 +176,17 @@ func (a *Allocator) shrink(
 		return errors.Wrap(err, "failed to insert entry key after shrink")
 	}
 
-	ptr := a.createPointer(entry.Key.ptr + pointerMetaSize, entry.Key.size - 2 * pointerMetaSize)
+	ptr := a.createPointer(entry.Key.ptr + PointerMetaSize, entry.Key.size - 2 * PointerMetaSize)
 	ptr.meta.free = true
 	return errors.Wrap(ptr.writeMeta(), "failed to update shrinked free block meta")
 }
 
 func (a *Allocator) init() error {
 	a.meta = &metadata{top: 0}
-	a.metaPtr = a.createPointer(pointerMetaSize, metadataSize)
+	a.metaPtr = a.createPointer(PointerMetaSize, metadataSize)
 
 	if a.pager.Count() > 0 {
-		a.meta.top += pointerMetaSize
+		a.meta.top += PointerMetaSize
 		return a.metaPtr.Get(a.meta)
 	}
 
@@ -195,7 +207,7 @@ func (a *Allocator) createPointer(ptr uint64, size uint32) *Pointer {
 }
 
 func (a *Allocator) newPointer(size uint32) *Pointer {
-	ptr := a.createPointer(a.meta.top + pointerMetaSize, size)
-	a.meta.top += uint64(size) +  2 * pointerMetaSize
+	ptr := a.createPointer(a.meta.top + PointerMetaSize, size)
+	a.meta.top += uint64(size) +  2 * PointerMetaSize
 	return ptr
 }
