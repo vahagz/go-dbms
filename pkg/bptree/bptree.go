@@ -6,13 +6,13 @@ package bptree
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"sync"
 
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/cache"
 	"go-dbms/pkg/customerrors"
 	"go-dbms/pkg/pager"
-	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
 )
@@ -124,7 +124,7 @@ func (tree *BPlusTree) Put(key [][]byte, val []byte, opt *PutOptions) error {
 		val: val,
 	}
 
-	isInsert, err := tree.put(e, opt)
+	isInsert, err := tree.insert(e, opt)
 	if err != nil {
 		return err
 	}
@@ -282,152 +282,143 @@ func (tree *BPlusTree) String() string {
 	)
 }
 
-func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
+func (tree *BPlusTree) Print() {
+	tree.print(tree.root, 0)
+}
+
+func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
+	n := nPtr.Get()
+	for i := len(n.entries) - 1; i >= 0; i-- {
+		if !n.isLeaf() {
+			n, _ := tree.fetch(n.children[i+1])
+			tree.print(n, indent + 4)
+		}
+		var parentPtr uint64
+		if !nPtr.Get().parent.IsNil() {
+			parentPtr = tree.fetchE(nPtr.Get().parent).Ptr().Addr()
+		}
+		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, parentPtr)
+	}
+
+	if !n.isLeaf() {
+		n, _ := tree.fetch(n.children[0])
+		tree.print(n, indent + 4)
+	}
+}
+
+func (tree *BPlusTree) insert(e entry, opt *PutOptions) (bool, error) {
 	tree.root.Lock()
 	defer tree.root.Unlock()
 
-	if tree.isFull(tree.root.Get()) {
-		// we will need 2 extra nodes for splitting the root
-		// (1 to act as new root + 1 for the right sibling)
-		newRoot, err := tree.allocInternal()
-		if err != nil {
-			return false, errors.Wrap(err, "failed to alloc new root")
-		}
-
-		var rightSibling cache.Pointable[*node]
-		oldRoot := tree.root
-		if oldRoot.Get().isLeaf() {
-			rightSibling, err = tree.allocLeaf()
-		} else {
-			rightSibling, err = tree.allocInternal()
-		}
-
-		if err != nil {
-			return false, errors.Wrap(err, "failed to alloc new root right sibling")
-		}
-
-		// update the tree root
-		newRootV := newRoot.Get()
-		newRootV.children = append(newRootV.children, oldRoot.Ptr())
-		tree.root = newRoot
-		tree.meta.root = newRoot.Ptr()
-
-		if err := tree.split(newRoot, oldRoot, rightSibling, 0); err != nil {
-			return false, err
-		}
-	}
-
-	return tree.insertNonFull(tree.root, e, opt)
-}
-
-func (tree *BPlusTree) insertNonFull(
-	n cache.Pointable[*node],
-	e entry,
-	opt *PutOptions,
-) (bool, error) {
-	nv := n.Get()
-	if nv.isLeaf() {
-		startIdx, endIdx, found := nv.search(e.key)
-
-		if opt.Uniq && found && !opt.Update {
-			return false, errors.New("key already exists")
-		} else if found && opt.Update {
-			for idx := startIdx; idx <= endIdx; idx++ {
-				nv.update(idx, e.val)
-			}
-			return false, nil
-		}
-
-		nv.insertAt(startIdx, e)
-		return true, nil
-	}
-
-	return tree.insertInternal(n, e, opt)
-}
-
-func (tree *BPlusTree) insertInternal(
-	n cache.Pointable[*node],
-	e entry,
-	opt *PutOptions,
-) (bool, error) {
-	nv := n.Get()
-	_, endIdx, found := nv.search(e.key)
-	if found {
-		endIdx++
-	}
-
-	child, err := tree.fetch(nv.children[endIdx])
+	leaf, start, end, found, err := tree.searchRec(tree.root, e.key)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to fetch child")
+		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
 	}
-	childV := child.Get()
-
-	if tree.isFull(childV) {
-		var sibling cache.Pointable[*node]
-		var err error
-		if childV.isLeaf() {
-			sibling, err = tree.allocLeaf()
-		} else {
-			sibling, err = tree.allocInternal()
+	
+	if opt.Uniq && found && !opt.Update {
+		return false, errors.New("key already exists")
+	} else if found && opt.Update {
+		for i := start; i <= end; i++ {
+			leaf.Get().update(i, e.val)
 		}
-
-		if err != nil {
-			return false, errors.Wrap(err, "failed to alloc node to split")
-		}
-
-		if err := tree.split(n, child, sibling, endIdx); err != nil {
-			return false, errors.Wrap(err, "failed to split node")
-		}
-
-		// should go into left child or right child?
-		if helpers.CompareMatrix(e.key, nv.entries[endIdx].key) >= 0 {
-			child, err = tree.fetch(nv.children[endIdx+1])
-			if err != nil {
-				return false, errors.Wrap(err, "failed to fetch child")
-			}
-		}
+		return false, nil
 	}
 
-	return tree.insertNonFull(child, e, opt)
+	leaf.Get().insertAt(start, e)
+	if leaf.Get().IsFull() {
+		return true, tree.split(leaf)
+	}
+
+	return true, nil
 }
 
-func (tree *BPlusTree) split(p, n, sibling cache.Pointable[*node], i int) error {
-	pv := p.Get()
-	nv := n.Get()
-	siblingV := sibling.Get()
-
-	pv.Dirty(true)
-	nv.Dirty(true)
-	siblingV.Dirty(true)
-
+func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
+	nv := nPtr.Get()
+	var siblingPtr cache.Pointable[*node]
 	if nv.isLeaf() {
-		// split leaf node. use 'sibling' as the right node for 'n'.
-		siblingV.next = nv.next
-		siblingV.prev = n.Ptr()
-		nv.next = sibling.Ptr()
-
-		siblingV.entries = make([]entry, tree.meta.degree-1)
-		copy(siblingV.entries, nv.entries[tree.meta.degree-1:])
-		nv.entries = nv.entries[:tree.meta.degree-1]
-
-		pv.insertChild(i+1, sibling.Ptr())
-		pv.insertAt(i, siblingV.entries[0])
+		siblingPtr, err = tree.allocLeaf()
 	} else {
-		// split internal node. use 'sibling' as left node for 'n'.
-		parentKey := nv.entries[tree.meta.degree-1]
-
-		siblingV.entries = make([]entry, tree.meta.degree-1)
-		copy(siblingV.entries, nv.entries[:tree.meta.degree])
-		nv.entries = nv.entries[tree.meta.degree:]
-
-		siblingV.children = make([]allocator.Pointable, tree.meta.degree)
-		copy(siblingV.children, nv.children[:tree.meta.degree])
-		nv.children = nv.children[tree.meta.degree:]
-
-		pv.insertChild(i, sibling.Ptr())
-		pv.insertAt(i, parentKey)
+		siblingPtr, err = tree.allocInternal()
+	}
+	if err != nil {
+		return errors.Wrap(err, "failed to alloc node")
 	}
 
+	sv := siblingPtr.Get()
+	breakPoint := int(math.Ceil(float64(tree.meta.degree-1) / 2))
+	pe := nv.entries[breakPoint]
+
+	nv.Dirty(true)
+	sv.Dirty(true)
+
+	sv.parent = nv.parent
+	if nv.isLeaf() {
+		sv.entries = make([]entry, 0, tree.meta.degree)
+		sv.entries = append(sv.entries, nv.entries[breakPoint:]...)
+		nv.entries = nv.entries[:breakPoint]
+
+		pe.val = nil
+
+		if !nv.next.IsNil() {
+			nNext, err := tree.fetch(nv.next)
+			if err != nil {
+				return errors.Wrap(err, "failed to fetch next")
+			}
+
+			sv.next = nNext.Ptr()
+			nNext.Get().Dirty(true)
+			nNext.Get().prev = siblingPtr.Ptr()
+		}
+		sv.prev = nPtr.Ptr()
+		nv.next = siblingPtr.Ptr()
+	} else {
+		sv.entries = make([]entry, 0, tree.meta.degree)
+		sv.entries = append(sv.entries, nv.entries[breakPoint+1:]...)
+		sv.children = make([]allocator.Pointable, 0, tree.meta.degree+1)
+		sv.children = append(sv.children, nv.children[breakPoint+1:]...)
+		for _, sChildPtr := range sv.children {
+			sChild, err := tree.fetch(sChildPtr)
+			if err != nil {
+				return errors.Wrap(err, "failed to fetch sibling child")
+			}
+
+			scv := sChild.Get()
+			scv.Dirty(true)
+			scv.parent = siblingPtr.Ptr()
+		}
+
+		nv.entries = nv.entries[:breakPoint]
+		nv.children = nv.children[:breakPoint+1]
+	}
+
+	var pPtr cache.Pointable[*node]
+	if nv.parent.IsNil() {
+		tree.root, err = tree.allocInternal()
+		if err != nil {
+			return errors.Wrap(err, "failed to alloc new root")
+		}
+
+		tree.meta.root = tree.root.Ptr()
+		pPtr = tree.root
+		sv.parent = pPtr.Ptr()
+		nv.parent = pPtr.Ptr()
+		pPtr.Get().insertChild(0, nPtr.Ptr())
+	} else {
+		pPtr, err = tree.fetch(nv.parent)
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch parent")
+		}
+	}
+
+	pv := pPtr.Get()
+	pv.Dirty(true)
+	start, _, _ := pv.search(pe.key)
+	pv.insertAt(start, pe)
+	pv.insertChild(start + 1, siblingPtr.Ptr())
+
+	if pv.IsFull() {
+		return tree.split(pPtr)
+	}
 	return nil
 }
 
@@ -437,18 +428,20 @@ func (tree *BPlusTree) split(p, n, sibling cache.Pointable[*node], i int) error 
 func (tree *BPlusTree) searchRec(
 	n cache.Pointable[*node],
 	key [][]byte,
-) (cache.Pointable[*node], int, int, bool, error) {
-	startIdx, endIdx, found := n.Get().search(key)
-
-	if found {
-		endIdx++
-	}
+) (
+	ptr cache.Pointable[*node],
+	startIndex int,
+	endIndex int,
+	found bool,
+	err error,
+) {
+	startIndex, endIndex, found = n.Get().search(key)
 
 	if n.Get().isLeaf() {
-		return n, startIdx, endIdx, found, nil
+		return n, startIndex, endIndex, found, nil
 	}
 
-	child, err := tree.fetch(n.Get().children[endIdx])
+	child, err := tree.fetch(n.Get().children[endIndex])
 	if err != nil {
 		return nil, 0, 0, false, errors.Wrap(err, "failed to get child")
 	}
@@ -484,10 +477,6 @@ func (tree *BPlusTree) leftLeaf(n cache.Pointable[*node]) (cache.Pointable[*node
 	return tree.leftLeaf(child)
 }
 
-func (tree *BPlusTree) isFull(n *node) bool {
-	return len(n.entries) == int(tree.meta.degree - 1)
-}
-
 // fetch returns the node from given pointer. underlying file is accessed
 // only if the node doesn't exist in cache.
 func (tree *BPlusTree) fetch(ptr allocator.Pointable) (cache.Pointable[*node], error) {
@@ -505,11 +494,22 @@ func (tree *BPlusTree) fetch(ptr allocator.Pointable) (cache.Pointable[*node], e
 	return tree.cache.Add(ptr), nil
 }
 
+func (tree *BPlusTree) fetchE(ptr allocator.Pointable) cache.Pointable[*node] {
+	v, err := tree.fetch(ptr)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 func (tree *BPlusTree) newNode() *node {
 	return &node{
 		dirty:    true,
+		meta:     tree.meta,
+		dummyPtr: tree.heap.Nil(),
 		next:     tree.heap.Nil(),
 		prev:     tree.heap.Nil(),
+		parent:   tree.heap.Nil(),
 		entries:  make([]entry, 0),
 		children: make([]allocator.Pointable, 0),
 	}
@@ -521,8 +521,15 @@ func (tree *BPlusTree) allocLeaf() (cache.Pointable[*node], error) {
 		return nil, errors.Wrap(err, "failed to alloc leaft node")
 	}
 	cPtr := tree.cache.Add(ptr)
-	cPtr.Get().next = tree.heap.Nil()
-	cPtr.Get().prev = tree.heap.Nil()
+	val := cPtr.Get()
+	val.Dirty(true)
+	val.meta = tree.meta
+	val.next = tree.heap.Nil()
+	val.prev = tree.heap.Nil()
+	val.parent = tree.heap.Nil()
+	val.dummyPtr = tree.heap.Nil()
+	val.children = make([]allocator.Pointable, 0)
+	val.entries = make([]entry, 0)
 	return cPtr, nil
 }
 
@@ -532,52 +539,17 @@ func (tree *BPlusTree) allocInternal() (cache.Pointable[*node], error) {
 		return nil, errors.Wrap(err, "failed to alloc leaft node")
 	}
 	cPtr := tree.cache.Add(ptr)
-	cPtr.Get().next = tree.heap.Nil()
-	cPtr.Get().prev = tree.heap.Nil()
+	val := cPtr.Get()
+	val.Dirty(true)
+	val.meta = tree.meta
+	val.next = tree.heap.Nil()
+	val.prev = tree.heap.Nil()
+	val.parent = tree.heap.Nil()
+	val.dummyPtr = tree.heap.Nil()
+	val.children = make([]allocator.Pointable, 0)
+	val.entries = make([]entry, 0)
 	return cPtr, nil
 }
-
-// // allocOne allocates a page in the underlying pager and creates a node
-// // on that page. node is not written to the page in this call.
-// func (tree *BPlusTree) allocOne() (*node, error) {
-// 	nodes, err := tree.alloc(1)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return nodes[0], nil
-// }
-
-// // alloc allocates pages required for 'n' new nodes. alloc will reuse
-// // pages from free-list if available.
-// func (tree *BPlusTree) alloc(n int) ([]*node, error) {
-// 	// check if there are enough free pages from the freelist
-// 	// and try to allocate sequential set of 
-// 	var pid uint64
-// 	pidPtr, rem := allocSeq(tree.meta.freeList, n)
-// 	tree.meta.freeList = rem
-
-// 	// free list could be having less pages than we actually need.
-// 	// we need to allocate if that is the case.
-// 	if pidPtr == nil {
-// 		var err error
-// 		pid, err = tree.pager.Alloc(n)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	} else {
-// 		pid = *pidPtr
-// 	}
-
-// 	nodes := make([]*node, n)
-// 	for i := 0; i < n; i++ {
-// 		n := newNode(pid)
-// 		tree.nodes[pid] = n
-// 		nodes[i] = n
-// 		pid++
-// 	}
-
-// 	return nodes, nil
-// }
 
 // open opens the B+ tree stored on disk using the heap.
 // If heap is empty, a new B+ tree will be initialized.
@@ -666,31 +638,4 @@ func (tree *BPlusTree) writeMeta() error {
 		return tree.metaPtr.Set(tree.meta)
 	}
 	return nil
-}
-
-// allocSeq finds a subset of size 'n' in 'free' that is sequential.
-// Returns the first int in the sequence the set after removing the
-// subset.
-func allocSeq(free []uint64, n int) (id *uint64, remaining []uint64) {
-	if len(free) <= n {
-		return nil, free
-	} else if n == 1 {
-		return &free[0], free[1:]
-	}
-
-	i, j := 0, 0
-	for ; i < len(free); i++ {
-		j = i + (n - 1)
-		if j < len(free) && free[j] == free[i]+uint64(n-1) {
-			break
-		}
-	}
-
-	if i >= len(free) || j >= len(free) {
-		return nil, free
-	}
-
-	id = &free[i]
-	free = append(free[:i], free[j+1:]...)
-	return id, free
 }

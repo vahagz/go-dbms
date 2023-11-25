@@ -26,6 +26,7 @@ type Pointable interface {
 	Set(from encoding.BinaryMarshaler) error
 	Addr() uint64
 	IsNil() bool
+	Copy() Pointable
 	binaryMarshalerUnmarshaler
 }
 
@@ -63,6 +64,10 @@ func (p *Pointer) Addr() uint64 {
 
 func (p *Pointer) IsNil() bool {
 	return p.ptr == 0
+}
+
+func (p *Pointer) Copy() Pointable {
+	return &Pointer{p.ptr,p.meta,p.pager}
 }
 
 func (p *Pointer) MarshalBinary() ([]byte, error) {

@@ -157,9 +157,9 @@ func main() {
 
 	tree, err := bptree.Open(bptreeFile, &bptree.Options{
 		PageSize: os.Getpagesize(),
-		MaxKeySize: 16,
-		MaxValueSize: 16,
-		Degree: 5,
+		MaxKeySize: 1,
+		MaxValueSize: 1,
+		Degree: 4,
 		KeyCols: 1,
 	})
 	if err != nil {
@@ -176,13 +176,17 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	err = tree.Put([][]byte{{1,2,3}}, []byte{54}, &bptree.PutOptions{
-		Uniq:   false,
-		Update: false,
-	})
-	if err != nil {
-		logrus.Fatal(err)
+	for i := 0; i < 150; i++ {
+		err = tree.Put([][]byte{{byte(rand.Int31n(256))}}, []byte{100}, &bptree.PutOptions{
+			Uniq:   false,
+			Update: false,
+		})
+		if err != nil {
+			logrus.Fatal(err)
+		}
 	}
+
+	// tree.Print()
 
 	// vals, err := tree.Get([][]byte{{2,3,4}})
 	// if err != nil {
@@ -197,8 +201,10 @@ func main() {
 	// }
 	// fmt.Println(vals)
 
+	counter := 0
 	err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
-		fmt.Printf("key -> %v, val -> %v\n", key, val)
+		counter++
+		fmt.Printf("[%v] key -> %v, val -> %v\n", counter, key, val)
 		return false, nil
 	})
 	if err != nil {

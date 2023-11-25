@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	leafNodeHeaderSz     = 3 + 2 * allocator.PointerSize
-	internalNodeHeaderSz = 3 + allocator.PointerSize
+	leafNodeHeaderSz     = 3 + 3 * allocator.PointerSize
+	internalNodeHeaderSz = 3 + 2 * allocator.PointerSize
 
 	flagLeafNode     = uint8(0x0)
 	flagInternalNode = uint8(0x1)
@@ -34,10 +34,13 @@ type entry struct {
 type node struct {
 	// configs for read/write
 	dirty bool
+	meta  *metadata
 
 	// node data
+	dummyPtr allocator.Pointable
 	next     allocator.Pointable
 	prev     allocator.Pointable
+	parent   allocator.Pointable
 	entries  []entry
 	children []allocator.Pointable
 }
@@ -52,6 +55,10 @@ func (n *node) Dirty(v bool) {
 
 func (n *node) IsNil() bool {
 	return n == nil
+}
+
+func (n *node) IsFull() bool {
+	return len(n.entries) >= int(n.meta.degree)
 }
 
 // search performs a binary search in the node entries for the given key
@@ -112,7 +119,7 @@ func (n *node) search(key [][]byte) (startIdx int, endIdx int, found bool) {
 			right = mid - 1
 		}
 	}
-	return left, right, false
+	return left, right + 1, false
 }
 
 // insertChild adds the given child at appropriate location under the node.
@@ -207,6 +214,11 @@ func (n *node) MarshalBinary() ([]byte, error) {
 			return nil, errors.Wrap(err, "failed to marshal prev ptr")
 		}
 
+		parentBytes, err := n.parent.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal parent ptr")
+		}
+
 		// Note: update leafNodeHeaderSz if this is updated.
 		buf[offset] = flagLeafNode
 		offset++
@@ -218,6 +230,9 @@ func (n *node) MarshalBinary() ([]byte, error) {
 		offset += allocator.PointerSize
 
 		copy(buf[offset:], prevBytes)
+		offset += allocator.PointerSize
+		
+		copy(buf[offset:], parentBytes)
 		offset += allocator.PointerSize
 
 		for i := 0; i < len(n.entries); i++ {
@@ -253,8 +268,16 @@ func (n *node) MarshalBinary() ([]byte, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal extra child ptr")
 		}
+		
+		parentBytes, err := n.parent.MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal extra child ptr")
+		}
 
 		copy(buf[offset:], extraChildPtrBytes)
+		offset += allocator.PointerSize
+
+		copy(buf[offset:], parentBytes)
 		offset += allocator.PointerSize
 
 		for i := 0; i < len(n.entries); i++ {
@@ -306,6 +329,12 @@ func (n *node) UnmarshalBinary(d []byte) error {
 		}
 		offset += allocator.PointerSize
 
+		err = n.parent.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
+		if err != nil {
+			return errors.Wrap(err, "failed to unmarshal pointer")
+		}
+		offset += allocator.PointerSize
+
 		for i := 0; i < entryCount; i++ {
 			e := entry{}
 			
@@ -337,17 +366,22 @@ func (n *node) UnmarshalBinary(d []byte) error {
 		offset += 2
 
 		// read the left most child pointer
-		leftMostChild := &allocator.Pointer{}
-		err := leftMostChild.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
+		n.children = append(n.children, n.dummyPtr.Copy())
+		err := n.children[len(n.children)-1].UnmarshalBinary(d[offset:offset+allocator.PointerSize])
 		offset += allocator.PointerSize
 		if err != nil {
 			return errors.Wrap(err, "failed to unmarshal left most child ptr")
 		}
 
-		n.children = append(n.children, leftMostChild)
+		n.parent = n.dummyPtr.Copy()
+		err = n.parent.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
+		offset += allocator.PointerSize
+		if err != nil {
+			return errors.Wrap(err, "failed to unmarshal parent ptr")
+		}
 
 		for i := 0; i < entryCount; i++ {
-			childPtr := &allocator.Pointer{}
+			childPtr := n.dummyPtr.Copy()
 			err := childPtr.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
 			offset += allocator.PointerSize
 			if err != nil {
@@ -370,7 +404,6 @@ func (n *node) UnmarshalBinary(d []byte) error {
 			n.children = append(n.children, childPtr)
 			n.entries = append(n.entries, entry{key: key})
 		}
-
 	}
 
 	return nil
