@@ -34,6 +34,24 @@ func (c *Cache[T]) Add(ptr allocator.Pointable) Pointable[T] {
 	return c.add(ptr)
 }
 
+func (c *Cache[T]) AddR(ptr allocator.Pointable) Pointable[T] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	item := c.add(ptr)
+	item.(*pointerWrapper[T]).lock().mutex.RLock()
+	return item
+}
+
+func (c *Cache[T]) AddW(ptr allocator.Pointable) Pointable[T] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	item := c.add(ptr)
+	item.(*pointerWrapper[T]).lock().mutex.Lock()
+	return item
+}
+
 func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 	addr := ptr.Addr()
 	if itm, ok := c.items[addr]; ok {
@@ -53,7 +71,7 @@ func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 	c.items[addr] = &pointerWrapper[T]{
 		cache: c,
 		ptr:   ptr,
-		lock:  &sync.RWMutex{},
+		mutex: &sync.RWMutex{},
 	}
 
 	c.index++
@@ -69,6 +87,28 @@ func (c *Cache[T]) Get(ptr allocator.Pointable) Pointable[T] {
 	defer c.lock.Unlock()
 
 	return c.get(ptr)
+}
+
+func (c *Cache[T]) GetR(ptr allocator.Pointable) Pointable[T] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	item := c.get(ptr)
+	if item != nil {
+		item.(*pointerWrapper[T]).lock().mutex.RLock()
+	}
+	return item
+}
+
+func (c *Cache[T]) GetW(ptr allocator.Pointable) Pointable[T] {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	item := c.get(ptr)
+	if item != nil {
+		item.(*pointerWrapper[T]).lock().mutex.Lock()
+	}
+	return item
 }
 
 func (c *Cache[T]) get(ptr allocator.Pointable) Pointable[T] {
@@ -111,4 +151,13 @@ func (c *Cache[T]) Flush() {
 	for _, pw := range c.locked {
 		pw.Lock().Flush().Unlock()
 	}
+}
+
+func (c *Cache[T]) Clear() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.items = make(map[uint64]*pointerWrapper[T], c.size)
+	c.locked = map[uint64]*pointerWrapper[T]{}
+	c.keys = make([]uint64, c.size)
 }

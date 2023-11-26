@@ -9,6 +9,13 @@ import (
 
 	"github.com/pkg/errors"
 )
+type LOCKMODE int
+
+const (
+	NONE LOCKMODE = iota
+	READ
+	WRITE
+)
 
 type binaryMarshalerUnmarshaler interface {
 	encoding.BinaryMarshaler
@@ -31,6 +38,8 @@ type Pointable[T pointable] interface {
 	RUnlock() *pointerWrapper[T]
 	Lock() *pointerWrapper[T]
 	Unlock() *pointerWrapper[T]
+	LockFlag(flag LOCKMODE) *pointerWrapper[T]
+	UnlockFlag(flag LOCKMODE) *pointerWrapper[T]
 	Get() T
 	Set(val T) *pointerWrapper[T]
 	Flush() *pointerWrapper[T]
@@ -44,42 +53,76 @@ type pointerWrapper[T pointable] struct {
 	ptr      allocator.Pointable
 	val      T
 	accessed bool
-	lock     *sync.RWMutex
+	flush    bool
+	mutex    *sync.RWMutex
+}
+
+func (p *pointerWrapper[T]) lock() *pointerWrapper[T] {
+	p.cache.locked[p.ptr.Addr()] = p
+	return p
+}
+
+func (p *pointerWrapper[T]) unlock() *pointerWrapper[T] {
+	delete(p.cache.locked, p.ptr.Addr())
+	if p.flush {
+		return p.Flush()
+	}
+	return p
 }
 
 func (p *pointerWrapper[T]) RLock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
-	p.cache.locked[p.ptr.Addr()] = p
+	p.lock()
 	p.cache.lock.Unlock()
-
-	p.lock.RLock()
+	p.mutex.RLock()
 	return p
 }
 
 func (p *pointerWrapper[T]) RUnlock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
-	delete(p.cache.locked, p.ptr.Addr())
+	p.unlock()
 	p.cache.lock.Unlock()
-
-	p.lock.RUnlock()
+	p.mutex.RUnlock()
 	return p
 }
 
 func (p *pointerWrapper[T]) Lock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
-	p.cache.locked[p.ptr.Addr()] = p
+	p.lock()
 	p.cache.lock.Unlock()
-
-	p.lock.Lock()
+	p.mutex.Lock()
 	return p
 }
 
 func (p *pointerWrapper[T]) Unlock() *pointerWrapper[T] {
 	p.cache.lock.Lock()
-	delete(p.cache.locked, p.ptr.Addr())
+	p.unlock()
 	p.cache.lock.Unlock()
+	p.mutex.Unlock()
+	return p
+}
 
-	p.lock.Unlock()
+func (p *pointerWrapper[T]) LockFlag(flag LOCKMODE) *pointerWrapper[T] {
+	switch flag {
+		case READ:
+			p.RLock()
+			break
+		case WRITE:
+			p.Lock()
+			break
+	}
+	return p
+}
+
+func (p *pointerWrapper[T]) UnlockFlag(flag LOCKMODE) *pointerWrapper[T] {
+	switch flag {
+		case READ:
+			p.RUnlock()
+			break
+		case WRITE:
+			p.Unlock()
+			break
+	}
 	return p
 }
 
@@ -106,7 +149,11 @@ func (p *pointerWrapper[T]) Set(val T) *pointerWrapper[T] {
 }
 
 func (p *pointerWrapper[T]) Flush() *pointerWrapper[T] {
-	if p.val.IsNil() || !p.val.IsDirty() {
+	_, locked := p.cache.locked[p.ptr.Addr()]
+	if p.val.IsNil() || !p.val.IsDirty() || locked {
+		if locked {
+			p.flush = true
+		}
 		return p
 	}
 

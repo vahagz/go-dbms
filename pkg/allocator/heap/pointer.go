@@ -67,7 +67,7 @@ func (p *Pointer) IsNil() bool {
 }
 
 func (p *Pointer) Copy() Pointable {
-	return &Pointer{p.ptr,p.meta,p.pager}
+	return &Pointer{p.ptr,&pointerMetadata{},p.pager}
 }
 
 func (p *Pointer) MarshalBinary() ([]byte, error) {

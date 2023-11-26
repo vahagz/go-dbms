@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"go-dbms/pkg/bptree"
@@ -157,17 +158,19 @@ func main() {
 
 	tree, err := bptree.Open(bptreeFile, &bptree.Options{
 		PageSize: os.Getpagesize(),
-		MaxKeySize: 1,
+		MaxKeySize: 4,
 		MaxValueSize: 1,
-		Degree: 4,
+		Degree: 50,
 		KeyCols: 1,
 	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
+	var insertDuration time.Duration
 	start := time.Now()
 	exitFunc := func() {
+		fmt.Println("\nINSERT DURATION =>", insertDuration)
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
 		if err := tree.Close(); err != nil {
 			logrus.Error(err)
@@ -176,17 +179,34 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	for i := 0; i < 150; i++ {
-		err = tree.Put([][]byte{{byte(rand.Int31n(256))}}, []byte{100}, &bptree.PutOptions{
+	list := make([][][]byte, 0, 1000)
+	for i := 0; i < 10000; i++ {
+		key := make([]byte, 4)
+		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
+		list = append(list, [][]byte{key})
+		err = tree.PutMem(list[i], []byte{list[i][0][1]}, &bptree.PutOptions{
 			Uniq:   false,
 			Update: false,
 		})
 		if err != nil {
 			logrus.Fatal(err)
 		}
-	}
 
-	// tree.Print()
+		for j := 0; j <= i; j++ {
+			val, err := tree.Get(list[j])
+			if err != nil {
+				fmt.Println(i, j, list[j], err)
+				break
+			} else if list[j][0][1] != val[0][0] {
+				fmt.Println(i, j, list[j], val)
+				break
+			}
+		}
+	}
+	if err := tree.WriteAll(); err != nil {
+		logrus.Fatal(err)
+	}
+	insertDuration = time.Since(start)
 
 	// vals, err := tree.Get([][]byte{{2,3,4}})
 	// if err != nil {
@@ -201,17 +221,20 @@ func main() {
 	// }
 	// fmt.Println(vals)
 
-	counter := 0
-	err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
-		counter++
-		fmt.Printf("[%v] key -> %v, val -> %v\n", counter, key, val)
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
+	// 	fmt.Printf("key -> %v, val -> %v\n", key, val)
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	fmt.Println(tree.Count())
 
-
+	// if counter != 1000 {
+	// 	bin, _ := json.Marshal(list)
+	// 	fmt.Println(string(bin))
+	// }
+	// fmt.Println(counter)
 
 
 

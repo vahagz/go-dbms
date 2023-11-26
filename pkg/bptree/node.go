@@ -18,11 +18,11 @@ const (
 )
 
 func internalNodeSize(degree, keySize, keyCols int) int {
-	return internalNodeHeaderSz + degree * (2 + allocator.PointerSize + keySize + keyCols * 2)
+	return internalNodeHeaderSz + (degree - 1) * (2 + allocator.PointerSize + keySize + keyCols * 2)
 }
 
 func leafNodeSize(degree, keySize, keyCols, valSize int) int {
-	return leafNodeHeaderSz + degree * (4 + valSize + keySize + keyCols * 2)
+	return leafNodeHeaderSz + (degree - 1) * (4 + valSize + keySize + keyCols * 2)
 }
 
 type entry struct {
