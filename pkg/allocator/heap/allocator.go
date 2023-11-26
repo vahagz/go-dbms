@@ -124,6 +124,14 @@ func (a *Allocator) Free(p Pointable) error {
 	return errors.Wrap(ptr.writeMeta(), "failed to update freed ptr meta")
 }
 
+func (a *Allocator) PreAlloc(size uint32) error {
+	ptr, err := a.Alloc(size)
+	if err != nil {
+		return err
+	}
+	return a.Free(ptr)
+}
+
 func (a *Allocator) Size() uint64 {
 	return a.meta.top
 }

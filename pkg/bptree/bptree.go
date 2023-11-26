@@ -273,6 +273,10 @@ func (tree *BPlusTree) Scan(
 	return nil
 }
 
+func (tree *BPlusTree) PrepareSpace(size uint32) error {
+	return tree.heap.PreAlloc(size)
+}
+
 func (tree *BPlusTree) Count() (int, error) {
 	counter := 0
 	err := tree.Scan(nil, false, true, func(_ [][]byte, _ []byte) (bool, error) {

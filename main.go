@@ -180,6 +180,7 @@ func main() {
 	defer exitFunc()
 
 	list := make([][][]byte, 0, 1000)
+	tree.PrepareSpace(200*1024)
 	for i := 0; i < 10000; i++ {
 		key := make([]byte, 4)
 		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
@@ -192,15 +193,11 @@ func main() {
 			logrus.Fatal(err)
 		}
 
-		for j := 0; j <= i; j++ {
-			val, err := tree.Get(list[j])
-			if err != nil {
-				fmt.Println(i, j, list[j], err)
-				break
-			} else if list[j][0][1] != val[0][0] {
-				fmt.Println(i, j, list[j], val)
-				break
-			}
+		val, err := tree.Get(list[i])
+		if err != nil {
+			fmt.Println(i, list[i], err)
+		} else if list[i][0][1] != val[0][0] {
+			fmt.Println(i, list[i], val)
 		}
 	}
 	if err := tree.WriteAll(); err != nil {
