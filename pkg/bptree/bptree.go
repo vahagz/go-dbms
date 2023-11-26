@@ -510,6 +510,7 @@ func (tree *BPlusTree) rightLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch child")
 	}
+	n.UnlockFlag(flag)
 	return tree.rightLeaf(child, flag)
 }
 
