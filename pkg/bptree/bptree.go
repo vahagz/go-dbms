@@ -604,7 +604,7 @@ func (tree *BPlusTree) allocLeaf() (cache.Pointable[*node], error) {
 func (tree *BPlusTree) allocInternal() (cache.Pointable[*node], error) {
 	ptr, err := tree.heap.Alloc(tree.internalNodeSize())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to alloc leaft node")
+		return nil, errors.Wrap(err, "failed to alloc internal node")
 	}
 	cPtr := tree.cache.AddW(ptr)
 	val := cPtr.Get()

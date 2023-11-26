@@ -7,7 +7,7 @@ import (
 
 func NewCache[T pointable](size int, itemGenerator func() T) *Cache[T] {
 	return &Cache[T]{
-		lock:    &sync.Mutex{},
+		mutex:   &sync.Mutex{},
 		size:    size,
 		items:   make(map[uint64]*pointerWrapper[T], size),
 		locked:  map[uint64]*pointerWrapper[T]{},
@@ -18,7 +18,7 @@ func NewCache[T pointable](size int, itemGenerator func() T) *Cache[T] {
 }
 
 type Cache[T pointable] struct {
-	lock    *sync.Mutex
+	mutex   *sync.Mutex
 	size    int
 	items   map[uint64]*pointerWrapper[T]
 	locked  map[uint64]*pointerWrapper[T]
@@ -28,15 +28,15 @@ type Cache[T pointable] struct {
 }
 
 func (c *Cache[T]) Add(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	return c.add(ptr)
 }
 
 func (c *Cache[T]) AddR(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	item := c.add(ptr)
 	item.(*pointerWrapper[T]).lock().mutex.RLock()
@@ -44,8 +44,8 @@ func (c *Cache[T]) AddR(ptr allocator.Pointable) Pointable[T] {
 }
 
 func (c *Cache[T]) AddW(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	item := c.add(ptr)
 	item.(*pointerWrapper[T]).lock().mutex.Lock()
@@ -83,15 +83,15 @@ func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 }
 
 func (c *Cache[T]) Get(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	return c.get(ptr)
 }
 
 func (c *Cache[T]) GetR(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	item := c.get(ptr)
 	if item != nil {
@@ -101,8 +101,8 @@ func (c *Cache[T]) GetR(ptr allocator.Pointable) Pointable[T] {
 }
 
 func (c *Cache[T]) GetW(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	item := c.get(ptr)
 	if item != nil {
@@ -122,8 +122,8 @@ func (c *Cache[T]) get(ptr allocator.Pointable) Pointable[T] {
 }
 
 func (c *Cache[T]) GetSet(ptr allocator.Pointable) Pointable[T] {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if itm := c.get(ptr); itm == nil {
 		return c.add(ptr)
@@ -133,8 +133,8 @@ func (c *Cache[T]) GetSet(ptr allocator.Pointable) Pointable[T] {
 }
 
 func (c *Cache[T]) Del(ptr allocator.Pointable) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.del(ptr)
 }
@@ -154,8 +154,8 @@ func (c *Cache[T]) Flush() {
 }
 
 func (c *Cache[T]) Clear() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.items = make(map[uint64]*pointerWrapper[T], c.size)
 	c.locked = map[uint64]*pointerWrapper[T]{}

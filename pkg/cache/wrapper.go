@@ -65,39 +65,40 @@ func (p *pointerWrapper[T]) lock() *pointerWrapper[T] {
 func (p *pointerWrapper[T]) unlock() *pointerWrapper[T] {
 	delete(p.cache.locked, p.ptr.Addr())
 	if p.flush {
-		return p.Flush()
+		p.Flush()
+		p.flush = false
 	}
 	return p
 }
 
 func (p *pointerWrapper[T]) RLock() *pointerWrapper[T] {
-	p.cache.lock.Lock()
+	p.cache.mutex.Lock()
 	p.lock()
-	p.cache.lock.Unlock()
+	p.cache.mutex.Unlock()
 	p.mutex.RLock()
 	return p
 }
 
 func (p *pointerWrapper[T]) RUnlock() *pointerWrapper[T] {
-	p.cache.lock.Lock()
+	p.cache.mutex.Lock()
 	p.unlock()
-	p.cache.lock.Unlock()
+	p.cache.mutex.Unlock()
 	p.mutex.RUnlock()
 	return p
 }
 
 func (p *pointerWrapper[T]) Lock() *pointerWrapper[T] {
-	p.cache.lock.Lock()
+	p.cache.mutex.Lock()
 	p.lock()
-	p.cache.lock.Unlock()
+	p.cache.mutex.Unlock()
 	p.mutex.Lock()
 	return p
 }
 
 func (p *pointerWrapper[T]) Unlock() *pointerWrapper[T] {
-	p.cache.lock.Lock()
+	p.cache.mutex.Lock()
 	p.unlock()
-	p.cache.lock.Unlock()
+	p.cache.mutex.Unlock()
 	p.mutex.Unlock()
 	return p
 }
