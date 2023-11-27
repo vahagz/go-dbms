@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	allocator "go-dbms/pkg/allocator/heap"
 	"sync"
 )
@@ -25,6 +26,15 @@ type Cache[T pointable] struct {
 	keys    []uint64
 	index   int
 	newItem func() T
+}
+
+func (c *Cache[T]) AddF(ptr allocator.Pointable, flag LOCKMODE) Pointable[T] {
+	switch flag {
+		case NONE:  return c.Add(ptr)
+		case READ:  return c.AddR(ptr)
+		case WRITE: return c.AddW(ptr)
+	}
+	panic(fmt.Errorf("invalid LOCKMODE value => %v", flag))
 }
 
 func (c *Cache[T]) Add(ptr allocator.Pointable) Pointable[T] {
@@ -80,6 +90,15 @@ func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 	}
 
 	return c.items[addr]
+}
+
+func (c *Cache[T]) GetF(ptr allocator.Pointable, flag LOCKMODE) Pointable[T] {
+	switch flag {
+		case NONE:  return c.Get(ptr)
+		case READ:  return c.GetR(ptr)
+		case WRITE: return c.GetW(ptr)
+	}
+	panic(fmt.Errorf("invalid LOCKMODE value => %v", flag))
 }
 
 func (c *Cache[T]) Get(ptr allocator.Pointable) Pointable[T] {

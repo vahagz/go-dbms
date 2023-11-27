@@ -71,7 +71,6 @@ type BPlusTree struct {
 	heap  *allocator.Allocator
 	cache *cache.Cache[*node]
 	meta  *metadata
-	root  cache.Pointable[*node]
 }
 
 // Get fetches the value associated with the given key. Returns error if key
@@ -84,12 +83,13 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 
-	if len(tree.root.Get().entries) == 0 {
+	root := tree.rootR()
+	if len(root.Get().entries) == 0 {
+		root.RUnlock()
 		return nil, customerrors.ErrKeyNotFound
 	}
 
-	tree.root.RLock()
-	n, startIdx, endIdx, found, err := tree.searchRec(tree.root, key, cache.READ)
+	n, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.READ)
 	defer n.RUnlock()
 	if err != nil {
 		return nil, err
@@ -154,7 +154,8 @@ func (tree *BPlusTree) Del(key [][]byte) ([][]byte, error) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
-	target, startIdx, endIdx, found, err := tree.searchRec(tree.root, key, cache.WRITE)
+	root := tree.rootW()
+	target, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.WRITE)
 	if err != nil {
 		return nil, err
 	} else if !found {
@@ -193,21 +194,21 @@ func (tree *BPlusTree) Scan(
 	endIdx := 0
 	idx := 0
 
-	tree.root.RLock()
+	root := tree.rootR()
 	if len(key) == 0 {
 		// No explicit key provided by user, find the a leaf-node based on
 		// scan direction and start there.
 		if !reverse {
-			beginAt, err = tree.leftLeaf(tree.root, cache.READ)
+			beginAt, err = tree.leftLeaf(root, cache.READ)
 			idx = 0
 		} else {
-			beginAt, err = tree.rightLeaf(tree.root, cache.READ)
+			beginAt, err = tree.rightLeaf(root, cache.READ)
 			idx = len(beginAt.Get().entries) - 1
 		}
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		beginAt, startIdx, endIdx, _, err = tree.searchRec(tree.root, key, cache.READ)
+		beginAt, startIdx, endIdx, _, err = tree.searchRec(root, key, cache.READ)
 		if !reverse {
 			if strict {
 				idx = startIdx
@@ -312,7 +313,7 @@ func (tree *BPlusTree) String() string {
 }
 
 func (tree *BPlusTree) Print() {
-	tree.print(tree.root, 0)
+	tree.print(tree.root(), 0)
 }
 
 func (tree *BPlusTree) ClearCache() {
@@ -341,8 +342,8 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 }
 
 func (tree *BPlusTree) insert(e entry, opt *PutOptions) (bool, error) {
-	tree.root.Lock()
-	leaf, start, end, found, err := tree.searchRec(tree.root, e.key, cache.WRITE)
+	root := tree.rootW()
+	leaf, start, end, found, err := tree.searchRec(root, e.key, cache.WRITE)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
 	}
@@ -427,16 +428,15 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 
 	var pPtr cache.Pointable[*node]
 	if nv.parent.IsNil() {
-		tree.root, err = tree.allocInternal()
+		pPtr, err = tree.allocInternal()
 		if err != nil {
 			return errors.Wrap(err, "failed to alloc new root")
 		}
 
 		tree.meta.dirty = true
-		tree.meta.root = tree.root.Ptr()
-		pPtr = tree.root
-		sv.parent = pPtr.Ptr()
-		nv.parent = pPtr.Ptr()
+		tree.meta.root = pPtr.Ptr()
+		sv.parent = tree.meta.root
+		nv.parent = tree.meta.root
 		pPtr.Get().insertChild(0, nPtr.Ptr())
 	} else {
 		pPtr, err = tree.fetch(nv.parent, cache.WRITE)
@@ -452,7 +452,6 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 	pv.insertChild(start + 1, siblingPtr.Ptr())
 
 	if pv.parent.IsNil() {
-		tree.root = pPtr
 		tree.meta.dirty = true
 		tree.meta.root = pPtr.Ptr()
 	}
@@ -532,18 +531,7 @@ func (tree *BPlusTree) leftLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) (
 // fetch returns the node from given pointer. underlying file is accessed
 // only if the node doesn't exist in cache.
 func (tree *BPlusTree) fetch(ptr allocator.Pointable, flag cache.LOCKMODE) (cache.Pointable[*node], error) {
-	var nPtr cache.Pointable[*node]
-	switch flag {
-		case cache.READ:
-			nPtr = tree.cache.GetR(ptr)
-			break
-		case cache.WRITE:
-			nPtr = tree.cache.GetW(ptr)
-			break
-		case cache.NONE:
-			nPtr = tree.cache.Get(ptr)
-			break
-	}
+	nPtr := tree.cache.GetF(ptr, flag)
 	if nPtr != nil {
 		return nPtr, nil
 	}
@@ -554,12 +542,7 @@ func (tree *BPlusTree) fetch(ptr allocator.Pointable, flag cache.LOCKMODE) (cach
 	}
 
 	n.Dirty(false)
-	switch flag {
-		case cache.READ: return tree.cache.AddR(ptr), nil
-		case cache.WRITE: return tree.cache.AddW(ptr), nil
-		case cache.NONE: return tree.cache.Add(ptr), nil
-	}
-	return nil, nil
+	return tree.cache.AddF(ptr, flag), nil
 }
 
 func (tree *BPlusTree) fetchE(ptr allocator.Pointable, flag cache.LOCKMODE) cache.Pointable[*node] {
@@ -568,6 +551,22 @@ func (tree *BPlusTree) fetchE(ptr allocator.Pointable, flag cache.LOCKMODE) cach
 		panic(err)
 	}
 	return v
+}
+
+func (tree *BPlusTree) rootF(flag cache.LOCKMODE) cache.Pointable[*node] {
+	return tree.fetchE(tree.meta.root, flag)
+}
+
+func (tree *BPlusTree) root() cache.Pointable[*node] {
+	return tree.rootF(cache.NONE)
+}
+
+func (tree *BPlusTree) rootR() cache.Pointable[*node] {
+	return tree.rootF(cache.READ)
+}
+
+func (tree *BPlusTree) rootW() cache.Pointable[*node] {
+	return tree.rootF(cache.WRITE)
 }
 
 func (tree *BPlusTree) newNode() *node {
@@ -641,7 +640,7 @@ func (tree *BPlusTree) open(opts *Options) error {
 		return fmt.Errorf("incompatible version %#x (expected: %#x)", tree.meta.version, version)
 	}
 
-	tree.root = tree.cache.Add(tree.meta.root)
+	tree.cache.Add(tree.meta.root)
 	return nil
 }
 
@@ -689,15 +688,13 @@ func (tree *BPlusTree) init(opts *Options) error {
 		return errors.Wrap(err, "failed to alloc root node")
 	}
 	tree.meta.root = rootPtr.Ptr()
-	tree.root = tree.cache.Add(tree.meta.root)
-	tree.root.Unlock()
+	rootPtr.Unlock()
 
 	return errors.Wrap(metaPtr.Set(tree.meta), "failed to write meta after init")
 }
 
 // writeAll writes all the nodes marked dirty to the underlying pager.
 func (tree *BPlusTree) WriteAll() error {
-	tree.root.Flush()
 	tree.cache.Flush()
 	return tree.writeMeta()
 }
