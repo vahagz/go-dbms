@@ -38,8 +38,8 @@ type node struct {
 
 	// node data
 	dummyPtr allocator.Pointable
-	next     allocator.Pointable
-	prev     allocator.Pointable
+	right    allocator.Pointable
+	left     allocator.Pointable
 	parent   allocator.Pointable
 	entries  []entry
 	children []allocator.Pointable
@@ -102,7 +102,7 @@ func (n *node) search(key [][]byte) (startIdx int, endIdx int, found bool) {
 
 	// if found
 	if startIdx != -1 {
-		return startIdx, endIdx, true
+		return startIdx, endIdx + 1, true
 	}
 
 	// not found, searching index where should be inserted
@@ -112,7 +112,7 @@ func (n *node) search(key [][]byte) (startIdx int, endIdx int, found bool) {
 
 		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
 		if cmp == 0 {
-			return mid, mid, true
+			return mid, mid + 1, true
 		} else if cmp > 0 {
 			left = mid + 1
 		} else if cmp < 0 {
@@ -167,7 +167,7 @@ func (n *node) String() string {
 	s += "} "
 	s += fmt.Sprintf(
 		"[size=%d, leaf=%t, %d<-n->%d]",
-		len(n.entries), n.isLeaf(), n.prev, n.next,
+		len(n.entries), n.isLeaf(), n.left, n.right,
 	)
 
 	return s
@@ -204,12 +204,12 @@ func (n *node) MarshalBinary() ([]byte, error) {
 	offset := 0
 
 	if n.isLeaf() {
-		nextBytes, err := n.next.MarshalBinary()
+		nextBytes, err := n.right.MarshalBinary()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal next ptr")
 		}
 		
-		prevBytes, err := n.prev.MarshalBinary()
+		prevBytes, err := n.left.MarshalBinary()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal prev ptr")
 		}
@@ -317,13 +317,13 @@ func (n *node) UnmarshalBinary(d []byte) error {
 		entryCount := int(bin.Uint16(d[offset:offset+2]))
 		offset += 2
 
-		err := n.next.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
+		err := n.right.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
 		if err != nil {
 			return errors.Wrap(err, "failed to unmarshal pointer")
 		}
 		offset += allocator.PointerSize
 
-		err = n.prev.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
+		err = n.left.UnmarshalBinary(d[offset:offset+allocator.PointerSize])
 		if err != nil {
 			return errors.Wrap(err, "failed to unmarshal pointer")
 		}

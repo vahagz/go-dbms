@@ -160,17 +160,19 @@ func main() {
 		PageSize: os.Getpagesize(),
 		MaxKeySize: 4,
 		MaxValueSize: 1,
-		Degree: 50,
+		Degree: 3,
 		KeyCols: 1,
 	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
+	var getDuration time.Duration
 	var insertDuration time.Duration
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nINSERT DURATION =>", insertDuration)
+		fmt.Println("\nGET DURATION =>", getDuration)
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
 		if err := tree.Close(); err != nil {
 			logrus.Error(err)
@@ -180,8 +182,8 @@ func main() {
 	defer exitFunc()
 
 	list := make([][][]byte, 0, 1000)
-	tree.PrepareSpace(200*1024)
-	for i := 0; i < 10000; i++ {
+	tree.PrepareSpace(2*1024)
+	for i := 0; i < 10; i++ {
 		key := make([]byte, 4)
 		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
 		list = append(list, [][]byte{key})
@@ -193,23 +195,61 @@ func main() {
 			logrus.Fatal(err)
 		}
 
-		val, err := tree.Get(list[i])
-		if err != nil {
-			fmt.Println(i, list[i], err)
-		} else if list[i][0][1] != val[0][0] {
-			fmt.Println(i, list[i], val)
-		}
+		// go func(i int) {
+			val, err := tree.Get(list[i])
+			if err != nil {
+				fmt.Println(i, list[i], err)
+			} else if list[i][0][1] != val[0][0] {
+				fmt.Println(i, list[i], val)
+			}
+		// }(i)
 	}
 	if err := tree.WriteAll(); err != nil {
 		logrus.Fatal(err)
 	}
 	insertDuration = time.Since(start)
 
-	// vals, err := tree.Get([][]byte{{2,3,4}})
+	// keys := [][]byte{
+	// 	{2,3,4,5},
+	// 	{1,2,3,4},
+	// 	{3,4,5,6},
+	// 	{1,2,3,4},
+	// 	{4,5,6,7},
+	// 	{1,2,3,4},
+	// 	{5,6,7,8},
+	// 	{1,2,3,4},
+	// 	{6,7,8,9},
+	// 	{1,2,3,4},
+	// 	{7,8,9,10},
+	// 	{1,2,3,4},
+	// 	{8,9,10,11},
+	// 	{1,2,3,4},
+	// 	{9,10,11,12},
+	// 	{1,2,3,4},
+	// 	{10,11,12,13},
+	// 	{1,2,3,4},
+	// 	{11,12,13,14},
+	// 	{1,2,3,4},
+	// 	{12,13,14,15},
+	// }
+	// _ = keys
+	// for i := range keys {
+	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
+	// 		Uniq:   false,
+	// 		Update: false,
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// }
+	
+	// err = tree.Scan([][]byte{keys[8]}, true, true, func(key [][]byte, val []byte) (bool, error) {
+	// 	fmt.Println(key, val)
+	// 	return false, nil
+	// })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	// fmt.Println(vals)
 
 
 	// vals, err := tree.Del([][]byte{{6,7,8}})
@@ -218,14 +258,13 @@ func main() {
 	// }
 	// fmt.Println(vals)
 
-	// err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
-	// 	fmt.Printf("key -> %v, val -> %v\n", key, val)
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	fmt.Println(tree.Count())
+	err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
+		fmt.Printf("key -> %v, val -> %v\n", key, val)
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	// if counter != 1000 {
 	// 	bin, _ := json.Marshal(list)

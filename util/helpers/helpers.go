@@ -34,3 +34,12 @@ func CompareMatrix(a, b [][]byte) int {
 	}
 	return cmp
 }
+
+func Copy(matrix [][]byte) [][]byte {
+	cp := make([][]byte, len(matrix))
+	for i := range cp {
+		cp[i] = make([]byte, len(matrix[i]))
+		copy(cp[i], matrix[i])
+	}
+	return cp
+}

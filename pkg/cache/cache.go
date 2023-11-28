@@ -168,7 +168,7 @@ func (c *Cache[T]) Flush() {
 	}
 
 	for _, pw := range c.locked {
-		pw.Lock().Flush().Unlock()
+		pw.Flush()
 	}
 }
 
