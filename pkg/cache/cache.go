@@ -12,10 +12,16 @@ func NewCache[T pointable](size int, itemGenerator func() T) *Cache[T] {
 		size:    size,
 		items:   make(map[uint64]*pointerWrapper[T], size),
 		locked:  map[uint64]*pointerWrapper[T]{},
+		rlocked: map[uint64]*rlock[T]{},
 		keys:    make([]uint64, size),
 		index:   0,
 		newItem: itemGenerator,
 	}
+}
+
+type rlock[T pointable] struct {
+	ptr     *pointerWrapper[T]
+	readers int32
 }
 
 type Cache[T pointable] struct {
@@ -23,6 +29,7 @@ type Cache[T pointable] struct {
 	size    int
 	items   map[uint64]*pointerWrapper[T]
 	locked  map[uint64]*pointerWrapper[T]
+	rlocked map[uint64]*rlock[T]
 	keys    []uint64
 	index   int
 	newItem func() T
@@ -68,6 +75,8 @@ func (c *Cache[T]) add(ptr allocator.Pointable) Pointable[T] {
 		return itm
 	} else if itm, ok := c.locked[addr]; ok {
 		return itm
+	} else if itm, ok := c.rlocked[addr]; ok {
+		return itm.ptr
 	}
 
 	keyToDelete := c.keys[c.index]
@@ -136,6 +145,8 @@ func (c *Cache[T]) get(ptr allocator.Pointable) Pointable[T] {
 		return itm
 	} else if itm, ok := c.locked[addr]; ok {
 		return itm
+	} else if itm, ok := c.rlocked[addr]; ok {
+		return itm.ptr
 	}
 	return nil
 }
@@ -164,11 +175,16 @@ func (c *Cache[T]) del(ptr allocator.Pointable) {
 
 func (c *Cache[T]) Flush() {
 	for _, pw := range c.items {
-		pw.Lock().Flush().Unlock()
+		// pw.Lock().Flush().Unlock()
+		pw.Flush()
 	}
 
 	for _, pw := range c.locked {
 		pw.Flush()
+	}
+	
+	for _, pw := range c.rlocked {
+		pw.ptr.Flush()
 	}
 }
 
@@ -178,5 +194,6 @@ func (c *Cache[T]) Clear() {
 
 	c.items = make(map[uint64]*pointerWrapper[T], c.size)
 	c.locked = map[uint64]*pointerWrapper[T]{}
+	c.rlocked = map[uint64]*rlock[T]{}
 	c.keys = make([]uint64, c.size)
 }

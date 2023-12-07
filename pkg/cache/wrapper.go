@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 )
+
 type LOCKMODE int
 
 const (
@@ -59,11 +60,22 @@ type pointerWrapper[T pointable] struct {
 
 func (p *pointerWrapper[T]) lock() *pointerWrapper[T] {
 	p.cache.locked[p.ptr.Addr()] = p
+	if item, ok := p.cache.rlocked[p.ptr.Addr()]; ok {
+		item.readers++
+	} else {
+		p.cache.rlocked[p.ptr.Addr()] = &rlock[T]{ ptr: p, readers: 1 }
+	}
 	return p
 }
 
 func (p *pointerWrapper[T]) unlock() *pointerWrapper[T] {
 	delete(p.cache.locked, p.ptr.Addr())
+	if item, ok := p.cache.rlocked[p.ptr.Addr()]; ok && item.readers > 1 {
+		item.readers--
+	} else {
+		delete(p.cache.rlocked, p.ptr.Addr())
+	}
+
 	if p.flush {
 		p.Flush()
 		p.flush = false
@@ -151,8 +163,9 @@ func (p *pointerWrapper[T]) Set(val T) *pointerWrapper[T] {
 
 func (p *pointerWrapper[T]) Flush() *pointerWrapper[T] {
 	_, locked := p.cache.locked[p.ptr.Addr()]
-	if p.val.IsNil() || !p.val.IsDirty() || locked {
-		if locked {
+	_, rlocked := p.cache.rlocked[p.ptr.Addr()]
+	if p.val.IsNil() || !p.val.IsDirty() || locked || rlocked {
+		if locked || rlocked {
 			p.flush = true
 		}
 		return p

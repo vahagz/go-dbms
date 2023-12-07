@@ -91,20 +91,17 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	}
 
 	key = helpers.Copy(key)
-	n, temp, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.READ)
+	n, start, end, found, err := tree.searchRec(root, key, cache.READ, false)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, customerrors.ErrKeyNotFound
 	}
 	defer n.RUnlock()
-	if n.Ptr().Addr() != temp.Ptr().Addr() {
-		temp.RUnlock()
-	}
 
-	res := make([][]byte, 0, endIdx - startIdx)
-	for idx := startIdx; idx < endIdx; idx++ {
-		res = append(res, n.Get().entries[idx].val)
+	res := make([][]byte, 0, end - start)
+	for i := start; i < end; i++ {
+		res = append(res, n.Get().entries[i].val)
 	}
 	return res, nil
 }
@@ -162,14 +159,11 @@ func (tree *BPlusTree) Del(key [][]byte) ([][]byte, error) {
 
 	key = helpers.Copy(key)
 	root := tree.rootW()
-	target, temp, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.WRITE)
+	target, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.WRITE, false)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, customerrors.ErrKeyNotFound
-	}
-	if target.Ptr().Addr() != temp.Ptr().Addr() {
-		temp.RUnlock()
 	}
 
 	valArr := make([][]byte, 0, endIdx - startIdx)
@@ -220,25 +214,14 @@ func (tree *BPlusTree) Scan(
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		var startNode, endNode cache.Pointable[*node]
-		startNode, endNode, startIdx, endIdx, _, err = tree.searchRec(root, key, cache.READ)
+		beginAt, startIdx, endIdx, _, err = tree.searchRec(root, key, cache.READ, reverse)
 		if !reverse {
-			beginAt = startNode
-			if startNode.Ptr().Addr() != endNode.Ptr().Addr() {
-				endNode.RUnlock()
-			}
-
 			if strict {
 				idx = startIdx
 			} else {
 				idx = endIdx + 1
 			}
 		} else {
-			beginAt = endNode
-			if startNode.Ptr().Addr() != endNode.Ptr().Addr() {
-				startNode.RUnlock()
-			}
-
 			if strict {
 				idx = endIdx - 1
 			} else {
@@ -376,14 +359,11 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 
 func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 	root := tree.rootW()
-	temp, endLeaf, start, end, found, err := tree.searchRec(root, e.key, cache.WRITE)
+	endLeaf, start, end, found, err := tree.searchRec(root, e.key, cache.WRITE, true)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
 	}
-	if endLeaf.Ptr().Addr() != temp.Ptr().Addr() {
-		temp.RUnlock()
-	}
-	
+
 	if opt.Uniq && found && !opt.Update {
 		return false, errors.New("key already exists")
 	} else if found && opt.Update {
@@ -393,7 +373,7 @@ func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 		return false, nil
 	}
 
-	endLeaf.Get().insertAt(start, e)
+	endLeaf.Get().insertAt(end, e)
 	if endLeaf.Get().IsFull() {
 		return true, tree.split(endLeaf)
 	}
@@ -508,62 +488,34 @@ func (tree *BPlusTree) searchRec(
 	n cache.Pointable[*node],
 	key [][]byte,
 	flag cache.LOCKMODE,
+	reverce bool,
 ) (
-	startPtr cache.Pointable[*node],
-	endPtr cache.Pointable[*node],
-	startIndex int,
-	endIndex int,
+	ptr cache.Pointable[*node],
+	start int,
+	end int,
 	found bool,
 	err error,
 ) {
-	var temp cache.Pointable[*node]
-	var startErr, endErr error
-	var startFound, endFound bool
-	startIndex, endIndex, found = n.Get().search(key)
+	start, end, found = n.Get().search(key)
 
 	if n.Get().isLeaf() {
-		return n, n, startIndex, endIndex, found, nil
+		return n, start, end, found, nil
 	}
 
-	startChild, err := tree.fetch(n.Get().children[startIndex], flag)
-	if err != nil {
-		return nil, nil, 0, 0, false, errors.Wrap(err, "failed to get startChild")
+	var child cache.Pointable[*node]
+	if !reverce {
+		child, err = tree.fetch(n.Get().children[start], flag)
+	} else {
+		child, err = tree.fetch(n.Get().children[end], flag)
 	}
-	endChild := startChild
-	if startIndex != endIndex {
-		endChild, err = tree.fetch(n.Get().children[endIndex], flag)
-		if err != nil {
-			return nil, nil, 0, 0, false, errors.Wrap(err, "failed to get endChild")
-		}
+	if err != nil {
+		err = errors.Wrap(err, "failed to get child")
+		return 
 	}
 
 	n.UnlockFlag(flag)
 
-	startPtr, temp, startIndex, _, startFound, startErr = tree.searchRec(startChild, key, flag)
-	if startErr != nil {
-		err = errors.Wrap(err, "failed to search startChild")
-		return
-	}
-	if startPtr.Ptr().Addr() != temp.Ptr().Addr() {
-		temp.UnlockFlag(flag)
-	}
-
-	if startChild.Ptr().Addr() == endChild.Ptr().Addr() {
-		flag = cache.NONE
-	}
-	temp, endPtr, _, endIndex, endFound, endErr = tree.searchRec(endChild, key, flag)
-	if endErr != nil {
-		err = errors.Wrap(err, "failed to search endChild")
-		return
-	}
-	if endPtr.Ptr().Addr() != temp.Ptr().Addr() {
-		temp.UnlockFlag(flag)
-	} else if endPtr.Ptr().Addr() != startPtr.Ptr().Addr() {
-		endPtr.LockFlag(flag)
-	}
-
-	found = startFound && endFound
-	return
+	return tree.searchRec(child, key, flag, reverce)
 }
 
 // rightLeaf returns the right most leaf node of the sub-tree with given node
