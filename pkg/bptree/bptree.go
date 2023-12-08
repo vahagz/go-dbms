@@ -50,7 +50,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		heap:   heap,
 	}
 
-	tree.cache = cache.NewCache[*node](1000, tree.newNode)
+	tree.cache = cache.NewCache[*node](100, tree.newNode)
 
 	if err := tree.open(opts); err != nil {
 		_ = tree.Close()
@@ -76,7 +76,7 @@ type BPlusTree struct {
 
 // Get fetches the value associated with the given key. Returns error if key
 // not found.
-func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
+func (tree *BPlusTree) Get(key [][]byte) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, customerrors.ErrEmptyKey
 	}
@@ -91,19 +91,15 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	}
 
 	key = helpers.Copy(key)
-	n, start, end, found, err := tree.searchRec(root, key, cache.READ, false)
+	leaf, index, found, err := tree.searchRec(root, key, cache.READ)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, customerrors.ErrKeyNotFound
 	}
-	defer n.RUnlock()
+	defer leaf.RUnlock()
 
-	res := make([][]byte, 0, end - start)
-	for i := start; i < end; i++ {
-		res = append(res, n.Get().entries[i].val)
-	}
-	return res, nil
+	return leaf.Get().entries[index].val, nil
 }
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
@@ -153,25 +149,21 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt *PutOptions) error {
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key [][]byte) ([][]byte, error) {
+func (tree *BPlusTree) Del(key [][]byte) ([]byte, error) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
 	key = helpers.Copy(key)
 	root := tree.rootW()
-	target, startIdx, endIdx, found, err := tree.searchRec(root, key, cache.WRITE, false)
+	target, index, found, err := tree.searchRec(root, key, cache.WRITE)
 	if err != nil {
 		return nil, err
 	} else if !found {
 		return nil, customerrors.ErrKeyNotFound
 	}
 
-	valArr := make([][]byte, 0, endIdx - startIdx)
-	removed := target.Get().remove(startIdx, endIdx)
-	for _, e := range removed {
-		valArr = append(valArr, e.val)
-	}
-	return valArr, tree.WriteAll()
+	removed := target.Get().remove(index, index + 1)
+	return removed[0].val, tree.WriteAll()
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -196,8 +188,6 @@ func (tree *BPlusTree) Scan(
 
 	var err error
 	var beginAt cache.Pointable[*node]
-	startIdx := 0
-	endIdx := 0
 	idx := 0
 
 	root := tree.rootR()
@@ -214,18 +204,19 @@ func (tree *BPlusTree) Scan(
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		beginAt, startIdx, endIdx, _, err = tree.searchRec(root, key, cache.READ, reverse)
+		var index int
+		beginAt, index, _, err = tree.searchRec(root, key, cache.READ)
 		if !reverse {
 			if strict {
-				idx = startIdx
+				idx = index
 			} else {
-				idx = endIdx + 1
+				idx = index + 1
 			}
 		} else {
 			if strict {
-				idx = endIdx - 1
+				idx = index - 1
 			} else {
-				idx = startIdx - 1
+				idx = index
 			}
 		}
 	}
@@ -359,7 +350,7 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 
 func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 	root := tree.rootW()
-	endLeaf, start, end, found, err := tree.searchRec(root, e.key, cache.WRITE, true)
+	leaf, index, found, err := tree.searchRec(root, e.key, cache.WRITE)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
 	}
@@ -367,17 +358,15 @@ func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 	if opt.Uniq && found && !opt.Update {
 		return false, errors.New("key already exists")
 	} else if found && opt.Update {
-		for i := start; i <= end; i++ {
-			endLeaf.Get().update(i, e.val)
-		}
+		leaf.Get().update(index, e.val)
 		return false, nil
 	}
 
-	endLeaf.Get().insertAt(end, e)
-	if endLeaf.Get().IsFull() {
-		return true, tree.split(endLeaf)
+	leaf.Get().insertAt(index, e)
+	if leaf.Get().IsFull() {
+		return true, tree.split(leaf)
 	}
-	endLeaf.Unlock()
+	leaf.Unlock()
 
 	return true, nil
 }
@@ -463,9 +452,9 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 
 	pv := pPtr.Get()
 	pv.Dirty(true)
-	start, _, _ := pv.search(pe.key)
-	pv.insertAt(start, pe)
-	pv.insertChild(start + 1, siblingPtr.Ptr())
+	index, _ := pv.search(pe.key)
+	pv.insertAt(index, pe)
+	pv.insertChild(index + 1, siblingPtr.Ptr())
 
 	if pv.parent.IsNil() {
 		tree.meta.dirty = true
@@ -488,34 +477,26 @@ func (tree *BPlusTree) searchRec(
 	n cache.Pointable[*node],
 	key [][]byte,
 	flag cache.LOCKMODE,
-	reverce bool,
 ) (
 	ptr cache.Pointable[*node],
-	start int,
-	end int,
+	index int,
 	found bool,
 	err error,
 ) {
-	start, end, found = n.Get().search(key)
-
-	if n.Get().isLeaf() {
-		return n, start, end, found, nil
+	for !n.Get().isLeaf() {
+		index, found = n.Get().search(key)
+		ptr, err = tree.fetch(n.Get().children[index], flag)
+		if err != nil {
+			err = errors.Wrap(err, "failed to get child")
+			return
+		}
+	
+		n.UnlockFlag(flag)
+		n = ptr
 	}
 
-	var child cache.Pointable[*node]
-	if !reverce {
-		child, err = tree.fetch(n.Get().children[start], flag)
-	} else {
-		child, err = tree.fetch(n.Get().children[end], flag)
-	}
-	if err != nil {
-		err = errors.Wrap(err, "failed to get child")
-		return 
-	}
-
-	n.UnlockFlag(flag)
-
-	return tree.searchRec(child, key, flag, reverce)
+	index, found = n.Get().search(key)
+	return n, index, found, nil
 }
 
 // rightLeaf returns the right most leaf node of the sub-tree with given node

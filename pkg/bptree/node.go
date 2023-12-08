@@ -64,62 +64,26 @@ func (n *node) IsFull() bool {
 // search performs a binary search in the node entries for the given key
 // and returns the index where it should be and a flag indicating whether
 // key exists.
-func (n *node) search(key [][]byte) (startIdx int, endIdx int, found bool) {
-	startIdx = -1
-	endIdx = -1
-
-	// leftmost search
+func (n *node) search(key [][]byte) (idx int, found bool) {
 	left, right := 0, len(n.entries)-1
-	for left <= right {
-		mid := (right + left) / 2
 
-		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
+	for left <= right {
+		idx = (right + left) / 2
+
+		cmp := helpers.CompareMatrix(key, n.entries[idx].key)
 		if cmp == 0 {
-			startIdx = mid
-			right = mid - 1
+			if n.isLeaf() {
+				return idx, true
+			}
+			return idx + 1, true
 		} else if cmp > 0 {
-			left = mid + 1
+			left = idx + 1
 		} else if cmp < 0 {
-			right = mid - 1
+			right = idx - 1
 		}
 	}
 
-	// rightmost search
-	left, right = 0, len(n.entries)-1
-	for left <= right {
-		mid := (right + left) / 2
-
-		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
-		if cmp == 0 {
-			endIdx = mid
-			left = mid + 1
-		} else if cmp > 0 {
-			left = mid + 1
-		} else if cmp < 0 {
-			right = mid - 1
-		}
-	}
-
-	// if found
-	if startIdx != -1 {
-		return startIdx, endIdx + 1, true
-	}
-
-	// not found, searching index where should be inserted
-	left, right = 0, len(n.entries)-1
-	for left <= right {
-		mid := (right + left) / 2
-
-		cmp := helpers.CompareMatrix(key, n.entries[mid].key)
-		if cmp == 0 {
-			return mid, mid + 1, true
-		} else if cmp > 0 {
-			left = mid + 1
-		} else if cmp < 0 {
-			right = mid - 1
-		}
-	}
-	return left, right + 1, false
+	return left, false
 }
 
 // insertChild adds the given child at appropriate location under the node.
