@@ -160,7 +160,7 @@ func main() {
 		PageSize: os.Getpagesize(),
 		MaxKeySize: 4,
 		MaxValueSize: 1,
-		Degree: 250,
+		Degree: 5,
 		KeyCols: 1,
 	})
 	if err != nil {
@@ -182,19 +182,8 @@ func main() {
 	defer exitFunc()
 
 	list := make([][][]byte, 0, 1000)
-	// list[0] = [][]byte{{60,112,5,128}}
-	// list[1] = [][]byte{{60,186,116,180}}
-	// list[2] = [][]byte{{1,103,110,244}}
-	// list[3] = [][]byte{{60,89,35,18}}
-	// list[4] = [][]byte{{126,57,101,226}}
-	// list[5] = [][]byte{{26,198,9,116}}
-	// list[6] = [][]byte{{42,105,119,168}}
-	// list[7] = [][]byte{{71,107,143,109}}
-	// list[8] = [][]byte{{95,199,70,86}}
-	// list[9] = [][]byte{{113,161,116,94}}
-	// list[10] = [][]byte{{39,143,167,182}}
 	// tree.PrepareSpace(2*1024)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		key := make([]byte, 4)
 		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
 		list = append(list, [][]byte{key})

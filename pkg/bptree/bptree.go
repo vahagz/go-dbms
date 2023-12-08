@@ -261,20 +261,11 @@ func (tree *BPlusTree) Scan(
 			break
 		}
 
-		// currLeft, curr, currRight := beginAt.Get().left.Addr(), beginAt.Ptr().Addr(), beginAt.Get().right.Addr()
-		beginAt, err = tree.fetch(nextNode, cache.READ)
+		beginAt = tree.fetchR(nextNode)
 		if !reverse {
 			idx = 0
 		} else {
 			idx = len(beginAt.Get().entries) - 1
-		}
-		// fmt.Printf(
-		// 	"(left:%v, curr:%v right:%v) -> (left:%v, curr:%v right:%v)\n",
-		// 	currLeft, curr, currRight,
-		// 	beginAt.Get().left.Addr(), beginAt.Ptr().Addr(), beginAt.Get().right.Addr(),
-		// )
-		if err != nil {
-			return errors.Wrap(err, "failed to fetch next node")
 		}
 	}
 
@@ -320,7 +311,7 @@ func (tree *BPlusTree) String() string {
 }
 
 func (tree *BPlusTree) Print() {
-	tree.print(tree.root(), 0)
+	tree.print(tree.rootR(), 0)
 }
 
 func (tree *BPlusTree) ClearCache() {
@@ -331,20 +322,18 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 	n := nPtr.Get()
 	for i := len(n.entries) - 1; i >= 0; i-- {
 		if !n.isLeaf() {
-			n, _ := tree.fetch(n.children[i+1], cache.NONE)
-			tree.print(n, indent + 4)
+			tree.print(tree.fetchR(n.children[i+1]), indent + 4)
 		}
 		var parentPtr uint64
 		if !nPtr.Get().parent.IsNil() {
-			parentPtr = tree.fetchE(nPtr.Get().parent, cache.NONE).Ptr().Addr()
+			parentPtr = tree.fetchR(nPtr.Get().parent).Ptr().Addr()
 		}
 		// binary.BigEndian.Uint32(n.entries[i].key[0])
 		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, parentPtr)
 	}
 
 	if !n.isLeaf() {
-		n, _ := tree.fetch(n.children[0], cache.NONE)
-		tree.print(n, indent + 4)
+		tree.print(tree.fetchR(n.children[0]), indent + 4)
 	}
 }
 
@@ -402,10 +391,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 		sv.left = nPtr.Ptr()
 		nv.right = siblingPtr.Ptr()
 		if !sv.right.IsNil() {
-			nNext, err := tree.fetch(sv.right, cache.WRITE)
-			if err != nil {
-				return errors.Wrap(err, "failed to fetch next")
-			}
+			nNext := tree.fetchW(sv.right)
 			nNext.Get().Dirty(true)
 			nNext.Get().left = siblingPtr.Ptr()
 			nNext.Unlock()
@@ -416,11 +402,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 		sv.children = make([]allocator.Pointable, 0, tree.meta.degree+1)
 		sv.children = append(sv.children, nv.children[breakPoint+1:]...)
 		for _, sChildPtr := range sv.children {
-			sChild, err := tree.fetch(sChildPtr, cache.WRITE)
-			if err != nil {
-				return errors.Wrap(err, "failed to fetch sibling child")
-			}
-
+			sChild := tree.fetchW(sChildPtr)
 			scv := sChild.Get()
 			scv.Dirty(true)
 			scv.parent = siblingPtr.Ptr()
@@ -444,10 +426,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 		nv.parent = tree.meta.root
 		pPtr.Get().insertChild(0, nPtr.Ptr())
 	} else {
-		pPtr, err = tree.fetch(nv.parent, cache.WRITE)
-		if err != nil {
-			return errors.Wrap(err, "failed to fetch parent")
-		}
+		pPtr = tree.fetchW(nv.parent)
 	}
 
 	pv := pPtr.Get()
@@ -485,12 +464,8 @@ func (tree *BPlusTree) searchRec(
 ) {
 	for !n.Get().isLeaf() {
 		index, found = n.Get().search(key)
-		ptr, err = tree.fetch(n.Get().children[index], flag)
-		if err != nil {
-			err = errors.Wrap(err, "failed to get child")
-			return
-		}
-	
+		ptr = tree.fetchF(n.Get().children[index], flag)
+
 		n.UnlockFlag(flag)
 		n = ptr
 	}
@@ -506,11 +481,7 @@ func (tree *BPlusTree) rightLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) 
 		return n, nil
 	}
 
-	lastChildIdx := len(n.Get().children) - 1
-	child, err := tree.fetch(n.Get().children[lastChildIdx], flag)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch child")
-	}
+	child := tree.fetchF(n.Get().children[len(n.Get().children) - 1], flag)
 	n.UnlockFlag(flag)
 	return tree.rightLeaf(child, flag)
 }
@@ -522,45 +493,38 @@ func (tree *BPlusTree) leftLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) (
 		return n, nil
 	}
 
-	child, err := tree.fetch(n.Get().children[0], flag)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch child")
-	}
+	child := tree.fetchF(n.Get().children[0], flag)
 	n.UnlockFlag(flag)
 	return tree.leftLeaf(child, flag)
 }
 
 // fetch returns the node from given pointer. underlying file is accessed
 // only if the node doesn't exist in cache.
-func (tree *BPlusTree) fetch(ptr allocator.Pointable, flag cache.LOCKMODE) (cache.Pointable[*node], error) {
+func (tree *BPlusTree) fetchF(ptr allocator.Pointable, flag cache.LOCKMODE) cache.Pointable[*node] {
 	nPtr := tree.cache.GetF(ptr, flag)
 	if nPtr != nil {
-		return nPtr, nil
+		return nPtr
 	}
 
 	n := tree.newNode()
 	if err := ptr.Get(n); err != nil {
-		return nil, errors.Wrap(err, "failed to get node data from pointer")
+		panic(errors.Wrap(err, "failed to get node data from pointer"))
 	}
 
 	n.Dirty(false)
-	return tree.cache.AddF(ptr, flag), nil
+	return tree.cache.AddF(ptr, flag)
 }
 
-func (tree *BPlusTree) fetchE(ptr allocator.Pointable, flag cache.LOCKMODE) cache.Pointable[*node] {
-	v, err := tree.fetch(ptr, flag)
-	if err != nil {
-		panic(err)
-	}
-	return v
+func (tree *BPlusTree) fetchR(ptr allocator.Pointable) cache.Pointable[*node] {
+	return tree.fetchF(ptr, cache.READ)
+}
+
+func (tree *BPlusTree) fetchW(ptr allocator.Pointable) cache.Pointable[*node] {
+	return tree.fetchF(ptr, cache.WRITE)
 }
 
 func (tree *BPlusTree) rootF(flag cache.LOCKMODE) cache.Pointable[*node] {
-	return tree.fetchE(tree.meta.root, flag)
-}
-
-func (tree *BPlusTree) root() cache.Pointable[*node] {
-	return tree.rootF(cache.NONE)
+	return tree.fetchF(tree.meta.root, flag)
 }
 
 func (tree *BPlusTree) rootR() cache.Pointable[*node] {
