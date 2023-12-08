@@ -74,32 +74,24 @@ type BPlusTree struct {
 	meta  *metadata
 }
 
-// Get fetches the value associated with the given key. Returns error if key
-// not found.
-func (tree *BPlusTree) Get(key [][]byte) ([]byte, error) {
+// Get fetches the value associated with the given key.
+// Returns error if key not found.
+func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	if len(key) == 0 {
 		return nil, customerrors.ErrEmptyKey
 	}
 
-	tree.mu.RLock()
-	defer tree.mu.RUnlock()
+	result := [][]byte{}
+	err := tree.Scan(key, false, true, func(k [][]byte, v []byte) (bool, error) {
+		if helpers.CompareMatrix(key, k) != 0 {
+			return true, nil
+		}
 
-	root := tree.rootR()
-	if len(root.Get().entries) == 0 {
-		root.RUnlock()
-		return nil, customerrors.ErrKeyNotFound
-	}
+		result = append(result, v)
+		return false, nil
+	})
 
-	key = helpers.Copy(key)
-	leaf, index, found, err := tree.searchRec(root, key, cache.READ)
-	if err != nil {
-		return nil, err
-	} else if !found {
-		return nil, customerrors.ErrKeyNotFound
-	}
-	defer leaf.RUnlock()
-
-	return leaf.Get().entries[index].val, nil
+	return result, err
 }
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
@@ -204,19 +196,12 @@ func (tree *BPlusTree) Scan(
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		var index int
-		beginAt, index, _, err = tree.searchRec(root, key, cache.READ)
-		if !reverse {
-			if strict {
-				idx = index
+		beginAt, idx, _, err = tree.searchRec(root, key, cache.READ)
+		if !strict {
+			if reverse {
+				idx--
 			} else {
-				idx = index + 1
-			}
-		} else {
-			if strict {
-				idx = index - 1
-			} else {
-				idx = index
+				idx++
 			}
 		}
 	}

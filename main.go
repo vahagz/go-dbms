@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"go-dbms/pkg/bptree"
@@ -181,73 +180,73 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	list := make([][][]byte, 0, 1000)
-	// tree.PrepareSpace(2*1024)
-	for i := 0; i < 100; i++ {
-		key := make([]byte, 4)
-		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
-		list = append(list, [][]byte{key})
-		err = tree.PutMem(list[i], []byte{list[i][0][1]}, &bptree.PutOptions{
-			Uniq:   false,
-			Update: false,
-		})
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
-		// go func(i int) {
-			if val, err := tree.Get(list[i]); err != nil {
-				fmt.Println(i, list[i], val, err)
-			}
-		// }(i)
-	}
-	if err := tree.WriteAll(); err != nil {
-		logrus.Fatal(err)
-	}
-	insertDuration = time.Since(start)
-
-	// keys := [][]byte{
-	// 	{2,3,4,5},
-	// 	{1,2,3,4},
-	// 	{3,4,5,6},
-	// 	{1,2,3,4},
-	// 	{4,5,6,7},
-	// 	{1,2,3,4},
-	// 	{5,6,7,8},
-	// 	{1,2,3,4},
-	// 	{6,7,8,9},
-	// 	{1,2,3,4},
-	// 	{7,8,9,10},
-	// 	{1,2,3,4},
-	// 	{8,9,10,11},
-	// 	{1,2,3,4},
-	// 	{9,10,11,12},
-	// 	{1,2,3,4},
-	// 	{10,11,12,13},
-	// 	{1,2,3,4},
-	// 	{11,12,13,14},
-	// 	{1,2,3,4},
-	// 	{12,13,14,15},
-	// }
-	// _ = keys
-	// for i := range keys {
-	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
+	// list := make([][][]byte, 0, 1000)
+	// // tree.PrepareSpace(2*1024)
+	// for i := 0; i < 100; i++ {
+	// 	key := make([]byte, 4)
+	// 	binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
+	// 	list = append(list, [][]byte{key})
+	// 	err = tree.PutMem(list[i], []byte{list[i][0][1]}, &bptree.PutOptions{
 	// 		Uniq:   false,
 	// 		Update: false,
 	// 	})
 	// 	if err != nil {
 	// 		logrus.Fatal(err)
 	// 	}
+
+	// 	if val, err := tree.Get(list[i]); err != nil {
+	// 		fmt.Println(i, list[i], val, err)
+	// 	}
 	// }
-	
-	// err = tree.Scan(nil, false, true, func(key [][]byte, val []byte) (bool, error) {
-	// 	fmt.Println(key, val)
-	// 	return false, nil
-	// })
-	// if err != nil {
+	// if err := tree.WriteAll(); err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	tree.Print()
+	// insertDuration = time.Since(start)
+
+	keys := [][]byte{
+		{5,6,7,8},
+		{2,3,4,5},
+		// {1,2,3,4},
+		{3,4,5,6},
+		// {1,2,3,4},
+		{4,5,6,7},
+		{6,7,8,9},
+		// {1,2,3,4},
+		{1,2,3,4},
+		// {1,2,3,4},
+		// {1,2,3,4},
+		// {1,2,3,4},
+		{8,9,10,11},
+		{10,11,12,13},
+		// {1,2,3,4},
+		{11,12,13,14},
+		{9,10,11,12},
+		// {1,2,3,4},
+		// {1,2,3,4},
+		{7,8,9,10},
+		// {1,2,3,4},
+		{12,13,14,15},
+	}
+	_ = keys
+	for i := range keys {
+		// err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
+		// 	Uniq:   false,
+		// 	Update: false,
+		// })
+		// if err != nil {
+		// 	logrus.Fatal(err)
+		// }
+		fmt.Println(tree.Get([][]byte{keys[i]}))
+	}
+	
+	err = tree.Scan([][]byte{{6,7,8,9}}, false, true, func(key [][]byte, val []byte) (bool, error) {
+		fmt.Println(key, val)
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	// tree.Print()
 	fmt.Println(tree.Count())
 
 
