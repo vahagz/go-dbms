@@ -162,10 +162,8 @@ func (tree *BPlusTree) Del(key [][]byte) ([]byte, error) {
 
 	key = helpers.Copy(key)
 	root := tree.rootW()
-	target, index, found, err := tree.searchRec(root, key, cache.WRITE)
-	if err != nil {
-		return nil, err
-	} else if !found {
+	target, index, found := tree.searchRec(root, key, cache.WRITE)
+	if !found {
 		return nil, customerrors.ErrKeyNotFound
 	}
 
@@ -196,7 +194,6 @@ func (tree *BPlusTree) Scan(
 		return nil
 	}
 
-	var err error
 	var beginAt cache.Pointable[*node]
 	idx := 0
 
@@ -205,16 +202,15 @@ func (tree *BPlusTree) Scan(
 		// No explicit key provided by user, find the a leaf-node based on
 		// scan direction and start there.
 		if !opts.Reverse {
-			beginAt, err = tree.leftLeaf(root, cache.READ)
+			beginAt = tree.leftLeaf(root, cache.READ)
 			idx = 0
 		} else {
-			beginAt, err = tree.rightLeaf(root, cache.READ)
+			beginAt = tree.rightLeaf(root, cache.READ)
 			idx = len(beginAt.Get().entries) - 1
 		}
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-
 		key = helpers.Copy(key)
 		if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
 			key = tree.addCounterIfRequired(key, counterFill)
@@ -222,14 +218,10 @@ func (tree *BPlusTree) Scan(
 			key = tree.addCounterIfRequired(key, counterZero)
 		}
 
-		beginAt, idx, _, err = tree.searchRec(root, key, cache.READ)
+		beginAt, idx, _ = tree.searchRec(root, key, cache.READ)
 		if opts.Reverse {
 			idx--
 		}
-	}
-
-	if err != nil {
-		return err
 	}
 
 	// starting at found leaf node, follow the 'next' pointer until.
@@ -261,7 +253,6 @@ func (tree *BPlusTree) Scan(
 			}
 			nextNode = beginAt.Get().left
 		}
-		idx = 0
 
 		beginAt.RUnlock()
 		if nextNode.IsNil() {
@@ -351,20 +342,18 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 
 func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 	root := tree.rootW()
-	leaf, index, found, err := tree.searchRec(root, e.key, cache.WRITE)
-	if err != nil {
-		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
-	}
+	leaf, index, found := tree.searchRec(root, e.key, cache.WRITE)
+	lv := leaf.Get()
 
 	if found && !opt.Update {
 		return false, errors.New("key already exists")
 	} else if found && opt.Update {
-		leaf.Get().update(index, e.val)
+		lv.update(index, e.val)
 		return false, nil
 	}
 
-	leaf.Get().insertAt(index, e)
-	if leaf.Get().IsFull() {
+	lv.insertAt(index, e)
+	if lv.IsFull() {
 		tree.split(leaf)
 		return true, nil
 	}
@@ -466,7 +455,6 @@ func (tree *BPlusTree) searchRec(
 	ptr cache.Pointable[*node],
 	index int,
 	found bool,
-	err error,
 ) {
 	for !n.Get().isLeaf() {
 		index, found = n.Get().search(key)
@@ -477,14 +465,14 @@ func (tree *BPlusTree) searchRec(
 	}
 
 	index, found = n.Get().search(key)
-	return n, index, found, nil
+	return n, index, found
 }
 
 // rightLeaf returns the right most leaf node of the sub-tree with given node
 // as the root.
-func (tree *BPlusTree) rightLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) (cache.Pointable[*node], error) {
+func (tree *BPlusTree) rightLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) cache.Pointable[*node] {
 	if n.Get().isLeaf() {
-		return n, nil
+		return n
 	}
 
 	child := tree.fetchF(n.Get().children[len(n.Get().children) - 1], flag)
@@ -494,9 +482,9 @@ func (tree *BPlusTree) rightLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) 
 
 // leftLeaf returns the left most leaf node of the sub-tree with given node
 // as the root.
-func (tree *BPlusTree) leftLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) (cache.Pointable[*node], error) {
+func (tree *BPlusTree) leftLeaf(n cache.Pointable[*node], flag cache.LOCKMODE) cache.Pointable[*node] {
 	if n.Get().isLeaf() {
-		return n, nil
+		return n
 	}
 
 	child := tree.fetchF(n.Get().children[0], flag)
