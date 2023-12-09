@@ -209,8 +209,8 @@ func (tree *BPlusTree) Scan(
 	return tree.scan(key, opts, cache.READ, func(
 		key [][]byte,
 		val []byte,
-		index int,
-		leaf cache.Pointable[*node],
+		_ int,
+		_ cache.Pointable[*node],
 	) (bool, error) {
 		return scanFn(key, val)
 	})

@@ -52,10 +52,8 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 		return err
 	}
 
-	return i.tree.Put(key, val, &bptree.PutOptions{
-		// Uniq: i.uniq,
-		Update: false,
-	})
+	_, err = i.tree.Put(key, val, bptree.PutOptions{Update: false})
+	return err
 }
 
 func (i *index) Find(
