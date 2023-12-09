@@ -241,7 +241,7 @@ func main() {
 	}
 	_ = keys
 	// for i := range keys {
-	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
+	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, bptree.PutOptions{
 	// 		Update: false,
 	// 	})
 	// 	if err != nil {
@@ -250,8 +250,16 @@ func main() {
 	// 	fmt.Println(tree.Get([][]byte{keys[i]}))
 	// }
 
+	res, err := tree.Put([][]byte{{6,7,8,9},{11,0,0,0,0,0,0,0}}, []byte{byte(112)}, bptree.PutOptions{
+		Update: true,
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	fmt.Println(res)
+
 	i := 1
-	err = tree.Scan([][]byte{{6,7,8,9}}, bptree.ScanOptions{
+	err = tree.Scan(nil, bptree.ScanOptions{
 		Reverse: false,
 		Strict:  false,
 	}, func(key [][]byte, val []byte) (bool, error) {

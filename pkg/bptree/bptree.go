@@ -4,6 +4,7 @@
 package bptree
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -110,26 +111,26 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
 // its value will be updated.
-func (tree *BPlusTree) Put(key [][]byte, val []byte, opt *PutOptions) error {
-	err := tree.PutMem(key, val, opt)
+func (tree *BPlusTree) Put(key [][]byte, val []byte, opt PutOptions) (bool, error) {
+	success, err := tree.PutMem(key, val, opt)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return tree.WriteAll()
+	return success, tree.WriteAll()
 }
 
-func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt *PutOptions) error {
-	key = tree.addCounterIfRequired(helpers.Copy(key), counterCurrent)
+func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt PutOptions) (bool, error) {
+	key = helpers.Copy(key)
 	keylen := 0
 	for _, v := range key {
 		keylen += len(v)
 	}
 
 	if keylen > int(tree.meta.keySize) {
-		return customerrors.ErrKeyTooLarge
+		return false, customerrors.ErrKeyTooLarge
 	} else if keylen == 0 {
-		return customerrors.ErrEmptyKey
+		return false, customerrors.ErrEmptyKey
 	}
 
 	tree.mu.Lock()
@@ -140,18 +141,18 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt *PutOptions) error {
 		val: val,
 	}
 
-	isInsert, err := tree.put(e, opt)
+	success, err := tree.put(e, opt)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if isInsert {
+	if success && !opt.Update {
 		tree.meta.counter++
 		tree.meta.size++
 		tree.meta.dirty = true
 	}
 
-	return nil
+	return success, nil
 }
 
 // Del removes the key-value entry from the B+ tree. If the key does not
@@ -193,22 +194,8 @@ func (tree *BPlusTree) Scan(
 	if tree.meta.size == 0 {
 		return nil
 	}
-
-	var beginAt cache.Pointable[*node]
-	idx := 0
-
-	root := tree.rootR()
-	if len(key) == 0 {
-		// No explicit key provided by user, find the a leaf-node based on
-		// scan direction and start there.
-		if !opts.Reverse {
-			beginAt = tree.leftLeaf(root, cache.READ)
-			idx = 0
-		} else {
-			beginAt = tree.rightLeaf(root, cache.READ)
-			idx = len(beginAt.Get().entries) - 1
-		}
-	} else {
+	
+	if len(key) != 0 {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
 		key = helpers.Copy(key)
@@ -217,57 +204,16 @@ func (tree *BPlusTree) Scan(
 		} else {
 			key = tree.addCounterIfRequired(key, counterZero)
 		}
-
-		beginAt, idx, _ = tree.searchRec(root, key, cache.READ)
-		if opts.Reverse {
-			idx--
-		}
 	}
 
-	// starting at found leaf node, follow the 'next' pointer until.
-	var nextNode allocator.Pointable
-
-	L: for beginAt != nil {
-		if !opts.Reverse {
-			for i := idx; i < len(beginAt.Get().entries); i++ {
-				e := beginAt.Get().entries[i]
-				if stop, err := scanFn(e.key, e.val); err != nil {
-					beginAt.RUnlock()
-					return err
-				} else if stop {
-					beginAt.RUnlock()
-					break L
-				}
-			}
-			nextNode = beginAt.Get().right
-		} else {
-			for i := idx; i >= 0; i-- {
-				e := beginAt.Get().entries[i]
-				if stop, err := scanFn(e.key, e.val); err != nil {
-					beginAt.RUnlock()
-					return err
-				} else if stop {
-					beginAt.RUnlock()
-					break L
-				}
-			}
-			nextNode = beginAt.Get().left
-		}
-
-		beginAt.RUnlock()
-		if nextNode.IsNil() {
-			break
-		}
-
-		beginAt = tree.fetchR(nextNode)
-		if !opts.Reverse {
-			idx = 0
-		} else {
-			idx = len(beginAt.Get().entries) - 1
-		}
-	}
-
-	return nil
+	return tree.scan(key, opts, cache.READ, func(
+		key [][]byte,
+		val []byte,
+		index int,
+		leaf cache.Pointable[*node],
+	) (bool, error) {
+		return scanFn(key, val)
+	})
 }
 
 func (tree *BPlusTree) PrepareSpace(size uint32) {
@@ -340,26 +286,122 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
 	}
 }
 
-func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
+func (tree *BPlusTree) scan(
+	key [][]byte,
+	opts ScanOptions,
+	flag cache.LOCKMODE,
+	scanFn func(key [][]byte, val []byte, index int, leaf cache.Pointable[*node]) (bool, error),
+) error {
+	var beginAt cache.Pointable[*node]
+	idx := 0
+
+	root := tree.rootF(flag)
+	if len(key) == 0 {
+		// No explicit key provided by user, find the a leaf-node based on
+		// scan direction and start there.
+		if !opts.Reverse {
+			beginAt = tree.leftLeaf(root, flag)
+			idx = 0
+		} else {
+			beginAt = tree.rightLeaf(root, flag)
+			idx = len(beginAt.Get().entries) - 1
+		}
+	} else {
+		beginAt, idx, _ = tree.searchRec(root, key, flag)
+		if opts.Reverse {
+			idx--
+		}
+	}
+
+	// starting at found leaf node, follow the 'next' pointer until.
+	var nextNode allocator.Pointable
+
+	L: for beginAt != nil {
+		if !opts.Reverse {
+			for i := idx; i < len(beginAt.Get().entries); i++ {
+				e := beginAt.Get().entries[i]
+				if stop, err := scanFn(e.key, e.val, i, beginAt); err != nil {
+					beginAt.UnlockFlag(flag)
+					return err
+				} else if stop {
+					beginAt.UnlockFlag(flag)
+					break L
+				}
+			}
+			nextNode = beginAt.Get().right
+		} else {
+			for i := idx; i >= 0; i-- {
+				e := beginAt.Get().entries[i]
+				if stop, err := scanFn(e.key, e.val, i, beginAt); err != nil {
+					beginAt.UnlockFlag(flag)
+					return err
+				} else if stop {
+					beginAt.UnlockFlag(flag)
+					break L
+				}
+			}
+			nextNode = beginAt.Get().left
+		}
+
+		beginAt.UnlockFlag(flag)
+		if nextNode.IsNil() {
+			break
+		}
+
+		beginAt = tree.fetchF(nextNode, flag)
+		if !opts.Reverse {
+			idx = 0
+		} else {
+			idx = len(beginAt.Get().entries) - 1
+		}
+	}
+
+	return nil
+}
+
+func (tree *BPlusTree) insert(e entry) error {
 	root := tree.rootW()
 	leaf, index, found := tree.searchRec(root, e.key, cache.WRITE)
-	lv := leaf.Get()
-
-	if found && !opt.Update {
-		return false, errors.New("key already exists")
-	} else if found && opt.Update {
-		lv.update(index, e.val)
-		return false, nil
+	if found && tree.IsUniq() {
+		return errors.New("key already exists")
 	}
 
-	lv.insertAt(index, e)
-	if lv.IsFull() {
+	leaf.Get().insertAt(index, e)
+	if leaf.Get().IsFull() {
 		tree.split(leaf)
-		return true, nil
+		return nil
 	}
-	leaf.Unlock()
 
-	return true, nil
+	leaf.Unlock()
+	return nil
+}
+
+func (tree *BPlusTree) update(e entry) (updated bool, err error) {
+	return updated, tree.scan(e.key, ScanOptions{
+		Reverse: false,
+		Strict:  true,
+	}, cache.WRITE, func(
+		key [][]byte,
+		val []byte,
+		index int,
+		leaf cache.Pointable[*node],
+	) (bool, error) {
+		if helpers.CompareMatrix(e.key, key) == 0 && bytes.Compare(e.val, val) != 0 {
+			leaf.Get().update(index, e.val)
+			updated = true
+		}
+		return true, nil
+	})
+}
+
+// always returns true is Update is false in PutOptions
+// otherwise returns true if found entry that should be updated
+func (tree *BPlusTree) put(e entry, opt PutOptions) (bool, error) {
+	if opt.Update {
+		return tree.update(e)
+	}
+	e.key = tree.addCounterIfRequired(e.key, counterCurrent)
+	return true, tree.insert(e)
 }
 
 func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
