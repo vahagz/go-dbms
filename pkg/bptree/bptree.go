@@ -21,6 +21,19 @@ import (
 // bin is the byte order used for all marshals/unmarshals.
 var bin = binary.LittleEndian
 
+// these values used to set extra counter value
+// FILL will set all bits with 1
+// ZERO will set all bits with 0
+// CURRENT will set current counter value (tree.meta.counter)
+
+type counterOption int
+
+const (
+	counterFill counterOption = iota
+	counterZero
+	counterCurrent
+)
+
 // Open opens the named file as a B+ tree index file and returns an instance
 // B+ tree for use. Use ":memory:" for an in-memory B+ tree instance for quick
 // testing setup. Degree of the tree is computed based on maxKeySize and pageSize
@@ -77,21 +90,22 @@ type BPlusTree struct {
 // Get fetches the value associated with the given key.
 // Returns error if key not found.
 func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
-	if len(key) == 0 {
+	if key == nil || len(key) == 0 {
 		return nil, customerrors.ErrEmptyKey
 	}
 
 	result := [][]byte{}
-	err := tree.Scan(key, false, true, func(k [][]byte, v []byte) (bool, error) {
-		if helpers.CompareMatrix(key, k) != 0 {
+	return result, tree.Scan(key, ScanOptions{
+		Reverse: false,
+		Strict:  true,
+	}, func(k [][]byte, v []byte) (bool, error) {
+		if helpers.CompareMatrix(key, tree.removeCounterIfRequired(k)) != 0 {
 			return true, nil
 		}
 
 		result = append(result, v)
 		return false, nil
 	})
-
-	return result, err
 }
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
@@ -106,7 +120,7 @@ func (tree *BPlusTree) Put(key [][]byte, val []byte, opt *PutOptions) error {
 }
 
 func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt *PutOptions) error {
-	key = helpers.Copy(key)
+	key = tree.addCounterIfRequired(helpers.Copy(key), counterCurrent)
 	keylen := 0
 	for _, v := range key {
 		keylen += len(v)
@@ -132,6 +146,7 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt *PutOptions) error {
 	}
 
 	if isInsert {
+		tree.meta.counter++
 		tree.meta.size++
 		tree.meta.dirty = true
 	}
@@ -154,6 +169,11 @@ func (tree *BPlusTree) Del(key [][]byte) ([]byte, error) {
 		return nil, customerrors.ErrKeyNotFound
 	}
 
+	// if isDelete {
+	// 	tree.meta.size--
+	// 	tree.meta.dirty = true
+	// }
+
 	removed := target.Get().remove(index, index + 1)
 	return removed[0].val, tree.WriteAll()
 }
@@ -166,7 +186,7 @@ func (tree *BPlusTree) Del(key [][]byte) ([]byte, error) {
 // executes in descending order of keys.
 func (tree *BPlusTree) Scan(
 	key [][]byte,
-	reverse, strict bool,
+	opts ScanOptions,
 	scanFn func(key [][]byte, val []byte) (bool, error),
 ) error {
 	tree.mu.RLock()
@@ -176,8 +196,6 @@ func (tree *BPlusTree) Scan(
 		return nil
 	}
 
-	key = helpers.Copy(key)
-
 	var err error
 	var beginAt cache.Pointable[*node]
 	idx := 0
@@ -186,7 +204,7 @@ func (tree *BPlusTree) Scan(
 	if len(key) == 0 {
 		// No explicit key provided by user, find the a leaf-node based on
 		// scan direction and start there.
-		if !reverse {
+		if !opts.Reverse {
 			beginAt, err = tree.leftLeaf(root, cache.READ)
 			idx = 0
 		} else {
@@ -196,13 +214,17 @@ func (tree *BPlusTree) Scan(
 	} else {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
+
+		key = helpers.Copy(key)
+		if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
+			key = tree.addCounterIfRequired(key, counterFill)
+		} else {
+			key = tree.addCounterIfRequired(key, counterZero)
+		}
+
 		beginAt, idx, _, err = tree.searchRec(root, key, cache.READ)
-		if !strict {
-			if reverse {
-				idx--
-			} else {
-				idx++
-			}
+		if opts.Reverse {
+			idx--
 		}
 	}
 
@@ -214,7 +236,7 @@ func (tree *BPlusTree) Scan(
 	var nextNode allocator.Pointable
 
 	L: for beginAt != nil {
-		if !reverse {
+		if !opts.Reverse {
 			for i := idx; i < len(beginAt.Get().entries); i++ {
 				e := beginAt.Get().entries[i]
 				if stop, err := scanFn(e.key, e.val); err != nil {
@@ -247,7 +269,7 @@ func (tree *BPlusTree) Scan(
 		}
 
 		beginAt = tree.fetchR(nextNode)
-		if !reverse {
+		if !opts.Reverse {
 			idx = 0
 		} else {
 			idx = len(beginAt.Get().entries) - 1
@@ -257,13 +279,16 @@ func (tree *BPlusTree) Scan(
 	return nil
 }
 
-func (tree *BPlusTree) PrepareSpace(size uint32) error {
-	return tree.heap.PreAlloc(size)
+func (tree *BPlusTree) PrepareSpace(size uint32) {
+	tree.heap.PreAlloc(size)
 }
 
 func (tree *BPlusTree) Count() (int, error) {
 	counter := 0
-	err := tree.Scan(nil, false, true, func(_ [][]byte, _ []byte) (bool, error) {
+	err := tree.Scan(nil, ScanOptions{
+		Reverse: false,
+		Strict:  true,
+	}, func(_ [][]byte, _ []byte) (bool, error) {
 		counter++
 		return false, nil
 	})
@@ -272,6 +297,8 @@ func (tree *BPlusTree) Count() (int, error) {
 
 // Size returns the number of entries in the entire tree
 func (tree *BPlusTree) Size() int64 { return int64(tree.meta.size) }
+
+func (tree *BPlusTree) IsUniq() bool { return helpers.GetBit(tree.meta.flags, uniquenessBit) }
 
 // Close flushes any writes and closes the underlying pager.
 func (tree *BPlusTree) Close() error {
@@ -329,7 +356,7 @@ func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 		return false, errors.Wrap(err, "failed to find leaf node to insert entry")
 	}
 
-	if opt.Uniq && found && !opt.Update {
+	if found && !opt.Update {
 		return false, errors.New("key already exists")
 	} else if found && opt.Update {
 		leaf.Get().update(index, e.val)
@@ -338,23 +365,21 @@ func (tree *BPlusTree) put(e entry, opt *PutOptions) (bool, error) {
 
 	leaf.Get().insertAt(index, e)
 	if leaf.Get().IsFull() {
-		return true, tree.split(leaf)
+		tree.split(leaf)
+		return true, nil
 	}
 	leaf.Unlock()
 
 	return true, nil
 }
 
-func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
+func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
 	nv := nPtr.Get()
 	var siblingPtr cache.Pointable[*node]
 	if nv.isLeaf() {
-		siblingPtr, err = tree.allocLeaf()
+		siblingPtr = tree.allocLeaf()
 	} else {
-		siblingPtr, err = tree.allocInternal()
-	}
-	if err != nil {
-		return errors.Wrap(err, "failed to alloc node")
+		siblingPtr = tree.allocInternal()
 	}
 
 	sv := siblingPtr.Get()
@@ -400,11 +425,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 
 	var pPtr cache.Pointable[*node]
 	if nv.parent.IsNil() {
-		pPtr, err = tree.allocInternal()
-		if err != nil {
-			return errors.Wrap(err, "failed to alloc new root")
-		}
-
+		pPtr = tree.allocInternal()
 		tree.meta.dirty = true
 		tree.meta.root = pPtr.Ptr()
 		sv.parent = tree.meta.root
@@ -428,14 +449,14 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) (err error) {
 	nPtr.Unlock()
 	siblingPtr.Unlock()
 	if pv.IsFull() {
-		return tree.split(pPtr)
+		tree.split(pPtr)
+		return
 	}
 	pPtr.Unlock()
-	return nil
 }
 
 // searchRec searches the sub-tree with root 'n' recursively until the key
-// is  found or the leaf node is  reached. Returns the node last searched,
+// is found or the leaf node is reached. Returns the node last searched,
 // index where the key should be and a flag to indicate if the key exists.
 func (tree *BPlusTree) searchRec(
 	n cache.Pointable[*node],
@@ -533,12 +554,8 @@ func (tree *BPlusTree) newNode() *node {
 	}
 }
 
-func (tree *BPlusTree) allocLeaf() (cache.Pointable[*node], error) {
-	ptr, err := tree.heap.Alloc(tree.leafNodeSize())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to alloc leaf node")
-	}
-	cPtr := tree.cache.AddW(ptr)
+func (tree *BPlusTree) allocLeaf() cache.Pointable[*node] {
+	cPtr := tree.cache.AddW(tree.heap.Alloc(tree.leafNodeSize()))
 	val := cPtr.Get()
 	val.Dirty(true)
 	val.meta = tree.meta
@@ -548,15 +565,11 @@ func (tree *BPlusTree) allocLeaf() (cache.Pointable[*node], error) {
 	val.dummyPtr = tree.heap.Nil()
 	val.children = make([]allocator.Pointable, 0)
 	val.entries = make([]entry, 0)
-	return cPtr, nil
+	return cPtr
 }
 
-func (tree *BPlusTree) allocInternal() (cache.Pointable[*node], error) {
-	ptr, err := tree.heap.Alloc(tree.internalNodeSize())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to alloc internal node")
-	}
-	cPtr := tree.cache.AddW(ptr)
+func (tree *BPlusTree) allocInternal() cache.Pointable[*node] {
+	cPtr := tree.cache.AddW(tree.heap.Alloc(tree.internalNodeSize()))
 	val := cPtr.Get()
 	val.Dirty(true)
 	val.meta = tree.meta
@@ -566,7 +579,34 @@ func (tree *BPlusTree) allocInternal() (cache.Pointable[*node], error) {
 	val.dummyPtr = tree.heap.Nil()
 	val.children = make([]allocator.Pointable, 0)
 	val.entries = make([]entry, 0)
-	return cPtr, nil
+	return cPtr
+}
+
+// addCounterIfRequired adds extra counter bytes at end of key
+// if Uniq option was set to False while creating BPTree
+func (tree *BPlusTree) addCounterIfRequired(key [][]byte, flag counterOption) [][]byte {
+	if tree.IsUniq() {
+		return key
+	}
+
+	counter := make([]byte, 8)
+	if flag == counterFill {
+		bin.PutUint64(counter, math.MaxUint64)
+	} else if flag == counterZero {
+		bin.PutUint64(counter, 0)
+	} else if flag == counterCurrent {
+		bin.PutUint64(counter, tree.meta.counter)
+	}
+
+	return append(key, counter)
+}
+
+// reverse version of addCounterIfRequired
+func (tree *BPlusTree) removeCounterIfRequired(key [][]byte) [][]byte {
+	if tree.IsUniq() {
+		return key
+	}
+	return key[:len(key)-1]
 }
 
 // open opens the B+ tree stored on disk using the heap.
@@ -625,23 +665,24 @@ func (tree *BPlusTree) init(opts *Options) error {
 		keySize:  uint16(opts.MaxKeySize),
 		keyCols:  uint16(opts.KeyCols),
 		valSize:  uint16(opts.MaxValueSize),
+		counter:  0,
 		degree:   uint16(opts.Degree),
 	}
 
-	metaPtr, err := tree.heap.Alloc(metadataSize)
-	if err != nil {
-		return err
+	helpers.SetBit(&tree.meta.flags, uniquenessBit, opts.Uniq)
+	if !opts.Uniq {
+		// add extra column for counter to maintain uniqness
+		tree.meta.keyCols++
+		tree.meta.keySize += 8
 	}
-	tree.metaPtr = metaPtr
 
-	rootPtr, err := tree.allocLeaf()
-	if err != nil {
-		return errors.Wrap(err, "failed to alloc root node")
-	}
+	tree.metaPtr = tree.heap.Alloc(metadataSize)
+
+	rootPtr := tree.allocLeaf()
 	tree.meta.root = rootPtr.Ptr()
 	rootPtr.Unlock()
 
-	return errors.Wrap(metaPtr.Set(tree.meta), "failed to write meta after init")
+	return errors.Wrap(tree.metaPtr.Set(tree.meta), "failed to write meta after init")
 }
 
 // writeAll writes all the nodes marked dirty to the underlying pager.

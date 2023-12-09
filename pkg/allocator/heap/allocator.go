@@ -36,11 +36,11 @@ type Allocator struct {
 	metaPtr        *Pointer
 }
 
-func (a *Allocator) Alloc(size uint32) (Pointable, error) {
+func (a *Allocator) Alloc(size uint32) Pointable {
 	requiredSize := size + 2 * PointerMetaSize
 	entry, err := a.freelist.Get(&freelistKey{0, requiredSize})
 	if err != nil && err != rbtree.ErrNotFound {
-		return nil, errors.Wrap(err, "failed to find free space from freelist")
+		panic(errors.Wrap(err, "failed to find free space from freelist"))
 	} else if entry != nil {
 		shrinkSize := requiredSize
 		if entry.Key.size - shrinkSize < 2 * PointerMetaSize {
@@ -49,9 +49,12 @@ func (a *Allocator) Alloc(size uint32) (Pointable, error) {
 
 		ptr := a.createPointer(entry.Key.ptr + PointerMetaSize, shrinkSize - 2 * PointerMetaSize)
 		if err := a.shrink(entry, shrinkSize); err != nil {
-			return nil, errors.Wrap(err, "failed to shrink allocated space")
+			panic(errors.Wrap(err, "failed to shrink allocated space"))
+		} else if err := ptr.writeMeta(); err != nil {
+			panic(errors.Wrap(err, "failed to update allocated Pointer meta"))
 		}
-		return ptr, errors.Wrap(ptr.writeMeta(), "failed to update allocated Pointer meta")
+
+		return ptr
 	}
 
 	requiredTotalSize := a.meta.top + uint64(requiredSize)
@@ -59,39 +62,44 @@ func (a *Allocator) Alloc(size uint32) (Pointable, error) {
 	if requiredExtraPages > a.pager.Count() {
 		_, err := a.pager.Alloc(int(requiredExtraPages - a.pager.Count()))
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to alloc space")
+			panic(errors.Wrap(err, "failed to alloc space"))
 		}
 	}
 
 	ptr := a.newPointer(size)
 	if err := ptr.writeMeta(); err != nil {
-		return nil, errors.Wrap(err, "failed to write new pointers meta")
+		panic(errors.Wrap(err, "failed to write new pointers meta"))
+	} else if err := a.writeMeta(); err != nil {
+		panic(errors.Wrap(err, "failed to update allocator meta"))
 	}
-	return ptr, errors.Wrap(a.writeMeta(), "failed to update allocator meta")
+
+	return ptr
 }
 
-func (a *Allocator) Free(p Pointable) error {
+func (a *Allocator) Free(p Pointable) {
 	ptr, ok := p.(*Pointer)
 	if !ok {
-		return errors.New("invalid Pointer type")
+		panic(errors.New("invalid Pointer type"))
 	}
 
 	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize == a.meta.top {
 		a.meta.top -= uint64(ptr.meta.size) + 2 * PointerMetaSize
-		return errors.Wrap(a.writeMeta(), "faield to update meta after free")
+		if err := a.writeMeta(); err != nil {
+			panic(errors.Wrap(err, "faield to update meta after free"))
+		}
 	}
 
 	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize < a.meta.top {
 		nextPtr, err := ptr.next()
 		if err != nil {
-			return errors.Wrap(err, "failed to get freed ptr next ptr")
+			panic(errors.Wrap(err, "failed to get freed ptr next ptr"))
 		}
 
 		if nextPtr.meta.free {
 			ptr.meta.size += nextPtr.meta.size + 2 * PointerMetaSize
 			err := a.freelist.Delete(nextPtr.key())
 			if err != nil {
-				return errors.Wrap(err, "failed to delete freelist item")
+				panic(errors.Wrap(err, "failed to delete freelist item"))
 			}
 		}
 	}
@@ -99,7 +107,7 @@ func (a *Allocator) Free(p Pointable) error {
 	if ptr.ptr - 2 * PointerMetaSize > 0 {
 		prevPtr, err := ptr.prev()
 		if err != nil {
-			return errors.Wrap(err, "failed to get freed ptr prev ptr")
+			panic(errors.Wrap(err, "failed to get freed ptr prev ptr"))
 		}
 
 		if prevPtr.meta.free {
@@ -107,7 +115,7 @@ func (a *Allocator) Free(p Pointable) error {
 			ptr.meta.size += prevPtr.meta.size + 2 * PointerMetaSize
 			err := a.freelist.Delete(prevPtr.key())
 			if err != nil {
-				return errors.Wrap(err, "failed to delete freelist item")
+				panic(errors.Wrap(err, "failed to delete freelist item"))
 			}
 		}
 	}
@@ -118,18 +126,14 @@ func (a *Allocator) Free(p Pointable) error {
 		Val: &rbtree.DummyVal{},
 	})
 	if err != nil {
-		return errors.Wrap(err, "failed to insert ptr to freelist")
+		panic(errors.Wrap(err, "failed to insert ptr to freelist"))
+	} else if err := ptr.writeMeta(); err != nil {
+		panic(errors.Wrap(err, "failed to update freed ptr meta"))
 	}
-
-	return errors.Wrap(ptr.writeMeta(), "failed to update freed ptr meta")
 }
 
-func (a *Allocator) PreAlloc(size uint32) error {
-	ptr, err := a.Alloc(size)
-	if err != nil {
-		return err
-	}
-	return a.Free(ptr)
+func (a *Allocator) PreAlloc(size uint32) {
+	a.Free(a.Alloc(size))
 }
 
 func (a *Allocator) Size() uint64 {
@@ -198,8 +202,8 @@ func (a *Allocator) init() error {
 		return a.metaPtr.Get(a.meta)
 	}
 
-	_, err := a.Alloc(metadataSize)
-	return err
+	a.Alloc(metadataSize)
+	return nil
 }
 
 func (a *Allocator) writeMeta() error {

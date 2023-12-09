@@ -30,11 +30,19 @@ type Options struct {
 	// the better.
 	MaxValueSize int
 
-	// number of keys per node
+	// number of children per node
 	Degree int
+
+	// if set True, values inserted must be unique, othervise values can repeat
+	// but BPTree will add extra bytes at end of key to maintain uniqueness
+	Uniq bool
 }
 
 type PutOptions struct {
-	Uniq   bool
 	Update bool
+}
+
+type ScanOptions struct {
+	Reverse bool
+	Strict  bool
 }

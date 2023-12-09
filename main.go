@@ -156,11 +156,12 @@ func main() {
 	bptreeFile := path.Join(pwd, "test", "bptree")
 
 	tree, err := bptree.Open(bptreeFile, &bptree.Options{
-		PageSize: os.Getpagesize(),
-		MaxKeySize: 4,
+		PageSize:     os.Getpagesize(),
+		MaxKeySize:   4,
 		MaxValueSize: 1,
-		Degree: 5,
-		KeyCols: 1,
+		Degree:       3,
+		KeyCols:      1,
+		Uniq:         false,
 	})
 	if err != nil {
 		logrus.Fatal(err)
@@ -182,12 +183,11 @@ func main() {
 
 	// list := make([][][]byte, 0, 1000)
 	// // tree.PrepareSpace(2*1024)
-	// for i := 0; i < 100; i++ {
+	// for i := 0; i < 10; i++ {
 	// 	key := make([]byte, 4)
 	// 	binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
 	// 	list = append(list, [][]byte{key})
 	// 	err = tree.PutMem(list[i], []byte{list[i][0][1]}, &bptree.PutOptions{
-	// 		Uniq:   false,
 	// 		Update: false,
 	// 	})
 	// 	if err != nil {
@@ -206,41 +206,57 @@ func main() {
 	keys := [][]byte{
 		{5,6,7,8},
 		{2,3,4,5},
-		// {1,2,3,4},
-		{3,4,5,6},
-		// {1,2,3,4},
-		{4,5,6,7},
-		{6,7,8,9},
-		// {1,2,3,4},
 		{1,2,3,4},
-		// {1,2,3,4},
-		// {1,2,3,4},
-		// {1,2,3,4},
+		{6,7,8,9},
+		{3,4,5,6},
+		{1,2,3,4},
+		{2,3,4,5},
+		{6,7,8,9},
+		{2,3,4,5},
+		{4,5,6,7},
+		{3,4,5,6},
+		{6,7,8,9},
 		{8,9,10,11},
+		{1,2,3,4},
+		{2,3,4,5},
+		{2,3,4,5},
+		{1,2,3,4},
 		{10,11,12,13},
-		// {1,2,3,4},
+		{1,2,3,4},
+		{8,9,10,11},
+		{1,2,3,4},
+		{1,2,3,4},
+		{8,9,10,11},
+		{8,9,10,11},
+		{2,3,4,5},
+		{10,11,12,13},
+		{1,2,3,4},
 		{11,12,13,14},
 		{9,10,11,12},
-		// {1,2,3,4},
-		// {1,2,3,4},
+		{1,2,3,4},
+		{1,2,3,4},
 		{7,8,9,10},
-		// {1,2,3,4},
+		{1,2,3,4},
 		{12,13,14,15},
 	}
 	_ = keys
-	for i := range keys {
-		// err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
-		// 	Uniq:   false,
-		// 	Update: false,
-		// })
-		// if err != nil {
-		// 	logrus.Fatal(err)
-		// }
-		fmt.Println(tree.Get([][]byte{keys[i]}))
-	}
-	
-	err = tree.Scan([][]byte{{6,7,8,9}}, false, true, func(key [][]byte, val []byte) (bool, error) {
-		fmt.Println(key, val)
+	// for i := range keys {
+	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, &bptree.PutOptions{
+	// 		Update: false,
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	fmt.Println(tree.Get([][]byte{keys[i]}))
+	// }
+
+	i := 1
+	err = tree.Scan([][]byte{{6,7,8,9}}, bptree.ScanOptions{
+		Reverse: false,
+		Strict:  false,
+	}, func(key [][]byte, val []byte) (bool, error) {
+		fmt.Println(i, key, val)
+		i++
 		return false, nil
 	})
 	if err != nil {

@@ -131,7 +131,10 @@ func (t *Table) FullScanByIndex(
 	reverse bool,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
-	return t.indexes[indexName].tree.Scan(nil, reverse, true, func(key [][]byte, val []byte) (bool, error) {
+	return t.indexes[indexName].tree.Scan(nil, bptree.ScanOptions{
+		Reverse: reverse,
+		Strict:  true,
+	}, func(key [][]byte, val []byte) (bool, error) {
 		ptr := &data.RecordPointer{}
 		ptr.UnmarshalBinary(val)
 		row, err := t.Get(ptr)
