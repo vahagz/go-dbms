@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -20,7 +21,7 @@ func init() {
 			}
 
 			return &DataTypeVARCHARMeta{
-				Cap: convert(args[0], new(uint16)),
+				Cap: helpers.Convert(args[0], new(uint16)),
 			}
 		},
 	}
@@ -68,9 +69,14 @@ func (t *DataTypeVARCHAR) Value() interface{} {
 
 func (t *DataTypeVARCHAR) Set(value interface{}) DataType {
 	switch value.(type) {
-	case []byte: t.Len = uint16(copy(t.value, value.([]byte)))
-	case string: t.Len = uint16(copy(t.value, []byte(value.(string))))
-	default:     panic(fmt.Errorf("invalid set data type => %v", value))
+	case []byte:
+		t.Len = uint16(copy(t.value, value.([]byte)))
+		break
+	case string:
+		t.Len = uint16(copy(t.value, []byte(value.(string))))
+		break
+	default:
+		panic(fmt.Errorf("invalid set data type => %v", value))
 	}
 
 	return t

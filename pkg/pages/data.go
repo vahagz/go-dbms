@@ -12,23 +12,23 @@ var bin = binary.BigEndian
 type Slot interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
-	Size() int
+	Size() uint
 	Copy() interface{}
 }
 
 // header length in page - 1 (flags) + 2 (slots count)
-const pageHeaderSz = 3
+const dataPageHeaderSz = 3
 // 6 is 2 + 2 + 2 (slot size + slot offset size + slot key size)
 const SlotHeaderSz = 6
 
-func NewData[T Slot](id uint64, pageSize int, dst T) *Data[T] {
+func NewData[T Slot](id uint64, pageSize uint16, dst T) *Data[T] {
 	return &Data[T]{
 		dst: dst,
 
 		Dirty:     true,
 		Id:        id,
 		PageSize:  pageSize,
-		freeSpace: pageSize - pageHeaderSz,
+		freeSpace: pageSize - dataPageHeaderSz,
 	}
 }
 
@@ -38,17 +38,16 @@ type Data[T Slot] struct {
 
 	Flags    uint8
 	Dirty    bool
-	PageSize int
+	PageSize uint16
 
 	// page data
-	Id         uint64
-
-	slots      map[uint16]T
-	freeSpace  int
+	Id        uint64
+	slots     map[uint16]T
+	freeSpace uint16
 }
 
 func (p *Data[T]) AddSlot(slot T) (uint16, error) {
-	if p.freeSpace < slot.Size() + SlotHeaderSz {
+	if uint(p.freeSpace) < slot.Size() + SlotHeaderSz {
 		return 0, errors.New("not enough space for new slot")
 	}
 
@@ -92,24 +91,35 @@ func (p *Data[T]) Each(fn func(key uint16, slot T) (bool, error)) (bool, error) 
 }
 
 func (p *Data[T]) CalculateFreeSpace() {
-	fs := p.PageSize - pageHeaderSz
-	slotsSize := 0
+	fs := p.PageSize - dataPageHeaderSz
+	slotsSize := uint(0)
 
 	for _, slot := range p.slots {
-		slotsSize += slot.Size() + SlotHeaderSz
+		slotsSize += slot.Size() + uint(SlotHeaderSz)
 	}
 
-	p.freeSpace = fs - slotsSize
+	p.freeSpace = fs - uint16(slotsSize)
 }
 
-func (p *Data[T]) FreeSpace() int {
+func (p *Data[T]) FreeSpace() uint16 {
 	return p.freeSpace
 }
 
+func (p *Data[T]) Size() uint {
+	sz := uint(dataPageHeaderSz)
+
+	for _, s := range p.slots {
+		sz += SlotHeaderSz + s.Size() // 2 (slot length size) + 2 (slot offset size) + 2 (slot key size) + slot size
+	}
+
+	return sz
+}
+
 func (p *Data[T]) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, p.PageSize)
+	size := p.Size()
+	buf := make([]byte, size)
 	leftOffset := 0
-	rightOffset := p.PageSize
+	rightOffset := size
 
 	buf[leftOffset] = p.Flags
 	leftOffset++
@@ -126,25 +136,22 @@ func (p *Data[T]) MarshalBinary() ([]byte, error) {
 		bin.PutUint16(buf[leftOffset:leftOffset+2], uint16(len(slotBytes)))
 		leftOffset += 2
 
-		bin.PutUint16(buf[leftOffset:leftOffset+2], uint16(rightOffset-len(slotBytes)))
+		bin.PutUint16(buf[leftOffset:leftOffset+2], uint16(rightOffset-uint(len(slotBytes))))
 		leftOffset += 2
 
 		bin.PutUint16(buf[leftOffset:leftOffset+2], slotKey)
 		leftOffset += 2
 
-		copy(buf[rightOffset-len(slotBytes):rightOffset], slotBytes)
-		rightOffset -= len(slotBytes)
+		copy(buf[rightOffset-uint(len(slotBytes)):rightOffset], slotBytes)
+		rightOffset -= uint(len(slotBytes))
 	}
 
 	return buf, nil
 }
 
 func (p *Data[T]) UnmarshalBinary(d []byte) error {
-	if p == nil {
+if p == nil {
 		return errors.New("cannot unmarshal into nil page")
-	}
-	if len(d) != p.PageSize {
-		return errors.New("invalid binary size")
 	}
 
 	offset := 0

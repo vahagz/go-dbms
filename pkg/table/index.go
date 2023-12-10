@@ -13,34 +13,31 @@ type index struct {
 	uniq    bool
 }
 
-var operatorMapping = map[string]struct {
-	cmpOption map[int]bool
-	reverse   bool
-	strict    bool
-} {
+type operator struct {
+	cmpOption  map[int]bool
+	scanOption bptree.ScanOptions
+}
+
+var operatorMapping = map[string]operator {
 	"<":  {
-		cmpOption: map[int]bool{ 1: true },
-		reverse:   true,
-		strict:    false,
+		cmpOption:  map[int]bool{ 1: true },
+		scanOption: bptree.ScanOptions{Reverse: true, Strict: false},
 	},
 	"<=": {
-		cmpOption: map[int]bool{ 1: true, 0: true },
-		reverse:   true,
-		strict:    true,
+		cmpOption:  map[int]bool{ 1: true, 0: true },
+		scanOption: bptree.ScanOptions{Reverse: true, Strict: true},
 	},
 	"=":  {
-		cmpOption: map[int]bool{ 0:  true },
-		strict:    true,
+		cmpOption:  map[int]bool{ 0:  true },
+		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
 	},
 	">=": {
-		cmpOption: map[int]bool{ 0:  true, -1: true },
-		reverse:   false,
-		strict:    true,
+		cmpOption:  map[int]bool{ 0:  true, -1: true },
+		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
 	},
 	">":  {
-		cmpOption: map[int]bool{ -1:  true },
-		reverse:   false,
-		strict:    false,
+		cmpOption:  map[int]bool{ -1:  true },
+		scanOption: bptree.ScanOptions{Reverse: false, Strict: false},
 	},
 }
 
@@ -55,10 +52,8 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 		return err
 	}
 
-	return i.tree.Put(key, val, &bptree.PutOptions{
-		Uniq: i.uniq,
-		Update: false,
-	})
+	_, err = i.tree.Put(key, val, bptree.PutOptions{Update: false})
+	return err
 }
 
 func (i *index) Find(
@@ -72,9 +67,8 @@ func (i *index) Find(
 	}
 
 	op := operatorMapping[operator]
-	reverse, strict := op.reverse, op.strict
 	result := []map[string]types.DataType{}
-	err = i.tree.Scan(key, reverse, strict, func(k [][]byte, v []byte) (bool, error) {
+	err = i.tree.Scan(key, op.scanOption, func(k [][]byte, v []byte) (bool, error) {
 		if i.stop(k, operator, key) {
 			return true, nil
 		}

@@ -131,7 +131,10 @@ func (t *Table) FullScanByIndex(
 	reverse bool,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
-	return t.indexes[indexName].tree.Scan(nil, reverse, true, func(key [][]byte, val []byte) (bool, error) {
+	return t.indexes[indexName].tree.Scan(nil, bptree.ScanOptions{
+		Reverse: reverse,
+		Strict:  true,
+	}, func(key [][]byte, val []byte) (bool, error) {
 		ptr := &data.RecordPointer{}
 		ptr.UnmarshalBinary(val)
 		row, err := t.Get(ptr)
@@ -174,12 +177,9 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
-		ReadOnly:     false,
-		FileMode:     0664,
 		MaxKeySize:   keySize,
 		MaxValueSize: data.RecordPointerSize,
 		PageSize:     os.Getpagesize(),
-		PreAlloc:     100,
 	})
 	if err != nil {
 		return err
@@ -197,14 +197,9 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 	t.indexes[*name] = i
 
-	err = t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
+	return t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
 		return false, i.Insert(ptr, row)
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (t *Table) Columns() []*column.Column {
@@ -247,7 +242,7 @@ func (t *Table) metaPath() string {
 }
 
 func (t *Table) indexPath(name string) string {
-	return path.Join(t.path, indexPath, fmt.Sprintf("%s.idx", name))
+	return path.Join(t.path, indexPath, name)
 }
 
 func (t *Table) readMeta(opts *Options) error {

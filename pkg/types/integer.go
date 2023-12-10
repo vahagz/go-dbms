@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -21,7 +22,7 @@ func init() {
 
 			return &DataTypeINTEGERMeta{
 				Signed:   args[0].(bool),
-				ByteSize: convert(args[1], new(uint8)),
+				ByteSize: helpers.Convert(args[1], new(uint8)),
 			}
 		},
 	}
@@ -68,41 +69,41 @@ func (t *DataTypeINTEGER) Value() interface{} {
 	case 1:
 		if t.Meta.Signed {
 			v := new(int8)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		} else {
 			v := new(uint8)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		}
 	case 2:
 		if t.Meta.Signed {
 			v := new(int16)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		} else {
 			v := new(uint16)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		}
 	case 4:
 		if t.Meta.Signed {
 			v := new(int32)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		} else {
 			v := new(uint32)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		}
 	case 8:
 		if t.Meta.Signed {
 			v := new(int64)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		} else {
 			v := new(uint64)
-			frombytes(t.value, v)
+			helpers.Frombytes(t.value, v)
 			return *v
 		}
 	default:
@@ -111,7 +112,7 @@ func (t *DataTypeINTEGER) Value() interface{} {
 }
 
 func (t *DataTypeINTEGER) Set(value interface{}) DataType {
-	copy(t.value, bytesof(value))
+	copy(t.value, helpers.Bytesof(value))
 	return t
 }
 

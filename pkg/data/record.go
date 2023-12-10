@@ -22,7 +22,7 @@ func (r *record) Copy() interface{} {
 	return &cp
 }
 
-func (r record) Size() int {
+func (r *record) Size() uint {
 	sz := 0
 
 	for i := 0; i < len(r.data); i++ {
@@ -34,10 +34,10 @@ func (r record) Size() int {
 		}
 	}
 
-	return sz
+	return uint(sz)
 }
 
-func (r record) MarshalBinary() ([]byte, error) {
+func (r *record) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, r.Size())
 	offset := 0
 
