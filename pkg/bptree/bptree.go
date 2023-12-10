@@ -157,24 +157,49 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt PutOptions) (bool, e
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key [][]byte) ([]byte, error) {
+func (tree *BPlusTree) Del(key [][]byte) int {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
-	key = helpers.Copy(key)
-	root := tree.rootW()
-	target, index, found := tree.searchRec(root, key, cache.WRITE)
-	if !found {
-		return nil, customerrors.ErrKeyNotFound
+	key = tree.addCounterIfRequired(helpers.Copy(key), counterZero)
+	count := 0
+
+	cnt := true
+	for cnt {
+		cnt = false
+		tree.scan(key, ScanOptions{
+			Reverse: false,
+			Strict:  true,
+		}, cache.NONE, func(
+			k [][]byte,
+			_ []byte,
+			_ int,
+			ptr cache.Pointable[*node],
+		) (bool, error) {
+			if helpers.CompareMatrix(
+				tree.removeCounterIfRequired(key),
+				tree.removeCounterIfRequired(k),
+			) == 0 {
+				cnt = true
+				fmt.Println("==================================")
+				tree.print(tree.rootF(cache.NONE), 0, cache.NONE)
+				fmt.Println("==================================")
+				fmt.Println(k)
+				ptr.Lock()
+				if isDelete := tree.del(k, ptr); isDelete {
+					count++
+				}
+			}
+			return true, nil
+		})
 	}
 
-	// if isDelete {
-	// 	tree.meta.size--
-	// 	tree.meta.dirty = true
-	// }
+	if count > 0 {
+		tree.meta.size -= uint32(count)
+		tree.meta.dirty = true
+	}
 
-	removed := target.Get().remove(index, index + 1)
-	return removed[0].val, tree.WriteAll()
+	return count
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -260,29 +285,37 @@ func (tree *BPlusTree) String() string {
 }
 
 func (tree *BPlusTree) Print() {
-	tree.print(tree.rootR(), 0)
+	root := tree.rootR()
+	defer root.RUnlock()
+	tree.print(root, 0, cache.READ)
 }
 
 func (tree *BPlusTree) ClearCache() {
 	tree.cache.Clear()
 }
 
-func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int) {
+func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int, flag cache.LOCKMODE) {
 	n := nPtr.Get()
 	for i := len(n.entries) - 1; i >= 0; i-- {
 		if !n.isLeaf() {
-			tree.print(tree.fetchR(n.children[i+1]), indent + 4)
+			child := tree.fetchF(n.children[i+1], flag)
+			tree.print(child, indent + 4, flag)
+			defer child.UnlockFlag(flag)
 		}
 		var parentPtr uint64
 		if !nPtr.Get().parent.IsNil() {
-			parentPtr = tree.fetchR(nPtr.Get().parent).Ptr().Addr()
+			parent := tree.fetchF(nPtr.Get().parent, flag)
+			parentPtr = parent.Ptr().Addr()
+			defer parent.UnlockFlag(flag)
 		}
 		// binary.BigEndian.Uint32(n.entries[i].key[0])
 		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, parentPtr)
 	}
 
 	if !n.isLeaf() {
-		tree.print(tree.fetchR(n.children[0]), indent + 4)
+		child := tree.fetchF(n.children[0], flag)
+		tree.print(child, indent + 4, flag)
+		defer child.UnlockFlag(flag)
 	}
 }
 
@@ -366,7 +399,7 @@ func (tree *BPlusTree) insert(e entry) error {
 		return errors.New("key already exists")
 	}
 
-	leaf.Get().insertAt(index, e)
+	leaf.Get().insertEntry(index, e)
 	if leaf.Get().IsFull() {
 		tree.split(leaf)
 		return nil
@@ -469,7 +502,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
 	pv := pPtr.Get()
 	pv.Dirty(true)
 	index, _ := pv.search(pe.key)
-	pv.insertAt(index, pe)
+	pv.insertEntry(index, pe)
 	pv.insertChild(index + 1, siblingPtr.Ptr())
 
 	if pv.parent.IsNil() {
@@ -484,6 +517,311 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
 		return
 	}
 	pPtr.Unlock()
+}
+
+func (tree *BPlusTree) removeFromLeaf(key [][]byte, pPtr, nPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	index, found := nv.search(key)
+	if !found {
+		panic(errors.New("[removeFromLeaf] key not found"))
+	}
+
+	nv.removeEntries(index, index + 1)
+	if pPtr != nil {
+		pv := pPtr.Get()
+		index, _ := pv.search(key)
+		if index != 0 && len(nv.entries) > 0 {
+			pv.Dirty(true)
+			pv.entries[index - 1] = entry{
+				key: helpers.Copy(nv.entries[0].key),
+			}
+		}
+	}
+}
+
+
+func (tree *BPlusTree) removeFromInternal(key [][]byte, nPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	index, found := nv.search(key)
+	if found {
+		leftMostLeaf := tree.fetchR(nv.children[index])
+		leftMostLeaf = tree.leftLeaf(leftMostLeaf, cache.READ)
+		defer leftMostLeaf.RUnlock()
+
+		lv := leftMostLeaf.Get()
+		nv.Dirty(true)
+		nv.entries[index - 1] = entry{
+			key: helpers.Copy(lv.entries[0].key),
+		}
+	}
+}
+
+func (tree *BPlusTree) borrowKeyFromRightLeaf(pPtr, nPtr, rightPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	rv := rightPtr.Get()
+	nv.appendEntry(rv.entries[0])
+	rv.removeEntries(0, 1)
+
+	pv := pPtr.Get()
+	index, _ := pv.search(rv.entries[len(rv.entries)-1].key)
+	pv.Dirty(true)
+	pv.entries[index - 1] = entry{
+		key: helpers.Copy(rv.entries[0].key),
+	}
+}
+
+func (tree *BPlusTree) borrowKeyFromLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	lv := leftPtr.Get()
+	nv.insertEntry(0, lv.entries[len(lv.entries)-1])
+	lv.removeEntries(len(lv.entries) - 1, len(lv.entries))
+
+	pv := pPtr.Get()
+	index, _ := pv.search(nv.entries[len(nv.entries)-1].key)
+	pv.Dirty(true)
+	pv.entries[index - 1] = entry{
+		key: helpers.Copy(nv.entries[0].key),
+	}
+}
+
+func (tree *BPlusTree) mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	rv := rightPtr.Get()
+	nv.Dirty(true)
+	rv.Dirty(true)
+
+	nv.entries = append(nv.entries, rv.entries...)
+	nv.right = rv.right
+	if !nv.right.IsNil() {
+		rightRightPtr := tree.fetchW(nv.right)
+		defer rightRightPtr.Unlock()
+
+		rrv := rightRightPtr.Get()
+		rrv.left = nPtr.Ptr()
+	}
+
+	pv := pPtr.Get()
+	index, _ := pv.search(rv.entries[len(rv.entries)-1].key)
+	pv.removeEntries(index - 1, index)
+	pv.removeChildren(index, index + 1)
+
+	tree.freeNode(rightPtr)
+}
+
+func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+	nv := nPtr.Get()
+	lv := leftPtr.Get()
+	nv.Dirty(true)
+	lv.Dirty(true)
+
+	lv.entries = append(lv.entries, nv.entries...)
+	lv.right = nv.right
+	if !lv.right.IsNil() {
+		leftRightPtr := tree.fetchW(lv.right)
+		defer leftRightPtr.Unlock()
+
+		lrv := leftRightPtr.Get()
+		lrv.left = leftPtr.Ptr()
+	}
+
+	pv := pPtr.Get()
+	index, _ := pv.search(nv.entries[len(nv.entries)-1].key)
+	pv.removeEntries(index - 1, index)
+	pv.removeChildren(index, index + 1)
+
+	tree.freeNode(nPtr)
+}
+
+func (tree *BPlusTree) borrowKeyFromRightInternal(parentIndex int, pPtr, nPtr, rightPtr cache.Pointable[*node]) {
+	pv := pPtr.Get()
+	nv := nPtr.Get()
+	rv := rightPtr.Get()
+
+	nv.appendEntry(pv.entries[parentIndex])
+	pv.Dirty(true)
+	pv.entries[parentIndex] = entry{
+		key: helpers.Copy(rv.entries[0].key),
+	}
+	rv.removeEntries(0, 1)
+	nv.appendChild(rv.children[0])
+	rv.removeChildren(0, 1)
+	
+	lastChildPtr := tree.fetchW(nv.children[len(nv.children)-1])
+	defer lastChildPtr.Unlock()
+	lcv := lastChildPtr.Get()
+	lcv.Dirty(true)
+	lcv.parent = nPtr.Ptr()
+}
+
+func (tree *BPlusTree) borrowKeyFromLeftInternal(parentIndex int, pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+	pv := pPtr.Get()
+	nv := nPtr.Get()
+	lv := leftPtr.Get()
+
+	nv.insertEntry(0, pv.entries[parentIndex - 1])
+	pv.Dirty(true)
+	pv.entries[parentIndex - 1] = entry{
+		key: helpers.Copy(lv.entries[len(lv.entries)-1].key),
+	}
+	lv.removeEntries(len(lv.entries)-1, len(lv.entries))
+	nv.insertChild(0, lv.children[len(lv.children)-1])
+	lv.removeChildren(len(lv.children) - 1, len(lv.children))
+
+	firstChildPtr := tree.fetchW(nv.children[0])
+	defer firstChildPtr.Unlock()
+	fcv := firstChildPtr.Get()
+	fcv.Dirty(true)
+	fcv.parent = nPtr.Ptr()
+}
+
+func (tree *BPlusTree) mergeNodeWithRightInternal(parentIndex int, pPtr, nPtr, rightPtr cache.Pointable[*node]) {
+	pv := pPtr.Get()
+	nv := nPtr.Get()
+	rv := rightPtr.Get()
+
+	nv.appendEntry(pv.entries[parentIndex])
+	pv.removeEntries(parentIndex, parentIndex + 1)
+	pv.removeChildren(parentIndex + 1, parentIndex + 2)
+	nv.entries = append(nv.entries, rv.entries...)
+	nv.children = append(nv.children, rv.children...)
+	for _, childPtr := range rv.children {
+		ptr := tree.fetchW(childPtr)
+		v := ptr.Get()
+		v.Dirty(true)
+		v.parent = nPtr.Ptr()
+		ptr.Unlock()
+	}
+
+	tree.freeNode(rightPtr)
+}
+
+func (tree *BPlusTree) mergeNodeWithLeftInternal(parentIndex int, pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+	pv := pPtr.Get()
+	nv := nPtr.Get()
+	lv := leftPtr.Get()
+
+	lv.appendEntry(pv.entries[parentIndex - 1])
+	pv.removeEntries(parentIndex - 1, parentIndex)
+	pv.removeChildren(parentIndex, parentIndex + 1)
+	lv.entries = append(lv.entries, nv.entries...)
+	lv.children = append(lv.children, nv.children...)
+	for _, childPtr := range nv.children {
+		ptr := tree.fetchW(childPtr)
+		v := ptr.Get()
+		v.Dirty(true)
+		v.parent = leftPtr.Ptr()
+		ptr.Unlock()
+	}
+
+	tree.freeNode(nPtr)
+}
+
+func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
+	var pPtr cache.Pointable[*node]
+	nv := nPtr.Get()
+	if !nv.parent.IsNil() {
+		pPtr = tree.fetchW(nv.parent)
+	}
+
+	if nv.isLeaf() {
+		tree.removeFromLeaf(key, pPtr, nPtr);
+	} else {
+		tree.removeFromInternal(key, nPtr);
+	}
+
+	minCapacity := int(math.Ceil(float64(tree.meta.degree) / 2) - 1)
+
+	if len(nv.entries) < minCapacity {
+		if nPtr.Ptr().Addr() == tree.meta.root.Addr() {
+			if len(nv.entries) == 0 && len(nv.children) != 0 {
+				tree.meta.dirty = true
+				tree.meta.root = nv.children[0]
+				rPtr := tree.rootW()
+				rv := rPtr.Get()
+				rv.Dirty(true)
+				rv.parent = tree.heap.Nil()
+				tree.removeFromInternal(key, rPtr)
+				rPtr.Unlock()
+				tree.freeNode(nPtr)
+				return true
+			}
+		} else if nv.isLeaf() {
+			var rightPtr cache.Pointable[*node]
+			var leftPtr cache.Pointable[*node]
+			var rv *node
+			var lv *node
+
+			if !nv.right.IsNil() {
+				rightPtr = tree.fetchW(nv.right)
+				rv = rightPtr.Get()
+			}
+			if !nv.left.IsNil() {
+				leftPtr = tree.fetchW(nv.left)
+				lv = leftPtr.Get()
+			}
+
+			if        rightPtr != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) > minCapacity {
+				tree.borrowKeyFromRightLeaf(pPtr, nPtr, rightPtr)
+			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) > minCapacity {
+				tree.borrowKeyFromLeftLeaf(pPtr, nPtr, leftPtr)
+			} else if rightPtr != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) <= minCapacity {
+				tree.mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr)
+			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
+				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr)
+			}
+
+			if rightPtr != nil {
+				rightPtr.Unlock()
+			}
+			if leftPtr != nil {
+				leftPtr.Unlock()
+			}
+		} else {
+			pv := pPtr.Get()
+			parentIndex, _ := pv.search(nv.entries[len(nv.entries)-1].key)
+			if pv.children[parentIndex].Addr() != nPtr.Ptr().Addr() {
+				parentIndex = -1
+			}
+
+			var rightPtr cache.Pointable[*node]
+			var leftPtr cache.Pointable[*node]
+			var rv *node
+			var lv *node
+
+			if len(pv.children) > parentIndex + 1 {
+				rightPtr = tree.fetchW(pv.children[parentIndex + 1])
+				rv = rightPtr.Get()
+			}
+			if parentIndex > 0 {
+				leftPtr = tree.fetchW(pv.children[parentIndex - 1])
+				lv = leftPtr.Get()
+			}
+
+			if        rv != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) > minCapacity {
+				tree.borrowKeyFromRightInternal(parentIndex, pPtr, nPtr, rightPtr)
+			} else if lv != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) > minCapacity {
+				tree.borrowKeyFromLeftInternal(parentIndex, pPtr, nPtr, leftPtr)
+			} else if rv != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) <= minCapacity {
+				tree.mergeNodeWithRightInternal(parentIndex, pPtr, nPtr, rightPtr)
+			} else if lv != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
+				tree.mergeNodeWithLeftInternal(parentIndex, pPtr, nPtr, leftPtr)
+			}
+
+			if rightPtr != nil {
+				rightPtr.Unlock()
+			}
+			if leftPtr != nil {
+				leftPtr.Unlock()
+			}
+		}
+	}
+
+	nPtr.Unlock()
+	if (pPtr != nil) {
+		tree.del(key, pPtr);
+	}
+
+	return true
 }
 
 // searchRec searches the sub-tree with root 'n' recursively until the key
@@ -610,6 +948,12 @@ func (tree *BPlusTree) allocInternal() cache.Pointable[*node] {
 	val.children = make([]allocator.Pointable, 0)
 	val.entries = make([]entry, 0)
 	return cPtr
+}
+
+func (tree *BPlusTree) freeNode(ptr cache.Pointable[*node]) {
+	rawPtr := ptr.Ptr()
+	tree.cache.Del(rawPtr)
+	tree.heap.Free(rawPtr)
 }
 
 // addCounterIfRequired adds extra counter bytes at end of key

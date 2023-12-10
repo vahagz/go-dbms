@@ -159,7 +159,7 @@ func main() {
 		PageSize:     os.Getpagesize(),
 		MaxKeySize:   4,
 		MaxValueSize: 1,
-		Degree:       3,
+		Degree:       5,
 		KeyCols:      1,
 		Uniq:         false,
 	})
@@ -204,6 +204,24 @@ func main() {
 	// insertDuration = time.Since(start)
 
 	keys := [][]byte{
+		// {4,5,6,7},
+		// {3,4,5,6},
+		// {6,7,8,9},
+		// {8,9,10,11},
+		// {1,2,3,4},
+		// {2,3,4,5},
+		// {2,3,4,5},
+		// {1,2,3,4},
+		// {10,11,12,13},
+		// {1,2,3,4},
+		// {8,9,10,11},
+		// {1,2,3,4},
+		// {1,2,3,4},
+		// {8,9,10,11},
+		// {8,9,10,11},
+		// {2,3,4,5},
+		// {10,11,12,13},
+
 		{5,6,7,8},
 		{2,3,4,5},
 		{1,2,3,4},
@@ -213,23 +231,6 @@ func main() {
 		{2,3,4,5},
 		{6,7,8,9},
 		{2,3,4,5},
-		{4,5,6,7},
-		{3,4,5,6},
-		{6,7,8,9},
-		{8,9,10,11},
-		{1,2,3,4},
-		{2,3,4,5},
-		{2,3,4,5},
-		{1,2,3,4},
-		{10,11,12,13},
-		{1,2,3,4},
-		{8,9,10,11},
-		{1,2,3,4},
-		{1,2,3,4},
-		{8,9,10,11},
-		{8,9,10,11},
-		{2,3,4,5},
-		{10,11,12,13},
 		{1,2,3,4},
 		{11,12,13,14},
 		{9,10,11,12},
@@ -240,23 +241,36 @@ func main() {
 		{12,13,14,15},
 	}
 	_ = keys
-	// for i := range keys {
-	// 	err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, bptree.PutOptions{
-	// 		Update: false,
-	// 	})
-	// 	if err != nil {
-	// 		logrus.Fatal(err)
-	// 	}
-	// 	fmt.Println(tree.Get([][]byte{keys[i]}))
-	// }
-
-	res, err := tree.Put([][]byte{{6,7,8,9},{11,0,0,0,0,0,0,0}}, []byte{byte(112)}, bptree.PutOptions{
-		Update: true,
-	})
-	if err != nil {
-		logrus.Fatal(err)
+	for i := range keys {
+		_, err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, bptree.PutOptions{
+			Update: false,
+		})
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		// fmt.Println(tree.Get([][]byte{keys[i]}))
 	}
-	fmt.Println(res)
+
+	// res, err := tree.Put([][]byte{{6,7,8,9},{11,0,0,0,0,0,0,0}}, []byte{byte(112)}, bptree.PutOptions{
+	// 	Update: true,
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// fmt.Println(res)
+
+	fmt.Println(tree.Del([][]byte{{2,3,4,5}}))
+	// fmt.Println(tree.Del([][]byte{{3,4,5,6}}))
+	// fmt.Println(tree.Del([][]byte{{1,2,3,4}}))
+	// fmt.Println(tree.Del([][]byte{{7,8,9,10}}))
+	// fmt.Println(tree.Del([][]byte{{6,7,8,9}}))
+	// fmt.Println(tree.Del([][]byte{{11,12,13,14}}))
+	fmt.Println(tree.Del([][]byte{{12,13,14,15}}))
+	// fmt.Println(tree.Del([][]byte{{5,6,7,8}}))
+	// fmt.Println(tree.Del([][]byte{{9,10,11,12}}))
+	fmt.Println("==================================")
+	tree.Print()
+	fmt.Println("==================================")
 
 	i := 1
 	err = tree.Scan(nil, bptree.ScanOptions{
@@ -270,7 +284,6 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	// tree.Print()
 	fmt.Println(tree.Count())
 
 

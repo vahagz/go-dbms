@@ -171,6 +171,8 @@ func (c *Cache[T]) Del(ptr allocator.Pointable) {
 
 func (c *Cache[T]) del(ptr allocator.Pointable) {
 	delete(c.items, ptr.Addr())
+	delete(c.locked, ptr.Addr())
+	delete(c.rlocked, ptr.Addr())
 }
 
 func (c *Cache[T]) Flush() {

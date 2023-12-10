@@ -95,20 +95,37 @@ func (n *node) insertChild(idx int, childPtr allocator.Pointable) {
 }
 
 // insertAt inserts the entry at the given index into the node.
-func (n *node) insertAt(idx int, e entry) {
+func (n *node) insertEntry(idx int, e entry) {
 	n.Dirty(true)
 	n.entries = append(n.entries, entry{})
 	copy(n.entries[idx+1:], n.entries[idx:])
 	n.entries[idx] = e
 }
 
+func (n *node) appendEntry(e entry) {
+	n.Dirty(true)
+	n.entries = append(n.entries, e)
+}
+
+func (n *node) appendChild(p allocator.Pointable) {
+	n.Dirty(true)
+	n.children = append(n.children, p)
+}
+
 // removeAt removes the entry at given index and returns the value
 // that existed.
-func (n *node) remove(from, to int) []entry {
+func (n *node) removeEntries(from, to int) []entry {
 	n.Dirty(true)
 	e := append(make([]entry, 0, to-from), n.entries[from:to]...)
 	n.entries = append(n.entries[:from], n.entries[to:]...)
 	return e
+}
+
+func (n *node) removeChildren(from, to int) []allocator.Pointable {
+	n.Dirty(true)
+	p := append(make([]allocator.Pointable, 0, to-from), n.children[from:to]...)
+	n.children = append(n.children[:from], n.children[to:]...)
+	return p
 }
 
 // update updates the value of the entry with given index.
