@@ -153,6 +153,8 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
+	// os.Remove(path.Join(pwd, "test", "bptree.idx"))
+	// os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
 
 	bptreeFile := path.Join(pwd, "test", "bptree")
 
@@ -247,11 +249,12 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	
-	tree.PrepareSpace(1*1024*1024)
-	list := make([][][]byte, 0, 10000)
-	for i := 0; i < 10000; i++ {
+	tree.PrepareSpace(656*1024)
+	n := 10000
+	list := make([][][]byte, 0, n)
+	for i := 0; i < n; i++ {
 		key := make([]byte, 4)
-		binary.BigEndian.PutUint32(key, uint32(rand.Int31()))
+		binary.BigEndian.PutUint32(key, rand.Uint32())
 		list = append(list, [][]byte{key})
 		_, err = tree.PutMem(list[i], []byte{byte(list[i][0][1])}, bptree.PutOptions{
 			Update: false,
@@ -264,14 +267,13 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < n; i++ {
+		fmt.Println(i)
 		_ = tree.DelMem(list[i])
 	}
 	if err := tree.WriteAll(); err != nil {
 		logrus.Fatal(err)
 	}
-
-	// tree.Print()
 
 	// i := 1
 	// err = tree.Scan(nil, bptree.ScanOptions{
@@ -285,6 +287,7 @@ func main() {
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
+	tree.Print()
 	fmt.Println(tree.Count())
 
 

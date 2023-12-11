@@ -675,17 +675,17 @@ func (tree *RBTree[K, V]) free(ptr uint32) error {
 		}
 	}
 
+	tree.meta.dirty = true
+	tree.meta.top = lastNodePtr
 	topPtr := tree.pointer(tree.meta.top)
-	if lnPtr.pageId < topPtr.pageId {
+
+	if tree.pager.Count() > uint64(topPtr.pageId) + 1 {
 		err := tree.pager.Free(1)
 		if err != nil {
 			return errors.Wrap(err, "failed to free last page")
 		}
-		delete(tree.pages, topPtr.pageId)
+		delete(tree.pages, topPtr.pageId + 1)
 	}
-
-	tree.meta.dirty = true
-	tree.meta.top = lastNodePtr
 
 	return nil
 }

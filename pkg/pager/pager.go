@@ -149,7 +149,7 @@ func (p *Pager) Free(n int) error {
 // enabled.
 func (p *Pager) Read(id uint64) ([]byte, error) {
 	if id < 0 || id >= p.count {
-		return nil, fmt.Errorf("invalid page id (max=%d)", id)
+		return nil, fmt.Errorf("invalid page id=%d (max=%d)", id, p.count-1)
 	} else if p.file == nil {
 		return nil, os.ErrClosed
 	}
