@@ -203,6 +203,9 @@ func main() {
 	// }
 	// insertDuration = time.Since(start)
 
+	fmt.Println("==================================")
+	tree.Print()
+	fmt.Println("==================================")
 	keys := [][]byte{
 		// {4,5,6,7},
 		// {3,4,5,6},
@@ -259,15 +262,20 @@ func main() {
 	// }
 	// fmt.Println(res)
 
-	fmt.Println(tree.Del([][]byte{{2,3,4,5}}))
-	// fmt.Println(tree.Del([][]byte{{3,4,5,6}}))
-	// fmt.Println(tree.Del([][]byte{{1,2,3,4}}))
-	// fmt.Println(tree.Del([][]byte{{7,8,9,10}}))
-	// fmt.Println(tree.Del([][]byte{{6,7,8,9}}))
-	// fmt.Println(tree.Del([][]byte{{11,12,13,14}}))
-	fmt.Println(tree.Del([][]byte{{12,13,14,15}}))
-	// fmt.Println(tree.Del([][]byte{{5,6,7,8}}))
-	// fmt.Println(tree.Del([][]byte{{9,10,11,12}}))
+	/*fmt.Println(*/tree.DelMem([][]byte{{2,3,4,5}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{3,4,5,6}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{1,2,3,4}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{7,8,9,10}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{6,7,8,9}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{11,12,13,14}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{12,13,14,15}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{5,6,7,8}})/*)*/
+	/*fmt.Println(*/tree.DelMem([][]byte{{9,10,11,12}})/*)*/
+
+	if err := tree.WriteAll(); err != nil {
+		logrus.Fatal(err)
+	}
+
 	fmt.Println("==================================")
 	tree.Print()
 	fmt.Println("==================================")

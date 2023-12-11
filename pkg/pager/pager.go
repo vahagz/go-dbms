@@ -228,7 +228,7 @@ func (p *Pager) Write(id uint64, d []byte) error {
 	return nil
 }
 
-// ReadAt reads length count of bytes starting from offset
+// WriteAt writes length count of bytes starting from offset
 func (p *Pager) WriteAt(src []byte, offset uint64) error {
 	if offset + uint64(len(src)) > uint64(p.fileSize) {
 		return fmt.Errorf("invalid file offset (filesize=%d, offset=%d)", p.fileSize, offset)

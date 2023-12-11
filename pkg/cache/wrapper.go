@@ -41,6 +41,7 @@ type Pointable[T pointable] interface {
 	Unlock() *pointerWrapper[T]
 	LockFlag(flag LOCKMODE) *pointerWrapper[T]
 	UnlockFlag(flag LOCKMODE) *pointerWrapper[T]
+	New() T
 	Get() T
 	Set(val T) *pointerWrapper[T]
 	Flush() *pointerWrapper[T]
@@ -139,18 +140,22 @@ func (p *pointerWrapper[T]) UnlockFlag(flag LOCKMODE) *pointerWrapper[T] {
 	return p
 }
 
+func (p *pointerWrapper[T]) New() T {
+	p.accessed = true
+	p.val = p.cache.newItem()
+	return p.val
+}
+
 func (p *pointerWrapper[T]) Get() T {
 	if p.accessed {
 		return p.val
 	}
 
-	itm := p.cache.newItem()
+	itm := p.New()
 	if err := p.ptr.Get(itm); err != nil {
 		panic(errors.Wrap(err, allocator.ErrUnmarshal.Error()))
 	}
 
-	p.accessed = true
-	p.val = itm
 	return itm
 }
 
