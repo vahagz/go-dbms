@@ -13,8 +13,8 @@ const (
 	leafNodeHeaderSz     = 3 + 3 * allocator.PointerSize
 	internalNodeHeaderSz = 3 + 2 * allocator.PointerSize
 
-	flagLeafNode     = uint8(0x0)
-	flagInternalNode = uint8(0x1)
+	flagLeafNode     = uint8(0b00000000)
+	flagInternalNode = uint8(0b00000001)
 )
 
 func internalNodeSize(degree, keySize, keyCols int) int {

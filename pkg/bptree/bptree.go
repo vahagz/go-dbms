@@ -71,7 +71,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		heap:   heap,
 	}
 
-	tree.cache = cache.NewCache[*node](100, tree.newNode)
+	tree.cache = cache.NewCache[*node](1000, tree.newNode)
 
 	if err := tree.open(opts); err != nil {
 		_ = tree.Close()
@@ -294,6 +294,7 @@ func (tree *BPlusTree) String() string {
 func (tree *BPlusTree) Print() {
 	root := tree.rootR()
 	defer root.RUnlock()
+	fmt.Println("============= bptree =============")
 	tree.print(root, 0, cache.READ)
 	fmt.Println("============ freelist ============")
 	tree.heap.Print()
@@ -312,14 +313,8 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int, flag cache
 			tree.print(child, indent + 4, flag)
 			defer child.UnlockFlag(flag)
 		}
-		var parentPtr uint64
-		if !nPtr.Get().parent.IsNil() {
-			parent := tree.fetchF(nPtr.Get().parent, flag)
-			parentPtr = parent.Ptr().Addr()
-			defer parent.UnlockFlag(flag)
-		}
 		// binary.BigEndian.Uint32(n.entries[i].key[0])
-		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, parentPtr)
+		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, nPtr.Ptr().Addr())
 	}
 
 	if !n.isLeaf() {
@@ -618,7 +613,7 @@ func (tree *BPlusTree) mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr cache.Pointab
 	tree.freeNode(rightPtr)
 }
 
-func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr cache.Pointable[*node]) {
 	nv := nPtr.Get()
 	lv := leftPtr.Get()
 	nv.Dirty(true)
@@ -627,11 +622,8 @@ func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable
 	lv.entries = append(lv.entries, nv.entries...)
 	lv.right = nv.right
 	if !lv.right.IsNil() {
-		leftRightPtr := tree.fetchW(lv.right)
-		defer leftRightPtr.Unlock()
-
-		lrv := leftRightPtr.Get()
-		lrv.left = leftPtr.Ptr()
+		rv := rightPtr.Get()
+		rv.left = leftPtr.Ptr()
 	}
 
 	pv := pPtr.Get()
@@ -778,7 +770,7 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 			} else if rightPtr != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) <= minCapacity {
 				tree.mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr)
 			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
-				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr)
+				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr)
 			}
 
 			if rightPtr != nil {
@@ -943,23 +935,11 @@ func (tree *BPlusTree) alloc(nt nodeType) cache.Pointable[*node] {
 
 	cPtr := tree.cache.AddW(tree.heap.Alloc(size))
 	_ = cPtr.New() // in underhoods calls newNode method of bptree and assigns to pointer wrapper
-	if nt == nodeLeaf {
-		fmt.Println("alloc leaf", cPtr.Ptr().Addr())
-	} else {
-		fmt.Println("alloc internal", cPtr.Ptr().Addr())
-	}
 	return cPtr
 }
 
 func (tree *BPlusTree) freeNode(ptr cache.Pointable[*node]) {
 	rawPtr := ptr.Ptr()
-	var msg string
-	if ptr.Get().isLeaf() {
-		msg = "free leaf"
-	} else {
-		msg = "free internal"
-	}
-	fmt.Println(msg, rawPtr.Addr())
 
 	addr := rawPtr.Addr()
 	_ = addr

@@ -84,13 +84,6 @@ func (a *Allocator) Free(p Pointable) {
 		panic(errors.New("invalid Pointer type"))
 	}
 
-	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize == a.meta.top {
-		a.meta.top -= uint64(ptr.meta.size) + 2 * PointerMetaSize
-		// if err := a.writeMeta(); err != nil {
-		// 	panic(errors.Wrap(err, "faield to update meta after free"))
-		// }
-	}
-
 	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize < a.meta.top {
 		if nextPtr, err := ptr.next(); err != nil {
 			panic(errors.Wrap(err, "failed to get freed ptr next ptr"))
@@ -112,6 +105,11 @@ func (a *Allocator) Free(p Pointable) {
 				panic(errors.Wrap(err, "failed to delete freelist item"))
 			}
 		}
+	}
+
+	if ptr.ptr + uint64(ptr.meta.size) + PointerMetaSize == a.meta.top {
+		a.meta.top -= uint64(ptr.meta.size) + 2 * PointerMetaSize
+		return
 	}
 
 	ptr.meta.free = true
@@ -147,12 +145,11 @@ func (a *Allocator) Nil() Pointable {
 }
 
 func (a *Allocator) Print() error {
-	fmt.Print("freelist")
 	if err := a.freelist.Print(5); err != nil {
 		return errors.Wrap(err, "freelist print failed")
 	}
 
-	fmt.Println("\nmeta", a.meta)
+	fmt.Println("meta", a.meta)
 	return nil
 }
 
