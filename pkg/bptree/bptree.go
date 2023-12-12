@@ -35,6 +35,13 @@ const (
 	counterCurrent
 )
 
+type nodeType int
+
+const (
+	nodeLeaf nodeType = iota
+	nodeInternal
+)
+
 // Open opens the named file as a B+ tree index file and returns an instance
 // B+ tree for use. Use ":memory:" for an in-memory B+ tree instance for quick
 // testing setup. Degree of the tree is computed based on maxKeySize and pageSize
@@ -64,7 +71,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		heap:   heap,
 	}
 
-	tree.cache = cache.NewCache[*node](100, tree.newNode)
+	tree.cache = cache.NewCache[*node](1000, tree.newNode)
 
 	if err := tree.open(opts); err != nil {
 		_ = tree.Close()
@@ -157,7 +164,11 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt PutOptions) (bool, e
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key [][]byte) int {
+func (tree *BPlusTree) Del(key [][]byte) (int, error) {
+	return tree.DelMem(key), tree.WriteAll()
+}
+
+func (tree *BPlusTree) DelMem(key [][]byte) int {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
@@ -181,10 +192,6 @@ func (tree *BPlusTree) Del(key [][]byte) int {
 				tree.removeCounterIfRequired(k),
 			) == 0 {
 				cnt = true
-				fmt.Println("==================================")
-				tree.print(tree.rootF(cache.NONE), 0, cache.NONE)
-				fmt.Println("==================================")
-				fmt.Println(k)
 				ptr.Lock()
 				if isDelete := tree.del(k, ptr); isDelete {
 					count++
@@ -287,7 +294,11 @@ func (tree *BPlusTree) String() string {
 func (tree *BPlusTree) Print() {
 	root := tree.rootR()
 	defer root.RUnlock()
+	fmt.Println("============= bptree =============")
 	tree.print(root, 0, cache.READ)
+	fmt.Println("============ freelist ============")
+	tree.heap.Print()
+	fmt.Println("==================================")
 }
 
 func (tree *BPlusTree) ClearCache() {
@@ -302,14 +313,8 @@ func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int, flag cache
 			tree.print(child, indent + 4, flag)
 			defer child.UnlockFlag(flag)
 		}
-		var parentPtr uint64
-		if !nPtr.Get().parent.IsNil() {
-			parent := tree.fetchF(nPtr.Get().parent, flag)
-			parentPtr = parent.Ptr().Addr()
-			defer parent.UnlockFlag(flag)
-		}
 		// binary.BigEndian.Uint32(n.entries[i].key[0])
-		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, parentPtr)
+		fmt.Printf("%*s%v(%v)\n", indent, "", n.entries[i].key, nPtr.Ptr().Addr())
 	}
 
 	if !n.isLeaf() {
@@ -441,9 +446,9 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
 	nv := nPtr.Get()
 	var siblingPtr cache.Pointable[*node]
 	if nv.isLeaf() {
-		siblingPtr = tree.allocLeaf()
+		siblingPtr = tree.alloc(nodeLeaf)
 	} else {
-		siblingPtr = tree.allocInternal()
+		siblingPtr = tree.alloc(nodeInternal)
 	}
 
 	sv := siblingPtr.Get()
@@ -489,7 +494,7 @@ func (tree *BPlusTree) split(nPtr cache.Pointable[*node]) {
 
 	var pPtr cache.Pointable[*node]
 	if nv.parent.IsNil() {
-		pPtr = tree.allocInternal()
+		pPtr = tree.alloc(nodeInternal)
 		tree.meta.dirty = true
 		tree.meta.root = pPtr.Ptr()
 		sv.parent = tree.meta.root
@@ -608,7 +613,7 @@ func (tree *BPlusTree) mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr cache.Pointab
 	tree.freeNode(rightPtr)
 }
 
-func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable[*node]) {
+func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr cache.Pointable[*node]) {
 	nv := nPtr.Get()
 	lv := leftPtr.Get()
 	nv.Dirty(true)
@@ -617,11 +622,9 @@ func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr cache.Pointable
 	lv.entries = append(lv.entries, nv.entries...)
 	lv.right = nv.right
 	if !lv.right.IsNil() {
-		leftRightPtr := tree.fetchW(lv.right)
-		defer leftRightPtr.Unlock()
-
-		lrv := leftRightPtr.Get()
-		lrv.left = leftPtr.Ptr()
+		rv := rightPtr.Get()
+		rv.Dirty(true)
+		rv.left = leftPtr.Ptr()
 	}
 
 	pv := pPtr.Get()
@@ -743,6 +746,7 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 				tree.removeFromInternal(key, rPtr)
 				rPtr.Unlock()
 				tree.freeNode(nPtr)
+				nPtr.Unlock()
 				return true
 			}
 		} else if nv.isLeaf() {
@@ -767,7 +771,7 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 			} else if rightPtr != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) <= minCapacity {
 				tree.mergeNodeWithRightLeaf(pPtr, nPtr, rightPtr)
 			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
-				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr)
+				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr)
 			}
 
 			if rightPtr != nil {
@@ -922,31 +926,16 @@ func (tree *BPlusTree) newNode() *node {
 	}
 }
 
-func (tree *BPlusTree) allocLeaf() cache.Pointable[*node] {
-	cPtr := tree.cache.AddW(tree.heap.Alloc(tree.leafNodeSize()))
-	val := cPtr.Get()
-	val.Dirty(true)
-	val.meta = tree.meta
-	val.right = tree.heap.Nil()
-	val.left = tree.heap.Nil()
-	val.parent = tree.heap.Nil()
-	val.dummyPtr = tree.heap.Nil()
-	val.children = make([]allocator.Pointable, 0)
-	val.entries = make([]entry, 0)
-	return cPtr
-}
+func (tree *BPlusTree) alloc(nt nodeType) cache.Pointable[*node] {
+	var size uint32
+	switch nt {
+		case nodeLeaf: size = tree.leafNodeSize()
+		case nodeInternal: size = tree.internalNodeSize()
+		default: panic(fmt.Errorf("Invalid node type => %v", nt))
+	}
 
-func (tree *BPlusTree) allocInternal() cache.Pointable[*node] {
-	cPtr := tree.cache.AddW(tree.heap.Alloc(tree.internalNodeSize()))
-	val := cPtr.Get()
-	val.Dirty(true)
-	val.meta = tree.meta
-	val.right = tree.heap.Nil()
-	val.left = tree.heap.Nil()
-	val.parent = tree.heap.Nil()
-	val.dummyPtr = tree.heap.Nil()
-	val.children = make([]allocator.Pointable, 0)
-	val.entries = make([]entry, 0)
+	cPtr := tree.cache.AddW(tree.heap.Alloc(size))
+	_ = cPtr.New() // in underhoods calls newNode method of bptree and assigns to pointer wrapper
 	return cPtr
 }
 
@@ -1052,7 +1041,7 @@ func (tree *BPlusTree) init(opts *Options) error {
 
 	tree.metaPtr = tree.heap.Alloc(metadataSize)
 
-	rootPtr := tree.allocLeaf()
+	rootPtr := tree.alloc(nodeLeaf)
 	tree.meta.root = rootPtr.Ptr()
 	rootPtr.Unlock()
 

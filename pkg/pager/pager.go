@@ -149,7 +149,7 @@ func (p *Pager) Free(n int) error {
 // enabled.
 func (p *Pager) Read(id uint64) ([]byte, error) {
 	if id < 0 || id >= p.count {
-		return nil, fmt.Errorf("invalid page id (max=%d)", id)
+		return nil, fmt.Errorf("invalid page id=%d (max=%d)", id, p.count-1)
 	} else if p.file == nil {
 		return nil, os.ErrClosed
 	}
@@ -228,7 +228,7 @@ func (p *Pager) Write(id uint64, d []byte) error {
 	return nil
 }
 
-// ReadAt reads length count of bytes starting from offset
+// WriteAt writes length count of bytes starting from offset
 func (p *Pager) WriteAt(src []byte, offset uint64) error {
 	if offset + uint64(len(src)) > uint64(p.fileSize) {
 		return fmt.Errorf("invalid file offset (filesize=%d, offset=%d)", p.fileSize, offset)

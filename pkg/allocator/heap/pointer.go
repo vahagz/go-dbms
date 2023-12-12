@@ -14,7 +14,7 @@ var ErrInvalidPointer = errors.New("invalid Pointer")
 var ErrUnmarshal = errors.New("unmarshal error")
 var ErrMarshal = errors.New("marshal error")
 
-const PointerSize = 12
+const PointerSize = 8 + PointerMetaSize
 
 type binaryMarshalerUnmarshaler interface {
 	encoding.BinaryMarshaler
@@ -72,14 +72,22 @@ func (p *Pointer) Copy() Pointable {
 
 func (p *Pointer) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, PointerSize)
-	bin.PutUint32(buf[0:4], p.meta.size)
-	bin.PutUint64(buf[4:12], p.ptr)
+
+	if metaBytes, err := p.meta.MarshalBinary(); err != nil {
+		return nil, err
+	} else {
+		copy(buf[0:PointerMetaSize], metaBytes)
+	}
+	bin.PutUint64(buf[PointerMetaSize:PointerMetaSize+8], p.ptr)
+
 	return buf, nil
 }
 
 func (p *Pointer) UnmarshalBinary(d []byte) error {
-	p.meta.size = bin.Uint32(d[0:4])
-	p.ptr = bin.Uint64(d[4:12])
+	if err := p.meta.UnmarshalBinary(d[0:PointerMetaSize]); err != nil {
+		return err
+	}
+	p.ptr = bin.Uint64(d[PointerMetaSize:PointerMetaSize+8])
 	return nil
 }
 

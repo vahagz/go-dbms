@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"go-dbms/pkg/bptree"
@@ -152,6 +153,8 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
+	// os.Remove(path.Join(pwd, "test", "bptree.idx"))
+	// os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
 
 	bptreeFile := path.Join(pwd, "test", "bptree")
 
@@ -203,87 +206,88 @@ func main() {
 	// }
 	// insertDuration = time.Since(start)
 
-	keys := [][]byte{
-		// {4,5,6,7},
-		// {3,4,5,6},
-		// {6,7,8,9},
-		// {8,9,10,11},
-		// {1,2,3,4},
-		// {2,3,4,5},
-		// {2,3,4,5},
-		// {1,2,3,4},
-		// {10,11,12,13},
-		// {1,2,3,4},
-		// {8,9,10,11},
-		// {1,2,3,4},
-		// {1,2,3,4},
-		// {8,9,10,11},
-		// {8,9,10,11},
-		// {2,3,4,5},
-		// {10,11,12,13},
+	// keys := [][]byte{
+	// 	{4,5,6,7},
+	// 	{3,4,5,6},
+	// 	{6,7,8,9},
+	// 	{8,9,10,11},
+	// 	{1,2,3,4},
+	// 	{2,3,4,5},
+	// 	{2,3,4,5},
+	// 	{1,2,3,4},
+	// 	{10,11,12,13},
+	// 	{1,2,3,4},
+	// 	{8,9,10,11},
+	// 	{1,2,3,4},
+	// 	{1,2,3,4},
+	// 	{8,9,10,11},
+	// 	{8,9,10,11},
+	// 	{2,3,4,5},
+	// 	{10,11,12,13},
+	// }
+	// _ = keys
+	// for i := range keys {
+	// 	_, err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, bptree.PutOptions{
+	// 		Update: false,
+	// 	})
+	// 	if err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	// fmt.Println(tree.Get([][]byte{keys[i]}))
+	// }
 
-		{5,6,7,8},
-		{2,3,4,5},
-		{1,2,3,4},
-		{6,7,8,9},
-		{3,4,5,6},
-		{1,2,3,4},
-		{2,3,4,5},
-		{6,7,8,9},
-		{2,3,4,5},
-		{1,2,3,4},
-		{11,12,13,14},
-		{9,10,11,12},
-		{1,2,3,4},
-		{1,2,3,4},
-		{7,8,9,10},
-		{1,2,3,4},
-		{12,13,14,15},
-	}
-	_ = keys
-	for i := range keys {
-		_, err = tree.Put([][]byte{keys[i]}, []byte{byte(i)}, bptree.PutOptions{
+	// fmt.Println(tree.DelMem([][]byte{{2,3,4,5}}))
+	// fmt.Println(tree.DelMem([][]byte{{3,4,5,6}}))
+	// fmt.Println(tree.DelMem([][]byte{{1,2,3,4}}))
+	// fmt.Println(tree.DelMem([][]byte{{7,8,9,10}}))
+	// fmt.Println(tree.DelMem([][]byte{{6,7,8,9}}))
+	// fmt.Println(tree.DelMem([][]byte{{11,12,13,14}}))
+	// fmt.Println(tree.DelMem([][]byte{{12,13,14,15}}))
+	// fmt.Println(tree.DelMem([][]byte{{5,6,7,8}}))
+	// fmt.Println(tree.DelMem([][]byte{{9,10,11,12}}))
+	// if err := tree.WriteAll(); err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	
+	tree.PrepareSpace(656*1024)
+	n := 10000
+	list := make([][][]byte, 0, n)
+	for i := 0; i < n; i++ {
+		key := make([]byte, 4)
+		binary.BigEndian.PutUint32(key, rand.Uint32())
+		list = append(list, [][]byte{key})
+		_, err = tree.PutMem(list[i], []byte{byte(list[i][0][1])}, bptree.PutOptions{
 			Update: false,
 		})
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		// fmt.Println(tree.Get([][]byte{keys[i]}))
+	}
+	if err := tree.WriteAll(); err != nil {
+		logrus.Fatal(err)
 	}
 
-	// res, err := tree.Put([][]byte{{6,7,8,9},{11,0,0,0,0,0,0,0}}, []byte{byte(112)}, bptree.PutOptions{
-	// 	Update: true,
+	for i := 0; i < n; i++ {
+		fmt.Println(i)
+		_ = tree.DelMem(list[i])
+	}
+	if err := tree.WriteAll(); err != nil {
+		logrus.Fatal(err)
+	}
+
+	// i := 1
+	// err = tree.Scan(nil, bptree.ScanOptions{
+	// 	Reverse: false,
+	// 	Strict:  false,
+	// }, func(key [][]byte, val []byte) (bool, error) {
+	// 	fmt.Println(i, key, val)
+	// 	i++
+	// 	return false, nil
 	// })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	// fmt.Println(res)
-
-	fmt.Println(tree.Del([][]byte{{2,3,4,5}}))
-	// fmt.Println(tree.Del([][]byte{{3,4,5,6}}))
-	// fmt.Println(tree.Del([][]byte{{1,2,3,4}}))
-	// fmt.Println(tree.Del([][]byte{{7,8,9,10}}))
-	// fmt.Println(tree.Del([][]byte{{6,7,8,9}}))
-	// fmt.Println(tree.Del([][]byte{{11,12,13,14}}))
-	fmt.Println(tree.Del([][]byte{{12,13,14,15}}))
-	// fmt.Println(tree.Del([][]byte{{5,6,7,8}}))
-	// fmt.Println(tree.Del([][]byte{{9,10,11,12}}))
-	fmt.Println("==================================")
 	tree.Print()
-	fmt.Println("==================================")
-
-	i := 1
-	err = tree.Scan(nil, bptree.ScanOptions{
-		Reverse: false,
-		Strict:  false,
-	}, func(key [][]byte, val []byte) (bool, error) {
-		fmt.Println(i, key, val)
-		i++
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
 	fmt.Println(tree.Count())
 
 
