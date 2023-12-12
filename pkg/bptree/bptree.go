@@ -623,6 +623,7 @@ func (tree *BPlusTree) mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr cache
 	lv.right = nv.right
 	if !lv.right.IsNil() {
 		rv := rightPtr.Get()
+		rv.Dirty(true)
 		rv.left = leftPtr.Ptr()
 	}
 
@@ -940,10 +941,6 @@ func (tree *BPlusTree) alloc(nt nodeType) cache.Pointable[*node] {
 
 func (tree *BPlusTree) freeNode(ptr cache.Pointable[*node]) {
 	rawPtr := ptr.Ptr()
-
-	addr := rawPtr.Addr()
-	_ = addr
-
 	tree.cache.Del(rawPtr)
 	tree.heap.Free(rawPtr)
 }
