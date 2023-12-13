@@ -55,7 +55,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	heap, err := allocator.Open(fileName, &allocator.Options{
 		TargetPageSize: uint16(opts.PageSize),
 		TreePageSize:   uint16(opts.PageSize),
@@ -1065,8 +1065,8 @@ func (tree *BPlusTree) removeCounterIfRequired(key [][]byte) [][]byte {
 // open opens the B+ tree stored on disk using the heap.
 // If heap is empty, a new B+ tree will be initialized.
 func (tree *BPlusTree) open(opts *Options) error {
-	firstPtr := tree.heap.FirstPointer(metadataSize)
-	if tree.heap.Size() == firstPtr.Addr() - allocator.PointerMetaSize {
+	tree.metaPtr = tree.heap.FirstPointer(metadataSize)
+	if tree.heap.Size() == tree.metaPtr.Addr() - allocator.PointerMetaSize {
 		// initialize a new B+ tree
 		return tree.init(opts)
 	}
@@ -1074,7 +1074,6 @@ func (tree *BPlusTree) open(opts *Options) error {
 	tree.meta = &metadata{
 		root: tree.heap.Nil(),
 	}
-	tree.metaPtr = firstPtr
 	if err := tree.metaPtr.Get(tree.meta); err != nil {
 		return errors.Wrap(err, "failed to read meta while opening bptree")
 	}
