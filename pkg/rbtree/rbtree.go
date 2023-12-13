@@ -7,6 +7,7 @@ import (
 	"go-dbms/pkg/pager"
 	"go-dbms/pkg/stack"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -23,6 +24,7 @@ func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error)
 	var v V
 	tree := &RBTree[K, V]{
 		file:     fileName,
+		mu:       &sync.RWMutex{},
 		pager:    p,
 		pages:    map[uint32]*page[K, V]{},
 		degree:   opts.PageSize / uint16(nodeFixedSize + k.Size() + v.Size()),
@@ -40,6 +42,7 @@ func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error)
 
 type RBTree[K, V EntryItem] struct {
 	file     string
+	mu       *sync.RWMutex
 	pager    *pager.Pager
 	pages    map[uint32]*page[K, V] // node cache to avoid IO
 	meta     *metadata              // metadata about tree structure
@@ -55,6 +58,9 @@ func (tree *RBTree[K, V]) Insert(e *Entry[K, V]) error {
 }
 
 func (tree *RBTree[K, V]) InsertMem(e *Entry[K, V]) error {
+	tree.mu.Lock()
+	defer tree.mu.Unlock()
+
 	if e.Size() != int(tree.meta.nodeKeySize + tree.meta.nodeValSize) {
 		return errors.Wrap(ErrInvalidKeySize, "insert entry size missmatch")
 	}
@@ -84,6 +90,9 @@ func (tree *RBTree[K, V]) Get(key K) (*Entry[K, V], error) {
 		return e, errors.Wrap(ErrInvalidKeySize, "insert entry size missmatch")
 	}
 
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
 	ptr, err := tree.get(key)
 	if err != nil && err != ErrNotFound {
 		return e, errors.Wrap(err, "failed to find key")
@@ -101,6 +110,9 @@ func (tree *RBTree[K, V]) Delete(key K) error {
 }
 
 func (tree *RBTree[K, V]) DeleteMem(key K) error {
+	tree.mu.Lock()
+	defer tree.mu.Unlock()
+
 	if key.Size() != int(tree.meta.nodeKeySize) {
 		return errors.Wrap(ErrInvalidKeySize, "delete entry size missmatch")
 	}
@@ -119,6 +131,9 @@ func (tree *RBTree[K, V]) Scan(key K, scanFn func(key K, val V) (bool, error)) e
 	if tree.meta.rootPtr == tree.meta.nullPtr {
 		return nil
 	}
+	
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
 
 	curr := tree.meta.rootPtr
 	if !key.IsNil() {
@@ -162,6 +177,9 @@ func (tree *RBTree[K, V]) Count() int {
 }
 
 func (tree *RBTree[K, V]) Print(count int) error {
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+
 	return tree.print(tree.meta.rootPtr, 0, count)
 }
 
@@ -210,6 +228,9 @@ func (tree *RBTree[K, V]) print(root uint32, space int, count int) error {
 }
 
 func (tree *RBTree[K, V]) WriteAll() error {
+	tree.mu.Lock()
+	defer tree.mu.Unlock()
+
 	return tree.writeAll()
 }
 
