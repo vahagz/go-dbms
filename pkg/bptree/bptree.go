@@ -51,7 +51,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		opts = &defaultOptions
 	}
 
-	p, err := pager.Open(fmt.Sprintf("%s.idx", fileName), int(opts.PageSize), false, 0644)
+	p, err := pager.Open(fmt.Sprintf("%s.idx", fileName), opts.PageSize, false, 0644)
 	if err != nil {
 		return nil, err
 	}
