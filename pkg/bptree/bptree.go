@@ -71,7 +71,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		heap:   heap,
 	}
 
-	tree.cache = cache.NewCache[*node](1000, tree.newNode)
+	tree.cache = cache.NewCache[*node](10000, tree.newNode)
 
 	if err := tree.open(opts); err != nil {
 		_ = tree.Close()
@@ -303,6 +303,102 @@ func (tree *BPlusTree) Print() {
 
 func (tree *BPlusTree) ClearCache() {
 	tree.cache.Clear()
+}
+
+func (tree *BPlusTree) CheckConsistency(list [][]byte) bool {
+	maxChildCount := tree.meta.degree
+	maxEntryCount := maxChildCount - 1
+	minChildCount := uint16(math.Ceil(float64(tree.meta.degree) / 2))
+	minEntryCount := minChildCount - 1
+
+	type Itm struct{
+		val   []byte
+		count int
+	}
+
+	m := map[string]*Itm{}
+	for i := range list {
+		if itm, ok := m[string(list[i])]; ok {
+			itm.count++
+		} else {
+			m[string(list[i])] = &Itm{
+				val: list[i],
+				count: 1,
+			}
+		}
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			if v, check := err.(bool); check && v == false {
+				return
+			}
+
+			panic(err)
+		}
+	}()
+
+	var traverse func(nPtr cache.Pointable[*node], indent int, flag cache.LOCKMODE)
+	traverse = func(nPtr cache.Pointable[*node], indent int, flag cache.LOCKMODE) {
+		n := nPtr.Get()
+
+		entryCount := uint16(len(n.entries))
+		childCount := uint16(len(n.children))
+		if (
+				nPtr.Ptr().Addr() == tree.meta.root.Addr() && (
+					entryCount == 0 ||
+					entryCount > maxEntryCount)) || (
+				nPtr.Ptr().Addr() != tree.meta.root.Addr() && (
+					entryCount < minEntryCount ||
+					entryCount > maxEntryCount)) {
+			if !n.isLeaf() && (
+				childCount < minChildCount ||
+				childCount > maxChildCount) {
+					fmt.Println("node violated")
+					fmt.Println("entry count =>", len(n.entries))
+					fmt.Println("child count =>", len(n.children))
+					fmt.Println("ptr =>", nPtr.Ptr().Addr())
+					panic(false)
+				}
+		}
+
+		for i := len(n.entries) - 1; i >= 0; i-- {
+			if !n.isLeaf() {
+				child := tree.fetchF(n.children[i+1], flag)
+				traverse(child, indent + 4, flag)
+				defer child.UnlockFlag(flag)
+			}
+			
+			if _, ex := m[string(n.entries[i].key[0])]; !ex {
+				if n.isLeaf() {
+					fmt.Println("unexpected leaf entry value =>", n.entries[i].key[0])
+				} else if !n.isLeaf() {
+					fmt.Println("unexpected internal entry value =>", n.entries[i].key[0])
+				}
+				panic(false)
+			}
+		}
+
+		if !n.isLeaf() {
+			child := tree.fetchF(n.children[0], flag)
+			traverse(child, indent + 4, flag)
+			defer child.UnlockFlag(flag)
+		}
+	}
+
+	traverse(tree.rootF(cache.NONE), 0, cache.NONE)
+
+	for k := range m {
+		vals, err := tree.Get([][]byte{m[k].val})
+		if err != nil {
+			panic(err)
+		} else if len(vals) == 0 {
+			fmt.Println("key not found =>", m[k])
+			panic(false)
+		}
+	}
+
+	return true
 }
 
 func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int, flag cache.LOCKMODE) {
@@ -746,24 +842,27 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 				tree.removeFromInternal(key, rPtr)
 				rPtr.Unlock()
 				tree.freeNode(nPtr)
-				nPtr.Unlock()
-				return true
-			}
-		} else if nv.isLeaf() {
-			var rightPtr cache.Pointable[*node]
-			var leftPtr cache.Pointable[*node]
-			var rv *node
-			var lv *node
-
-			if !nv.right.IsNil() {
-				rightPtr = tree.fetchW(nv.right)
-				rv = rightPtr.Get()
-			}
-			if !nv.left.IsNil() {
-				leftPtr = tree.fetchW(nv.left)
-				lv = leftPtr.Get()
 			}
 
+			nPtr.Unlock()
+			return true
+		}
+
+		var rightPtr cache.Pointable[*node]
+		var leftPtr cache.Pointable[*node]
+		var rv *node
+		var lv *node
+
+		if !nv.right.IsNil() {
+			rightPtr = tree.fetchW(nv.right)
+			rv = rightPtr.Get()
+		}
+		if !nv.left.IsNil() {
+			leftPtr = tree.fetchW(nv.left)
+			lv = leftPtr.Get()
+		}
+
+		if nv.isLeaf() {
 			if        rightPtr != nil && rv.parent.Addr() == nv.parent.Addr() && len(rv.entries) > minCapacity {
 				tree.borrowKeyFromRightLeaf(pPtr, nPtr, rightPtr)
 			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) > minCapacity {
@@ -773,24 +872,12 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 			} else if leftPtr != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
 				tree.mergeNodeWithLeftLeaf(pPtr, nPtr, leftPtr, rightPtr)
 			}
-
-			if rightPtr != nil {
-				rightPtr.Unlock()
-			}
-			if leftPtr != nil {
-				leftPtr.Unlock()
-			}
 		} else {
 			pv := pPtr.Get()
 			parentIndex, _ := pv.search(nv.entries[len(nv.entries)-1].key)
 			if pv.children[parentIndex].Addr() != nPtr.Ptr().Addr() {
 				parentIndex = -1
 			}
-
-			var rightPtr cache.Pointable[*node]
-			var leftPtr cache.Pointable[*node]
-			var rv *node
-			var lv *node
 
 			if len(pv.children) > parentIndex + 1 {
 				rightPtr = tree.fetchW(pv.children[parentIndex + 1])
@@ -810,13 +897,16 @@ func (tree *BPlusTree) del(key [][]byte, nPtr cache.Pointable[*node]) bool {
 			} else if lv != nil && lv.parent.Addr() == nv.parent.Addr() && len(lv.entries) <= minCapacity {
 				tree.mergeNodeWithLeftInternal(parentIndex, pPtr, nPtr, leftPtr)
 			}
+		}
 
-			if rightPtr != nil {
-				rightPtr.Unlock()
-			}
-			if leftPtr != nil {
-				leftPtr.Unlock()
-			}
+		tree.removeFromInternal(key, nPtr)
+		if rightPtr != nil {
+			tree.removeFromInternal(key, rightPtr)
+			rightPtr.Unlock()
+		}
+		if leftPtr != nil {
+			tree.removeFromInternal(key, leftPtr)
+			leftPtr.Unlock()
 		}
 	}
 

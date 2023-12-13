@@ -15,7 +15,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var rand = r.New(r.NewSource(time.Now().Unix()))
+// var seed = time.Now().Unix()
+var seed int64 = 1702483180
+var rand = r.New(r.NewSource(seed))
 
 // func main() {
 // 	configs := config.New()
@@ -153,8 +155,8 @@ var rand = r.New(r.NewSource(time.Now().Unix()))
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
-	// os.Remove(path.Join(pwd, "test", "bptree.idx"))
-	// os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
+	os.Remove(path.Join(pwd, "test", "bptree.idx"))
+	os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
 
 	bptreeFile := path.Join(pwd, "test", "bptree")
 
@@ -162,7 +164,7 @@ func main() {
 		PageSize:     os.Getpagesize(),
 		MaxKeySize:   4,
 		MaxValueSize: 1,
-		Degree:       5,
+		Degree:       201,
 		KeyCols:      1,
 		Uniq:         false,
 	})
@@ -172,11 +174,14 @@ func main() {
 
 	var getDuration time.Duration
 	var insertDuration time.Duration
+	var deleteDuration time.Duration
 	start := time.Now()
 	exitFunc := func() {
 		fmt.Println("\nINSERT DURATION =>", insertDuration)
+		fmt.Println("\nDELETE DURATION =>", deleteDuration)
 		fmt.Println("\nGET DURATION =>", getDuration)
 		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
+		fmt.Println("\nSEED =>", seed)
 		if err := tree.Close(); err != nil {
 			logrus.Error(err)
 		}
@@ -249,30 +254,67 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	
-	tree.PrepareSpace(656*1024)
-	n := 10000
-	list := make([][][]byte, 0, n)
-	for i := 0; i < n; i++ {
-		key := make([]byte, 4)
-		binary.BigEndian.PutUint32(key, rand.Uint32())
-		list = append(list, [][]byte{key})
-		_, err = tree.PutMem(list[i], []byte{byte(list[i][0][1])}, bptree.PutOptions{
-			Update: false,
-		})
-		if err != nil {
+	tree.PrepareSpace(32*1024*1024)
+	n := 1000000
+
+	// for i := 0; i < 7_000_000; i++ {
+	// 	rand.Int()
+	// }
+
+	for j := 0; j < 1000; j++ {
+		fmt.Println(j)
+		seed = time.Now().Unix()
+		rand = r.New(r.NewSource(seed))
+
+		list := make([][]byte, 0, n)
+		insertStart := time.Now()
+		for i := 0; i < n; i++ {
+			key := make([]byte, 4)
+			// numbers = append(numbers, uint32(rand.Int()))
+			// binary.BigEndian.PutUint32(key, numbers[i])
+			binary.BigEndian.PutUint32(key, uint32(rand.Int()))
+			list = append(list, key)
+			_, err = tree.PutMem([][]byte{list[i]}, []byte{byte(list[i][1])}, bptree.PutOptions{
+				Update: false,
+			})
+			if err != nil {
+				logrus.Fatal(err)
+			}
+
+			if i + 1 % 100000 == 0 {
+				if ok := tree.CheckConsistency(list); !ok {
+					fmt.Println(i)
+					panic("consistency check failed (while inserting)")
+				}
+			}
+		}
+		if err := tree.WriteAll(); err != nil {
 			logrus.Fatal(err)
 		}
-	}
-	if err := tree.WriteAll(); err != nil {
-		logrus.Fatal(err)
-	}
+		insertDuration = time.Since(insertStart)
 
-	for i := 0; i < n; i++ {
-		fmt.Println(i)
-		_ = tree.DelMem(list[i])
-	}
-	if err := tree.WriteAll(); err != nil {
-		logrus.Fatal(err)
+		if ok := tree.CheckConsistency(list[:]); !ok {
+			panic("consistency check failed (after insert)")
+		}
+
+		deleteStart := time.Now()
+		for i := 0; i < n; i++ {
+			_ = tree.DelMem([][]byte{list[i]})
+
+			if i + 1 % 100000 == 0 {
+				if ok := tree.CheckConsistency(list[i+1:]); !ok {
+					fmt.Println(i)
+					panic("consistency check failed (while deleting)")
+				}
+			}
+		}
+		if err := tree.WriteAll(); err != nil {
+			logrus.Fatal(err)
+		}
+		deleteDuration = time.Since(deleteStart)
+
+		fmt.Println("insert =>", insertDuration)
+		fmt.Println("delete =>", deleteDuration)
 	}
 
 	// i := 1
@@ -287,7 +329,7 @@ func main() {
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	tree.Print()
+	// tree.Print()
 	fmt.Println(tree.Count())
 
 
