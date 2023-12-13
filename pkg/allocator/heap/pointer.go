@@ -25,6 +25,8 @@ type Pointable interface {
 	Get(into encoding.BinaryUnmarshaler) error
 	Set(from encoding.BinaryMarshaler) error
 	Addr() uint64
+	Size() uint32
+	IsFree() bool
 	IsNil() bool
 	Copy() Pointable
 	binaryMarshalerUnmarshaler
@@ -60,6 +62,14 @@ func (p *Pointer) Set(from encoding.BinaryMarshaler) error {
 
 func (p *Pointer) Addr() uint64 {
 	return p.ptr
+}
+
+func (p *Pointer) Size() uint32 {
+	return p.meta.size
+}
+
+func (p *Pointer) IsFree() bool {
+	return p.meta.free
 }
 
 func (p *Pointer) IsNil() bool {

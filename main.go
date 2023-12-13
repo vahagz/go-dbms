@@ -257,10 +257,6 @@ func main() {
 	tree.PrepareSpace(32*1024*1024)
 	n := 1000000
 
-	// for i := 0; i < 7_000_000; i++ {
-	// 	rand.Int()
-	// }
-
 	for j := 0; j < 1000; j++ {
 		fmt.Println(j)
 		seed = time.Now().Unix()

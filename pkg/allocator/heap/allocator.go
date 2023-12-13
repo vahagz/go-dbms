@@ -124,6 +124,34 @@ func (a *Allocator) Free(p Pointable) {
 	}
 }
 
+func (a *Allocator) Scan(startPtr Pointable, scanFn func(Pointable) (bool, error)) (err error) {
+	var ptr *Pointer
+
+	if startPtr == nil {
+		startPtr = a.metaPtr
+	}
+
+	ptr = startPtr.(*Pointer)
+	ptr, err = ptr.next()
+	if err != nil {
+		return err
+	}
+
+	cnt := true
+	for cnt {
+		cnt = ptr.Addr() + uint64(ptr.Size()) + PointerMetaSize < a.meta.top
+		if stop, err := scanFn(ptr); err != nil {
+			return err
+		} else if stop {
+			return nil
+		} else if ptr, err = ptr.next(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (a *Allocator) PreAlloc(size uint32) {
 	a.Free(a.Alloc(size))
 }

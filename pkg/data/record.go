@@ -1,7 +1,6 @@
 package data
 
 import (
-	"errors"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/types"
 )
@@ -16,25 +15,31 @@ type record struct {
 	columns []*column.Column // list of columns
 }
 
-func (r *record) Copy() interface{} {
-	cp := *r
-	r.data = nil
-	return &cp
+func (r *record) IsDirty() bool {
+	return r.dirty
 }
 
-func (r *record) Size() uint {
-	sz := 0
+func (r *record) Dirty(v bool) {
+	r.dirty = v
+}
+
+func (r *record) IsNil() bool {
+	return r == nil
+}
+
+func (r *record) Size() uint32 {
+	var sz uint32 = 0
 
 	for i := 0; i < len(r.data); i++ {
 		// 1 for the type code size
-		sz += 1 + r.data[i].Size()
+		sz += 1 + uint32(r.data[i].Size())
 
 		if !r.data[i].IsFixedSize() {
 			sz += 2
 		}
 	}
 
-	return uint(sz)
+	return sz
 }
 
 func (r *record) MarshalBinary() ([]byte, error) {
@@ -58,10 +63,6 @@ func (r *record) MarshalBinary() ([]byte, error) {
 }
 
 func (r *record) UnmarshalBinary(d []byte) error {
-	if r == nil {
-		return errors.New("cannot unmarshal into nil record")
-	}
-
 	offset := 0
 	r.data = make([]types.DataType, len(r.columns))
 
