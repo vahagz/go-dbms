@@ -3,6 +3,7 @@ package table
 import (
 	"encoding/json"
 	"fmt"
+	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
@@ -20,10 +21,10 @@ const (
 )
 
 type Table struct {
-	path       string
-	df         *data.DataFile
-	meta       *metadata
-	indexes    map[string]*index
+	path    string
+	df      *data.DataFile
+	meta    *metadata
+	indexes map[string]*index
 }
 
 func Open(tablePath string, opts *Options) (*Table, error) {
@@ -53,7 +54,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 	return table, nil
 }
 
-func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, error) {
+func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, error) {
 	dataToInsert := []types.DataType{}
 	dataToInsertMap := map[string]types.DataType{}
 	
@@ -76,7 +77,7 @@ func (t *Table) Insert(values map[string]types.DataType) (*data.RecordPointer, e
 		dataToInsertMap[column.Name] = dataToInsert[len(dataToInsert)-1]
 	}
 
-	ptr, err := t.df.InsertRecord(dataToInsert)
+	ptr, err := t.df.Insert(dataToInsert)
 	if err != nil {
 		return nil, err
 	}
@@ -95,13 +96,9 @@ func (t *Table) FindByIndex(indexName string, operator string, values map[string
 	result, err := t.indexes[indexName].Find(
 		values,
 		operator,
-		func(ptr *data.RecordPointer) (map[string]types.DataType, error) {
-			row, err := t.Get(ptr)
-			if err != nil {
-				return nil, err
-			}
-
-			return row, nil
+		func(ptr allocator.Pointable) (map[string]types.DataType, error) {
+			t.df.Link(ptr)
+			return t.Get(ptr), nil
 		},
 	)
 	if err != nil {
@@ -111,17 +108,12 @@ func (t *Table) FindByIndex(indexName string, operator string, values map[string
 	return result, nil
 }
 
-func (t *Table) Get(ptr *data.RecordPointer) (map[string]types.DataType, error) {
-	records, err := t.df.GetPage(ptr.PageId)
-	if err != nil {
-		return nil, err
-	}
-
-	return t.row2map(records[ptr.SlotId]), nil
+func (t *Table) Get(ptr allocator.Pointable) map[string]types.DataType {
+	return t.row2map(t.df.Get(ptr))
 }
 
-func (t *Table) FullScan(scanFn func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error)) error {
-	return t.df.Scan(func(ptr *data.RecordPointer, row []types.DataType) (bool, error) {
+func (t *Table) FullScan(scanFn func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error)) error {
+	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
 		return scanFn(ptr, t.row2map(row))
 	})
 }
@@ -135,14 +127,9 @@ func (t *Table) FullScanByIndex(
 		Reverse: reverse,
 		Strict:  true,
 	}, func(key [][]byte, val []byte) (bool, error) {
-		ptr := &data.RecordPointer{}
+		ptr := t.df.Pointer()
 		ptr.UnmarshalBinary(val)
-		row, err := t.Get(ptr)
-		if err != nil {
-			return false, err
-		}
-
-		return scanFn(row)
+		return scanFn(t.Get(ptr))
 	})
 }
 
@@ -178,7 +165,7 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 
 	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
 		MaxKeySize:   keySize,
-		MaxValueSize: data.RecordPointerSize,
+		MaxValueSize: allocator.PointerSize,
 		PageSize:     os.Getpagesize(),
 	})
 	if err != nil {
@@ -191,13 +178,14 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 		Uniq:    uniq,
 	})
 	i := &index{
+		df:      t.df,
 		tree:    tree,
 		columns: columns,
 		uniq:    uniq,
 	}
 	t.indexes[*name] = i
 
-	return t.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
+	return t.FullScan(func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error) {
 		return false, i.Insert(ptr, row)
 	})
 }
@@ -288,6 +276,7 @@ func (t *Table) readIndexes() error {
 		}
 
 		t.indexes[metaindex.Name] = &index{
+			df:      t.df,
 			tree:    bpt,
 			columns: metaindex.Columns,
 			uniq:    metaindex.Uniq,

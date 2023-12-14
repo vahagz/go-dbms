@@ -1,6 +1,7 @@
 package table
 
 import (
+	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
@@ -8,6 +9,7 @@ import (
 )
 
 type index struct {
+	df      *data.DataFile
 	tree    *bptree.BPlusTree
 	columns []string
 	uniq    bool
@@ -41,7 +43,7 @@ var operatorMapping = map[string]operator {
 	},
 }
 
-func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType) error {
+func (i *index) Insert(ptr allocator.Pointable, values map[string]types.DataType) error {
 	key, err := i.key(values)
 	if err != nil {
 		return err
@@ -59,7 +61,7 @@ func (i *index) Insert(ptr *data.RecordPointer, values map[string]types.DataType
 func (i *index) Find(
 	values map[string]types.DataType,
 	operator string,
-	scanFn func(ptr *data.RecordPointer) (map[string]types.DataType, error),
+	scanFn func(ptr allocator.Pointable) (map[string]types.DataType, error),
 ) ([]map[string]types.DataType, error) {
 	key, err := i.key(values)
 	if err != nil {
@@ -73,7 +75,7 @@ func (i *index) Find(
 			return true, nil
 		}
 
-		ptr := &data.RecordPointer{}
+		ptr := i.df.Pointer()
 		err := ptr.UnmarshalBinary(v)
 		if err != nil {
 			return false, err

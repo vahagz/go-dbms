@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"go-dbms/pkg/bptree"
+	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/column"
+	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
@@ -15,8 +15,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// var seed = time.Now().Unix()
-var seed int64 = 1702483180
+var seed = time.Now().Unix()
+// var seed int64 = 1702483180
 var rand = r.New(r.NewSource(seed))
 
 // func main() {
@@ -115,8 +115,6 @@ var rand = r.New(r.NewSource(seed))
 // 	// 	logrus.Fatal(err)
 // 	// }
 
-// 	// TODO: handle case when count of duplicate entries in node doesn't fit in page
-// 	// TODO: add freelist logic
 // 	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
 // 		printData(table.Columns(), []map[string]types.DataType{row})
 // 		return false, nil
@@ -155,18 +153,32 @@ var rand = r.New(r.NewSource(seed))
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 	pwd, _ := os.Getwd()
-	os.Remove(path.Join(pwd, "test", "bptree.idx"))
-	os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
+	// os.Remove(path.Join(pwd, "test", "bptree.idx"))
+	// os.Remove(path.Join(pwd, "test", "bptree_freelist.bin"))
 
-	bptreeFile := path.Join(pwd, "test", "bptree")
+	// bptreeFile := path.Join(pwd, "test", "bptree")
 
-	tree, err := bptree.Open(bptreeFile, &bptree.Options{
-		PageSize:     os.Getpagesize(),
-		MaxKeySize:   4,
-		MaxValueSize: 1,
-		Degree:       201,
-		KeyCols:      1,
-		Uniq:         false,
+	// tree, err := bptree.Open(bptreeFile, &bptree.Options{
+	// 	PageSize:     os.Getpagesize(),
+	// 	MaxKeySize:   4,
+	// 	MaxValueSize: 1,
+	// 	Degree:       10,
+	// 	KeyCols:      1,
+	// 	Uniq:         false,
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	dataFile := path.Join(pwd, "test", "data.bin")
+
+	df, err := data.Open(dataFile, &data.Options{
+		PageSize: os.Getpagesize(),
+		Columns: []*column.Column{
+			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4)),
+			column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
+			column.New("lastname",  types.Meta(types.TYPE_VARCHAR, 32)),
+		},
 	})
 	if err != nil {
 		logrus.Fatal(err)
@@ -177,17 +189,47 @@ func main() {
 	var deleteDuration time.Duration
 	start := time.Now()
 	exitFunc := func() {
-		fmt.Println("\nINSERT DURATION =>", insertDuration)
-		fmt.Println("\nDELETE DURATION =>", deleteDuration)
-		fmt.Println("\nGET DURATION =>", getDuration)
-		fmt.Println("\nTOTAL DURATION =>", time.Since(start))
-		fmt.Println("\nSEED =>", seed)
-		if err := tree.Close(); err != nil {
+		fmt.Println()
+		fmt.Println("INSERT DURATION =>", insertDuration)
+		fmt.Println("DELETE DURATION =>", deleteDuration)
+		fmt.Println("GET DURATION =>", getDuration)
+		fmt.Println("TOTAL DURATION =>", time.Since(start))
+		fmt.Println("SEED =>", seed)
+		if err := df.Close(); err != nil {
 			logrus.Error(err)
 		}
+		// if err := tree.Close(); err != nil {
+		// 	logrus.Error(err)
+		// }
 	}
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
+
+
+	row := []types.DataType{
+		types.Type(types.Meta(types.TYPE_INTEGER, true, 4)).Set(5),
+		types.Type(types.Meta(types.TYPE_VARCHAR, 32)).Set(randomString(7)),
+		types.Type(types.Meta(types.TYPE_VARCHAR, 32)).Set(randomString(13)),
+	}
+	ptr, err := df.Insert(row)
+	if err != nil {
+		logrus.Fatal(err)
+	} else {
+		fmt.Println("inserted =>", ptr, row[0].Value(), row[1].Value(), row[2].Value())
+	}
+
+	df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+		fmt.Println(ptr, row[0].Value(), row[1].Value(), row[2].Value())
+		return false, nil
+	})
+
+	fmt.Println()
+	df.Delete(ptr)
+
+	df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+		fmt.Println(ptr, row[0].Value(), row[1].Value(), row[2].Value())
+		return false, nil
+	})
 
 	// list := make([][][]byte, 0, 1000)
 	// // tree.PrepareSpace(2*1024)
@@ -254,64 +296,62 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	
-	tree.PrepareSpace(32*1024*1024)
-	n := 1000000
+	// tree.PrepareSpace(30*1024*1024)
+	// n := 1000
 
-	for j := 0; j < 1000; j++ {
-		fmt.Println(j)
-		seed = time.Now().Unix()
-		rand = r.New(r.NewSource(seed))
+	// for j := 0; j < 1; j++ {
+	// 	fmt.Println(j)
+	// 	seed = time.Now().Unix()
+	// 	rand = r.New(r.NewSource(seed))
 
-		list := make([][]byte, 0, n)
-		insertStart := time.Now()
-		for i := 0; i < n; i++ {
-			key := make([]byte, 4)
-			// numbers = append(numbers, uint32(rand.Int()))
-			// binary.BigEndian.PutUint32(key, numbers[i])
-			binary.BigEndian.PutUint32(key, uint32(rand.Int()))
-			list = append(list, key)
-			_, err = tree.PutMem([][]byte{list[i]}, []byte{byte(list[i][1])}, bptree.PutOptions{
-				Update: false,
-			})
-			if err != nil {
-				logrus.Fatal(err)
-			}
+	// 	list := make([][]byte, 0, n)
+	// 	insertStart := time.Now()
+	// 	for i := 0; i < n; i++ {
+	// 		key := make([]byte, 4)
+	// 		binary.BigEndian.PutUint32(key, uint32(rand.Int()))
+	// 		list = append(list, key)
+	// 		_, err = tree.PutMem([][]byte{list[i]}, []byte{byte(list[i][1])}, bptree.PutOptions{
+	// 			Update: false,
+	// 		})
+	// 		if err != nil {
+	// 			logrus.Fatal(err)
+	// 		}
 
-			if i + 1 % 100000 == 0 {
-				if ok := tree.CheckConsistency(list); !ok {
-					fmt.Println(i)
-					panic("consistency check failed (while inserting)")
-				}
-			}
-		}
-		if err := tree.WriteAll(); err != nil {
-			logrus.Fatal(err)
-		}
-		insertDuration = time.Since(insertStart)
+	// 		if i + 1 % 100000 == 0 {
+	// 			if ok := tree.CheckConsistency(list); !ok {
+	// 				fmt.Println(i)
+	// 				panic("consistency check failed (while inserting)")
+	// 			}
+	// 		}
+	// 	}
+	// 	if err := tree.WriteAll(); err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	insertDuration = time.Since(insertStart)
 
-		if ok := tree.CheckConsistency(list[:]); !ok {
-			panic("consistency check failed (after insert)")
-		}
+	// 	if ok := tree.CheckConsistency(list[:]); !ok {
+	// 		panic("consistency check failed (after insert)")
+	// 	}
 
-		deleteStart := time.Now()
-		for i := 0; i < n; i++ {
-			_ = tree.DelMem([][]byte{list[i]})
+	// 	deleteStart := time.Now()
+	// 	for i := 0; i < 300; i++ {
+	// 		_ = tree.DelMem([][]byte{list[i]})
 
-			if i + 1 % 100000 == 0 {
-				if ok := tree.CheckConsistency(list[i+1:]); !ok {
-					fmt.Println(i)
-					panic("consistency check failed (while deleting)")
-				}
-			}
-		}
-		if err := tree.WriteAll(); err != nil {
-			logrus.Fatal(err)
-		}
-		deleteDuration = time.Since(deleteStart)
+	// 		if i + 1 % 100000 == 0 {
+	// 			if ok := tree.CheckConsistency(list[i+1:]); !ok {
+	// 				fmt.Println(i)
+	// 				panic("consistency check failed (while deleting)")
+	// 			}
+	// 		}
+	// 	}
+	// 	if err := tree.WriteAll(); err != nil {
+	// 		logrus.Fatal(err)
+	// 	}
+	// 	deleteDuration = time.Since(deleteStart)
 
-		fmt.Println("insert =>", insertDuration)
-		fmt.Println("delete =>", deleteDuration)
-	}
+	// 	fmt.Println("insert =>", insertDuration)
+	// 	fmt.Println("delete =>", deleteDuration)
+	// }
 
 	// i := 1
 	// err = tree.Scan(nil, bptree.ScanOptions{
@@ -326,7 +366,7 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	// tree.Print()
-	fmt.Println(tree.Count())
+	// fmt.Println(tree.Count())
 
 
 	// vals, err := tree.Del([][]byte{{6,7,8}})
@@ -569,4 +609,12 @@ func sprintData(columns []*column.Column, data []map[string]types.DataType) stri
 
 func printData(columns []*column.Column, data []map[string]types.DataType) {
 	fmt.Print(sprintData(columns, data))
+}
+
+func randomString(length int) string {
+	bytes := make([]byte, 0, length)
+	for i := 0; i < length; i++ {
+		bytes = append(bytes, byte('a' + rand.Intn(int('z') - int('a'))))
+	}
+	return string(bytes)
 }

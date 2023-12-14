@@ -51,8 +51,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 
 	df.cache = cache.NewCache[*record](10000, df.newEmptyRecord)
 
-	// initialize the df if new or open the existing df and load
-	// root node.
+	// initialize the df if new or open the existing df
 	if err := df.open(opts); err != nil {
 		_ = df.Close()
 		return nil, err
@@ -88,8 +87,8 @@ func (df *DataFile) Get(ptr allocator.Pointable) []types.DataType {
 
 // InsertRecord inserts the value into the df
 // and returns page id where was inserted
-func (df *DataFile) InsertRecord(val []types.DataType) (allocator.Pointable, error) {
-	ptr, err := df.InsertRecordMem(val)
+func (df *DataFile) Insert(val []types.DataType) (allocator.Pointable, error) {
+	ptr, err := df.InsertMem(val)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +96,7 @@ func (df *DataFile) InsertRecord(val []types.DataType) (allocator.Pointable, err
 	return ptr, df.writeAll()
 }
 
-func (df *DataFile) InsertRecordMem(val []types.DataType) (allocator.Pointable, error) {
+func (df *DataFile) InsertMem(val []types.DataType) (allocator.Pointable, error) {
 	if len(val) != len(df.columns) {
 		return nil, customerrors.ErrKeyTooLarge
 	}
@@ -105,7 +104,7 @@ func (df *DataFile) InsertRecordMem(val []types.DataType) (allocator.Pointable, 
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	ptr, err := df.insertRecord(val)
+	ptr, err := df.insert(val)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert new record")
 	}
@@ -116,6 +115,14 @@ func (df *DataFile) InsertRecordMem(val []types.DataType) (allocator.Pointable, 
 // record place, new pointer will be allocated and set.
 // Pointer where data stored will be returned.
 func (df *DataFile) Update(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
+	if ptr, err := df.UpdateMem(ptr, values); err != nil {
+		return nil, err
+	} else {
+		return ptr, df.writeAll()
+	}
+}
+
+func (df *DataFile) UpdateMem(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
@@ -123,32 +130,22 @@ func (df *DataFile) Update(ptr allocator.Pointable, values []types.DataType) (al
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to update data")
 	}
-	return ptr, df.writeAll()
+	return ptr, nil
 }
 
-func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
-	newRecord := df.newRecord(values)
-	if newRecord.Size() <= ptr.Size() {
-		p := df.fetchW(ptr)
-		r := p.Get()
-		*r = *newRecord
-		p.Unlock()
-		return ptr, nil
-	}
-
-	df.cache.Del(ptr)
-	df.heap.Free(ptr)
-	ptr = df.heap.Alloc(newRecord.Size())
-	df.cache.Add(ptr)
-	return ptr, ptr.Set(newRecord)
+// Delete marks pointer as 'free' for future reuse
+func (df *DataFile) Delete(ptr allocator.Pointable) error {
+	df.DeleteMem(ptr)
+	return df.writeAll()
 }
 
-// Scan performs an index scan starting at the given key. Each entry will be
-// passed to the scanFn. If the key is zero valued (nil or len=0), then the
-// left/right leaf key will be used as the starting key. Scan continues until
-// the right most leaf node is reached or the scanFn returns 'true' indicating
-// to stop the scan. If reverse=true, scan starts at the right most node and
-// executes in descending order of keys.
+func (df *DataFile) DeleteMem(ptr allocator.Pointable) {
+	df.mu.Lock()
+	defer df.mu.Unlock()
+	df.delete(ptr)
+}
+
+// Scan performs pointers scan starting from first pointer (next pointer after meta)
 func (df *DataFile) Scan(scanFn func(ptr allocator.Pointable, row []types.DataType) (bool, error)) error {
 	df.mu.RLock()
 	defer df.mu.RUnlock()
@@ -183,6 +180,37 @@ func (df *DataFile) Close() error {
 	return err
 }
 
+// Pointer returns ptr with zero value attached to underlying pager
+func (df *DataFile) Pointer() allocator.Pointable {
+	return df.heap.Nil()
+}
+
+// Link attaches underlying pager to pointer
+func (df *DataFile) Link(ptr allocator.Pointable) {
+	df.heap.Link(ptr)
+}
+
+func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
+	newRecord := df.newRecord(values)
+	if newRecord.Size() <= ptr.Size() {
+		p := df.fetchW(ptr)
+		r := p.Get()
+		*r = *newRecord
+		p.Unlock()
+		return ptr, nil
+	}
+
+	df.delete(ptr)
+	ptr = df.heap.Alloc(newRecord.Size())
+	df.cache.Add(ptr)
+	return ptr, ptr.Set(newRecord)
+}
+
+func (df *DataFile) delete(ptr allocator.Pointable) {
+	df.cache.Del(ptr)
+	df.heap.Free(ptr)
+}
+
 // newrecord initializes an in-memory record and returns.
 func (df *DataFile) newRecord(data []types.DataType) *record {
 	return &record{
@@ -200,7 +228,7 @@ func (df *DataFile) newEmptyRecord() *record {
 	}
 }
 
-func (df *DataFile) insertRecord(val []types.DataType) (allocator.Pointable, error) {
+func (df *DataFile) insert(val []types.DataType) (allocator.Pointable, error) {
 	r := df.newRecord(val)
 	ptr := df.heap.Alloc(r.Size())
 	return ptr, ptr.Set(r)
@@ -246,7 +274,7 @@ func (df *DataFile) open(opts *Options) error {
 
 	df.meta = &metadata{}
 	if err := df.metaPtr.Get(df.meta); err != nil {
-		return errors.Wrap(err, "failed to read meta while opening bptree")
+		return errors.Wrap(err, "failed to read meta while opening datafile")
 	}
 
 	// verify metadata

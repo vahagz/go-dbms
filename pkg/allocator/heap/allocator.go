@@ -152,6 +152,11 @@ func (a *Allocator) Scan(startPtr Pointable, scanFn func(Pointable) (bool, error
 	return nil
 }
 
+func (a *Allocator) Link(ptr Pointable) {
+	p := ptr.(*Pointer)
+	p.pager = a.pager
+}
+
 func (a *Allocator) PreAlloc(size uint32) {
 	a.Free(a.Alloc(size))
 }
