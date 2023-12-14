@@ -54,7 +54,7 @@ func (i *index) Insert(ptr allocator.Pointable, values map[string]types.DataType
 		return err
 	}
 
-	_, err = i.tree.Put(key, val, bptree.PutOptions{Update: false})
+	_, err = i.tree.PutMem(key, val, bptree.PutOptions{Update: false})
 	return err
 }
 

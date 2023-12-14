@@ -132,6 +132,10 @@ func (a *Allocator) Scan(startPtr Pointable, scanFn func(Pointable) (bool, error
 	}
 
 	ptr = startPtr.(*Pointer)
+	if ptr.Addr() + uint64(ptr.Size()) + PointerMetaSize >= a.meta.top {
+		return nil
+	}
+
 	ptr, err = ptr.next()
 	if err != nil {
 		return err

@@ -50,6 +50,9 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 	if opts == nil {
 		opts = &defaultOptions
 	}
+	if opts.Degree < 5 {
+		return nil, errors.New("degree must be >= 5")
+	}
 
 	p, err := pager.Open(fmt.Sprintf("%s.idx", fileName), opts.PageSize, false, 0644)
 	if err != nil {
@@ -497,6 +500,7 @@ func (tree *BPlusTree) insert(e entry) error {
 	root := tree.rootW()
 	leaf, index, found := tree.searchRec(root, e.key, cache.WRITE)
 	if found && tree.IsUniq() {
+		leaf.Unlock()
 		return errors.New("key already exists")
 	}
 

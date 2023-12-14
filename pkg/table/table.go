@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 
 type Table struct {
 	path    string
+	mu      *sync.RWMutex
 	df      *data.DataFile
 	meta    *metadata
 	indexes map[string]*index
@@ -29,6 +31,7 @@ type Table struct {
 
 func Open(tablePath string, opts *Options) (*Table, error) {
 	table := &Table{
+		mu:      &sync.RWMutex{},
 		path:    tablePath,
 		indexes: map[string]*index{},
 	}
@@ -55,6 +58,9 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 }
 
 func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	dataToInsert := []types.DataType{}
 	dataToInsertMap := map[string]types.DataType{}
 	
@@ -82,37 +88,51 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 		return nil, err
 	}
 
-	for _, i := range t.indexes {
-		err := i.Insert(ptr, dataToInsertMap)
+	insertedIndexes := make([]string, 0, len(t.indexes))
+	for i, index := range t.indexes {
+		err := index.Insert(ptr, dataToInsertMap)
 		if err != nil {
+			t.df.DeleteMem(ptr)
+			// for _, indexName := range insertedIndexes {
+			// 	t.indexes[indexName].Delete()
+			// }
 			return nil, err
 		}
+		insertedIndexes = append(insertedIndexes, i)
 	}
 
 	return ptr, nil
 }
 
-func (t *Table) FindByIndex(indexName string, operator string, values map[string]types.DataType) ([]map[string]types.DataType, error) {
-	result, err := t.indexes[indexName].Find(
+func (t *Table) FindByIndex(
+	indexName string,
+	operator string,
+	values map[string]types.DataType,
+) (
+	[]map[string]types.DataType,
+	error,
+) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	return t.indexes[indexName].Find(
 		values,
 		operator,
 		func(ptr allocator.Pointable) (map[string]types.DataType, error) {
-			t.df.Link(ptr)
 			return t.Get(ptr), nil
 		},
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }
 
 func (t *Table) Get(ptr allocator.Pointable) map[string]types.DataType {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.row2map(t.df.Get(ptr))
 }
 
 func (t *Table) FullScan(scanFn func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error)) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
 		return scanFn(ptr, t.row2map(row))
 	})
@@ -123,6 +143,8 @@ func (t *Table) FullScanByIndex(
 	reverse bool,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.indexes[indexName].tree.Scan(nil, bptree.ScanOptions{
 		Reverse: reverse,
 		Strict:  true,
@@ -133,7 +155,10 @@ func (t *Table) FullScanByIndex(
 	})
 }
 
-func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
+func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
@@ -164,24 +189,31 @@ func (t *Table) CreateIndex(name *string, columns []string, uniq bool) error {
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
+		KeyCols:      len(columns),
 		MaxKeySize:   keySize,
 		MaxValueSize: allocator.PointerSize,
+		Degree:       200,
 		PageSize:     os.Getpagesize(),
+		Uniq:         opts.Uniq,
 	})
 	if err != nil {
 		return err
 	}
 
+	if opts.Primary {
+		t.meta.PrimaryKey = name
+	}
+
 	t.meta.Indexes = append(t.meta.Indexes, &metaIndex{
 		Name:    *name,
 		Columns: columns,
-		Uniq:    uniq,
+		Uniq:    opts.Uniq,
 	})
 	i := &index{
 		df:      t.df,
 		tree:    tree,
 		columns: columns,
-		uniq:    uniq,
+		uniq:    opts.Uniq,
 	}
 	t.indexes[*name] = i
 
@@ -199,6 +231,9 @@ func (t *Table) ColumnsMap() map[string]*column.Column {
 }
 
 func (t *Table) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	err := t.writeMeta()
 	if err != nil {
 		return err
