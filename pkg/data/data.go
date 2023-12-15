@@ -24,11 +24,14 @@ var bin = binary.BigEndian
 // DataFile for use. Use ":memory:" for an in-memory DataFile instance for quick
 // testing setup. If nil options are provided, defaultOptions will be used.
 func Open(fileName string, opts *Options) (*DataFile, error) {
+	if len(opts.Columns) == 0 {
+		return nil, errors.New("provide at leas 1 column")
+	}
 	if opts == nil {
 		opts = &DefaultOptions
 	}
 
-	p, err := pager.Open(fileName, opts.PageSize, false, 0644)
+	p, err := pager.Open(fmt.Sprintf("%s.dat", fileName), opts.PageSize, false, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -43,15 +46,14 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	}
 
 	df := &DataFile{
+		file:    fileName,
 		mu:      &sync.RWMutex{},
 		heap:    heap,
-		file:    fileName,
 		columns: opts.Columns,
 	}
 
 	df.cache = cache.NewCache[*record](10000, df.newEmptyRecord)
 
-	// initialize the df if new or open the existing df
 	if err := df.open(opts); err != nil {
 		_ = df.Close()
 		return nil, err

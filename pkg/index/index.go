@@ -1,4 +1,4 @@
-package table
+package index
 
 import (
 	allocator "go-dbms/pkg/allocator/heap"
@@ -8,11 +8,20 @@ import (
 	"go-dbms/util/helpers"
 )
 
-type index struct {
+type Index struct {
 	df      *data.DataFile
 	tree    *bptree.BPlusTree
 	columns []string
 	uniq    bool
+}
+
+func New(df *data.DataFile, tree *bptree.BPlusTree, columns []string, uniq bool) *Index {
+	return &Index{
+		df:      df,
+		tree:    tree,
+		columns: columns,
+		uniq:    uniq,
+	}
 }
 
 type operator struct {
@@ -43,7 +52,7 @@ var operatorMapping = map[string]operator {
 	},
 }
 
-func (i *index) Insert(ptr allocator.Pointable, values map[string]types.DataType) error {
+func (i *Index) Insert(ptr allocator.Pointable, values map[string]types.DataType) error {
 	key, err := i.key(values)
 	if err != nil {
 		return err
@@ -58,7 +67,17 @@ func (i *index) Insert(ptr allocator.Pointable, values map[string]types.DataType
 	return err
 }
 
-func (i *index) Find(
+func (i *Index) Delete(values map[string]types.DataType) error {
+	key, err := i.key(values)
+	if err != nil {
+		return err
+	}
+
+	i.tree.DelMem(key)
+	return nil
+}
+
+func (i *Index) Find(
 	values map[string]types.DataType,
 	operator string,
 	scanFn func(ptr allocator.Pointable) (map[string]types.DataType, error),
@@ -69,8 +88,10 @@ func (i *index) Find(
 	}
 
 	op := operatorMapping[operator]
+	opts := op.scanOption
+	opts.Key = key
 	result := []map[string]types.DataType{}
-	err = i.tree.Scan(key, op.scanOption, func(k [][]byte, v []byte) (bool, error) {
+	err = i.tree.Scan(op.scanOption, func(k [][]byte, v []byte) (bool, error) {
 		if i.stop(k, operator, key) {
 			return true, nil
 		}
@@ -93,11 +114,32 @@ func (i *index) Find(
 	return result, err
 }
 
-func (i *index) Close() error {
+func (i *Index) Scan(
+	opts ScanOptions,
+	scanFn func(key [][]byte, ptr allocator.Pointable) (bool, error),
+) error {
+	return i.tree.Scan(opts.ScanOptions, func(key [][]byte, val []byte) (bool, error) {
+		ptr := i.df.Pointer()
+		ptr.UnmarshalBinary(val)
+		return scanFn(key, ptr)
+	})
+}
+
+func (i *Index) Columns() []string {
+	cp := make([]string, len(i.columns))
+	copy(cp, i.columns)
+	return cp
+}
+
+func (i *Index) KeySize() int {
+	return i.tree.Options().MaxKeySize
+}
+
+func (i *Index) Close() error {
 	return i.tree.Close()
 }
 
-func (i *index) key(values map[string]types.DataType) ([][]byte, error) {
+func (i *Index) key(values map[string]types.DataType) ([][]byte, error) {
 	key := make([][]byte, len(i.columns))
 
 	for i, col := range i.columns {
@@ -111,7 +153,7 @@ func (i *index) key(values map[string]types.DataType) ([][]byte, error) {
 	return key, nil
 }
 
-func (i *index) stop(
+func (i *Index) stop(
 	currentKey [][]byte,
 	operator string,
 	searchingKey [][]byte,

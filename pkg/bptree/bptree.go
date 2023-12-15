@@ -106,7 +106,8 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 	}
 
 	result := [][]byte{}
-	return result, tree.Scan(key, ScanOptions{
+	return result, tree.Scan(ScanOptions{
+		Key:     key,
 		Reverse: false,
 		Strict:  true,
 	}, func(k [][]byte, v []byte) (bool, error) {
@@ -219,7 +220,6 @@ func (tree *BPlusTree) DelMem(key [][]byte) int {
 // to stop the scan. If reverse=true, scan starts at the right most node and
 // executes in descending order of keys.
 func (tree *BPlusTree) Scan(
-	key [][]byte,
 	opts ScanOptions,
 	scanFn func(key [][]byte, val []byte) (bool, error),
 ) error {
@@ -230,18 +230,18 @@ func (tree *BPlusTree) Scan(
 		return nil
 	}
 	
-	if len(key) != 0 {
+	if len(opts.Key) != 0 {
 		// we have a specific key to start at. find the node containing the
 		// key and start the scan there.
-		key = helpers.Copy(key)
+		opts.Key = helpers.Copy(opts.Key)
 		if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
-			key = tree.addCounterIfRequired(key, counterFill)
+			opts.Key = tree.addCounterIfRequired(opts.Key, counterFill)
 		} else {
-			key = tree.addCounterIfRequired(key, counterZero)
+			opts.Key = tree.addCounterIfRequired(opts.Key, counterZero)
 		}
 	}
 
-	return tree.scan(key, opts, cache.READ, func(
+	return tree.scan(opts.Key, opts, cache.READ, func(
 		key [][]byte,
 		val []byte,
 		_ int,
@@ -257,7 +257,7 @@ func (tree *BPlusTree) PrepareSpace(size uint32) {
 
 func (tree *BPlusTree) Count() (int, error) {
 	counter := 0
-	err := tree.Scan(nil, ScanOptions{
+	err := tree.Scan(ScanOptions{
 		Reverse: false,
 		Strict:  true,
 	}, func(_ [][]byte, _ []byte) (bool, error) {
@@ -285,6 +285,18 @@ func (tree *BPlusTree) Close() error {
 	err := tree.heap.Close()
 	tree.heap = nil
 	return err
+}
+
+// returns copy of options
+func (tree *BPlusTree) Options() Options {
+	return Options{
+		PageSize:     int(tree.meta.pageSize),
+		MaxKeySize:   int(tree.meta.keySize),
+		KeyCols:      int(tree.meta.keyCols),
+		MaxValueSize: int(tree.meta.valSize),
+		Degree:       int(tree.meta.degree),
+		Uniq:         tree.IsUniq(),
+	}
 }
 
 func (tree *BPlusTree) String() string {

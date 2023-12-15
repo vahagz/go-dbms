@@ -43,6 +43,6 @@ type PutOptions struct {
 }
 
 type ScanOptions struct {
-	Reverse bool
-	Strict  bool
+	Key [][]byte
+	Reverse, Strict bool
 }

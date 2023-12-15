@@ -33,9 +33,7 @@ func main() {
 
 	dir, _ := os.Getwd()
 	tablePath := path.Join(dir, "test", "table")
-	var options *table.Options = nil
-
-	options = &table.Options{
+	options := &table.Options{
 		Columns: []*column.Column{
 			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4)),
 			column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
@@ -43,7 +41,7 @@ func main() {
 		},
 	}
 
-	table, err := table.Open(tablePath, options)
+	t, err := table.Open(tablePath, options)
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -59,7 +57,7 @@ func main() {
 		fmt.Println("GET DURATION =>", getDuration)
 		fmt.Println("TOTAL DURATION =>", time.Since(start))
 		fmt.Println("SEED =>", seed)
-		if err := table.Close(); err != nil {
+		if err := t.Close(); err != nil {
 			logrus.Error(err)
 		}
 	}
@@ -90,11 +88,18 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	err = table.CreateIndex(nil, []string{"id"}, true)
+	err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{
+		Primary: true,
+		Uniq: true,
+	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	err = table.CreateIndex(nil, []string{"firstname","lastname"}, false)
+
+	err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -103,56 +108,59 @@ func main() {
 	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
 	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
 	for _, id := range ids {
-		_, err := table.Insert(map[string]types.DataType{
-			"id":        types.Type(table.ColumnsMap()["id"].Meta).Set(id),
-			"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
-			"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
+		_, err := t.Insert(map[string]types.DataType{
+			"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
+			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
+			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
 		})
 		if err != nil {
 			fmt.Println(id, err)
 		}
 	}
 
-	// err = table.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-	// 	printData(table.Columns(), []map[string]types.DataType{row})
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
 
-	err = table.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(table.Columns(), []map[string]types.DataType{row})
+	fmt.Println("id_1")
+	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
+		printData(t.Columns(), []map[string]types.DataType{row})
 		return false, nil
 	})
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	// records, err := table.FindByIndex(
+	fmt.Println("firstname_lastname_id_1")
+	err = t.FullScanByIndex("firstname_lastname_id_1", false, func(row map[string]types.DataType) (bool, error) {
+		printData(t.Columns(), []map[string]types.DataType{row})
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	// records, err := t.FindByIndex(
 	// 	// "id_1",
 	// 	"firstname_lastname_1",
 	// 	"<=",
 	// 	map[string]types.DataType{
-	// 		// "id": types.Type(table.ColumnsMap()["id"].Meta).Set(5),
-	// 		"firstname": types.Type(table.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-	// 		"lastname":  types.Type(table.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
+	// 		// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(5),
+	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey"),
+	// 		"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
 	// 	},
 	// )
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-	// printData(table.Columns(), records)
+	// printData(t.Columns(), records)
 
 	// for i := 0; i < 10; i++ {
-	// 	record, err := table.FindByIndex("id_1", false, map[string]types.DataType{
-	// 		"id": types.Type(types.TYPE_INT, table.ColumnsMap()["id"].Meta).Set(i),
+	// 	record, err := t.FindByIndex("id_1", false, map[string]types.DataType{
+	// 		"id": types.Type(types.TYPE_INT, t.ColumnsMap()["id"].Meta).Set(i),
 	// 	})
 	// 	if err != nil {
 	// 		logrus.Error(err)
 	// 		continue
 	// 	}
-	// 	printData(table.Columns(), record)
+	// 	printData(t.Columns(), record)
 	// }
 }
 

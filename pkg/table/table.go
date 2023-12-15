@@ -2,11 +2,13 @@ package table
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
+	"go-dbms/pkg/index"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
 	"os"
@@ -17,7 +19,7 @@ import (
 
 const (
 	metadataFileName = "metadata.json"
-	dataFileName     = "data.dat"
+	dataFileName     = "data"
 	indexPath        = "./indexes"
 )
 
@@ -26,23 +28,12 @@ type Table struct {
 	mu      *sync.RWMutex
 	df      *data.DataFile
 	meta    *metadata
-	indexes map[string]*index
+	indexes map[string]*index.Index
 }
 
 func Open(tablePath string, opts *Options) (*Table, error) {
-	table := &Table{
-		mu:      &sync.RWMutex{},
-		path:    tablePath,
-		indexes: map[string]*index{},
-	}
-
-	err := table.init(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	dataOptions := data.DefaultOptions
-	dataOptions.Columns = table.meta.Columns
+	dataOptions.Columns = opts.Columns
 
 	df, err := data.Open(
 		path.Join(tablePath, dataFileName),
@@ -52,9 +43,14 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 		return nil, err
 	}
 
-	table.df = df
+	table := &Table{
+		mu:      &sync.RWMutex{},
+		path:    tablePath,
+		df:      df,
+		indexes: map[string]*index.Index{},
+	}
 
-	return table, nil
+	return table, table.init(opts)
 }
 
 func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, error) {
@@ -93,9 +89,16 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 		err := index.Insert(ptr, dataToInsertMap)
 		if err != nil {
 			t.df.DeleteMem(ptr)
-			// for _, indexName := range insertedIndexes {
-			// 	t.indexes[indexName].Delete()
-			// }
+			for _, indexName := range insertedIndexes {
+				dataToDeleteMap := map[string]types.DataType{}
+				for _, col := range t.indexes[indexName].Columns() {
+					dataToDeleteMap[col] = dataToInsertMap[col]
+				}
+				err = t.indexes[indexName].Delete(dataToDeleteMap)
+				if err != nil {
+					return nil, err
+				}
+			}
 			return nil, err
 		}
 		insertedIndexes = append(insertedIndexes, i)
@@ -131,8 +134,6 @@ func (t *Table) Get(ptr allocator.Pointable) map[string]types.DataType {
 }
 
 func (t *Table) FullScan(scanFn func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error)) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
 	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
 		return scanFn(ptr, t.row2map(row))
 	})
@@ -143,14 +144,20 @@ func (t *Table) FullScanByIndex(
 	reverse bool,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
+	idx, ok := t.indexes[indexName]
+	if !ok {
+		return fmt.Errorf("index not found => %v", indexName)
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.indexes[indexName].tree.Scan(nil, bptree.ScanOptions{
-		Reverse: reverse,
-		Strict:  true,
-	}, func(key [][]byte, val []byte) (bool, error) {
-		ptr := t.df.Pointer()
-		ptr.UnmarshalBinary(val)
+
+	return idx.Scan(index.ScanOptions{
+		ScanOptions: bptree.ScanOptions{
+			Reverse: reverse,
+			Strict:  true,
+		},
+	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
 		return scanFn(t.Get(ptr))
 	})
 }
@@ -159,13 +166,23 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if !opts.Primary && t.meta.PrimaryKey == nil {
+		return errors.New("first index must be primary")
+	}
+	if opts.Primary && t.meta.PrimaryKey != nil {
+		return errors.New("primary index already created")
+	}
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
 		}
 	}
 
-	keySize := len(columns) * 2 // 2 byte for length of each column
+	if !opts.Primary {
+		columns = append(columns, t.indexes[*t.meta.PrimaryKey].Columns()...)
+	}
+
+	keySize := 0
 	for _, columnName := range columns {
 		if col, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
@@ -209,16 +226,12 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		Columns: columns,
 		Uniq:    opts.Uniq,
 	})
-	i := &index{
-		df:      t.df,
-		tree:    tree,
-		columns: columns,
-		uniq:    opts.Uniq,
-	}
+
+	i := index.New(t.df, tree, columns, opts.Uniq)
 	t.indexes[*name] = i
 
-	return t.FullScan(func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error) {
-		return false, i.Insert(ptr, row)
+	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+		return false, i.Insert(ptr, t.row2map(row))
 	})
 }
 
@@ -302,6 +315,7 @@ func (t *Table) readMeta(opts *Options) error {
 
 func (t *Table) readIndexes() error {
 	for _, metaindex := range t.meta.Indexes {
+		//TODO: store index bptree options in table meta file and pass it on index opening		
 		bpt, err := bptree.Open(
 			t.indexPath(metaindex.Name),
 			nil,
@@ -310,12 +324,7 @@ func (t *Table) readIndexes() error {
 			return err
 		}
 
-		t.indexes[metaindex.Name] = &index{
-			df:      t.df,
-			tree:    bpt,
-			columns: metaindex.Columns,
-			uniq:    metaindex.Uniq,
-		}
+		t.indexes[metaindex.Name] = index.New(t.df, bpt, metaindex.Columns, metaindex.Uniq)
 	}
 
 	return nil
@@ -336,7 +345,7 @@ func (t *Table) createDirs() error {
 func (t *Table) row2map(row []types.DataType) map[string]types.DataType {
 	rowMap := map[string]types.DataType{}
 	for i, data := range row {
-		for _, c := range t.Columns() {
+		for _, c := range t.meta.Columns {
 			if t.meta.Columns[i].Name == c.Name {
 				rowMap[t.meta.Columns[i].Name] = data
 				break
