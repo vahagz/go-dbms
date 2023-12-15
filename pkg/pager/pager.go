@@ -27,7 +27,7 @@ var ErrReadOnly = errors.New("read-only")
 // doesn't exist, it will be created if not in read-only mode.
 func Open(fileName string, blockSz int, readOnly bool, mode os.FileMode) (*Pager, error) {
 	if fileName == InMemoryFileName {
-		return newPager(&inMemory{}, blockSz, readOnly, 0)
+		return newPager(&inMemory{}, fileName, blockSz, readOnly, 0)
 	}
 
 	mmapFlag := mmap.RDWR
@@ -42,12 +42,12 @@ func Open(fileName string, blockSz int, readOnly bool, mode os.FileMode) (*Pager
 		return nil, err
 	}
 
-	return newPager(f, blockSz, readOnly, mmapFlag)
+	return newPager(f, fileName, blockSz, readOnly, mmapFlag)
 }
 
 // newPager creates an instance of pager for given random access file object.
 // By default page size is set to the current system page size.
-func newPager(file RandomAccessFile, pageSize int, readOnly bool, mmapFlag int) (*Pager, error) {
+func newPager(file RandomAccessFile, fileName string, pageSize int, readOnly bool, mmapFlag int) (*Pager, error) {
 	size, err := findSize(file)
 	if err != nil {
 		return nil, err
@@ -57,6 +57,7 @@ func newPager(file RandomAccessFile, pageSize int, readOnly bool, mmapFlag int) 
 
 	p := &Pager{
 		file:     file,
+		fileName: fileName,
 		fileSize: size,
 		readOnly: readOnly,
 		pageSize: pageSize,
@@ -81,6 +82,7 @@ func newPager(file RandomAccessFile, pageSize int, readOnly bool, mmapFlag int) 
 type Pager struct {
 	// internal states
 	file     RandomAccessFile
+	fileName string
 	pageSize int
 	fileSize int64
 	count    uint64
@@ -283,6 +285,11 @@ func (p *Pager) Count() uint64 { return p.count }
 
 // ReadOnly returns true if the pager instance is in read-only mode.
 func (p *Pager) ReadOnly() bool { return p.readOnly }
+
+func (p *Pager) Remove() {
+	p.file.Close()
+	os.Remove(p.fileName)
+}
 
 // Close closes the underlying file and marks the pager as closed for use.
 func (p *Pager) Close() error {

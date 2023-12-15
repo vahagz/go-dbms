@@ -54,7 +54,8 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 		return nil, errors.New("degree must be >= 5")
 	}
 
-	p, err := pager.Open(fmt.Sprintf("%s.idx", fileName), opts.PageSize, false, 0644)
+	pagerFile := fmt.Sprintf("%s.idx", fileName)
+	p, err := pager.Open(pagerFile, opts.PageSize, false, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,7 @@ func Open(fileName string, opts *Options) (*BPlusTree, error) {
 	}
 
 	tree := &BPlusTree{
-		file:   fileName,
+		file:   pagerFile,
 		mu:     &sync.RWMutex{},
 		heap:   heap,
 	}
@@ -289,10 +290,17 @@ func (tree *BPlusTree) Close() error {
 
 // returns copy of options
 func (tree *BPlusTree) Options() Options {
+	keySize := tree.meta.keySize
+	keyCols := tree.meta.keyCols
+	if !tree.IsUniq() {
+		keySize -= 8
+		keyCols--
+	}
+
 	return Options{
 		PageSize:     int(tree.meta.pageSize),
-		MaxKeySize:   int(tree.meta.keySize),
-		KeyCols:      int(tree.meta.keyCols),
+		MaxKeySize:   int(keySize),
+		KeyCols:      int(keyCols),
 		MaxValueSize: int(tree.meta.valSize),
 		Degree:       int(tree.meta.degree),
 		Uniq:         tree.IsUniq(),
@@ -318,6 +326,12 @@ func (tree *BPlusTree) Print() {
 
 func (tree *BPlusTree) ClearCache() {
 	tree.cache.Clear()
+}
+
+func (tree *BPlusTree) Remove() {
+	tree.mu.Lock()
+	defer tree.mu.Unlock()
+	tree.heap.Remove()
 }
 
 func (tree *BPlusTree) CheckConsistency(list [][]byte) bool {

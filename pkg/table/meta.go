@@ -1,6 +1,7 @@
 package table
 
 import (
+	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 )
 
@@ -13,7 +14,8 @@ type metadata struct {
 }
 
 type metaIndex struct {
-	Name    string   `json:"name"`
-	Columns []string `json:"columns"`
-	Uniq    bool     `json:"uniq"`
+	Name    string          `json:"name"`
+	Columns []string        `json:"columns"`
+	Uniq    bool            `json:"uniq"`
+	Options *bptree.Options `json:"options"`
 }

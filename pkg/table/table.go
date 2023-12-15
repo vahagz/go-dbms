@@ -85,7 +85,9 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 	}
 
 	insertedIndexes := make([]string, 0, len(t.indexes))
-	for i, index := range t.indexes {
+	for k := len(t.meta.Indexes) - 1; k >= 0; k-- {
+		i := t.meta.Indexes[k].Name
+		index := t.indexes[i]
 		err := index.Insert(ptr, dataToInsertMap)
 		if err != nil {
 			t.df.DeleteMem(ptr)
@@ -118,13 +120,11 @@ func (t *Table) FindByIndex(
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return t.indexes[indexName].Find(
-		values,
-		operator,
-		func(ptr allocator.Pointable) (map[string]types.DataType, error) {
-			return t.Get(ptr), nil
-		},
-	)
+	result := []map[string]types.DataType{}
+	return result, t.indexes[indexName].Find(values, operator, func(ptr allocator.Pointable) error {
+		result = append(result, t.Get(ptr))
+		return nil
+	})
 }
 
 func (t *Table) Get(ptr allocator.Pointable) map[string]types.DataType {
@@ -180,6 +180,8 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 
 	if !opts.Primary {
 		columns = append(columns, t.indexes[*t.meta.PrimaryKey].Columns()...)
+	} else {
+		opts.Uniq = true
 	}
 
 	keySize := 0
@@ -205,15 +207,28 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		}
 	}
 
-	tree, err := bptree.Open(t.indexPath(*name), &bptree.Options{
+	indexOpts := &bptree.Options{
 		KeyCols:      len(columns),
 		MaxKeySize:   keySize,
 		MaxValueSize: allocator.PointerSize,
 		Degree:       200,
 		PageSize:     os.Getpagesize(),
-		Uniq:         opts.Uniq,
+		Uniq:         true,
+	}
+
+	tree, err := bptree.Open(t.indexPath(*name), indexOpts)
+	if err != nil {
+		return err
+	}
+
+	i := index.New(t.df, tree, columns, opts.Uniq)
+	t.indexes[*name] = i
+
+	err = t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+		return false, i.Insert(ptr, t.row2map(row))
 	})
 	if err != nil {
+		i.Remove()
 		return err
 	}
 
@@ -225,14 +240,9 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		Name:    *name,
 		Columns: columns,
 		Uniq:    opts.Uniq,
+		Options: indexOpts,
 	})
-
-	i := index.New(t.df, tree, columns, opts.Uniq)
-	t.indexes[*name] = i
-
-	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
-		return false, i.Insert(ptr, t.row2map(row))
-	})
+	return t.writeMeta()
 }
 
 func (t *Table) Columns() []*column.Column {
@@ -314,11 +324,10 @@ func (t *Table) readMeta(opts *Options) error {
 }
 
 func (t *Table) readIndexes() error {
-	for _, metaindex := range t.meta.Indexes {
-		//TODO: store index bptree options in table meta file and pass it on index opening		
+	for _, metaindex := range t.meta.Indexes {	
 		bpt, err := bptree.Open(
 			t.indexPath(metaindex.Name),
-			nil,
+			metaindex.Options,
 		)
 		if err != nil {
 			return err

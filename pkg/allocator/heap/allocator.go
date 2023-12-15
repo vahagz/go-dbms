@@ -10,7 +10,7 @@ import (
 
 func Open(filename string, opts *Options) (*Allocator, error) {
 	freelist, err := rbtree.Open[*freelistKey, *rbtree.DummyVal](
-		fmt.Sprintf("%s_freelist.bin", filename),
+		fmt.Sprintf("%s_freelist", filename),
 		&rbtree.Options{
 			PageSize: opts.TreePageSize,
 		},
@@ -188,6 +188,11 @@ func (a *Allocator) Print() error {
 
 	fmt.Println("meta", a.meta)
 	return nil
+}
+
+func (a *Allocator) Remove() {
+	a.pager.Remove()
+	a.freelist.Remove()
 }
 
 func (a *Allocator) Close() error {

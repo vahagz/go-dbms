@@ -15,7 +15,8 @@ import (
 var bin = binary.BigEndian
 
 func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error) {
-	p, err := pager.Open(fileName, int(opts.PageSize), false, 0664)
+	pagerFile := fmt.Sprintf("%s.idx", fileName)
+	p, err := pager.Open(pagerFile, int(opts.PageSize), false, 0664)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to Open rbtree")
 	}
@@ -23,7 +24,7 @@ func Open[K, V EntryItem](fileName string, opts *Options) (*RBTree[K, V], error)
 	var k K
 	var v V
 	tree := &RBTree[K, V]{
-		file:     fileName,
+		file:     pagerFile,
 		mu:       &sync.RWMutex{},
 		pager:    p,
 		pages:    map[uint32]*page[K, V]{},
@@ -243,6 +244,10 @@ func (tree *RBTree[K, V]) Close() error {
 	err := tree.pager.Close()
 	tree.pager = nil
 	return errors.Wrap(err, "failed to close RBTree")
+}
+
+func (tree *RBTree[K, V]) Remove() {
+	tree.pager.Remove()
 }
 
 func (tree *RBTree[K, V]) get(key K) (uint32, error) {

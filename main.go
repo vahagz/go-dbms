@@ -64,61 +64,31 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	// ptr, err := table.Insert(map[string]types.DataType{
-	// 	"id":        types.Type(types.TYPE_INT).Set(int32(7)),
-	// 	"firstname": types.Type(types.TYPE_STRING).Set("Vahag"),
-	// 	"lastname":  types.Type(types.TYPE_STRING).Set("Zargaryan"),
-	// })
+	// err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
-	// fmt.Printf("%s\n", ptr)
-	// record, err := table.Get(ptr)
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// printData(options.ColumnsOrder, [][]types.DataType{record})
-
-	// err = table.FullScan(func(ptr *data.RecordPointer, row map[string]types.DataType) (bool, error) {
-	// 	fmt.Printf("%s, %s", ptr, sprintData(table.Columns(), []map[string]types.DataType{row}))
-	// 	return false, nil
-	// })
+	// err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
-	err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{
-		Primary: true,
-		Uniq: true,
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// ids      := []int{5,6,4,5,7,2,1,9}
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for _, id := range ids {
+	// 	_, err := t.Insert(map[string]types.DataType{
+	// 		"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
+	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
+	// 		"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
+	// 	})
+	// 	if err != nil {
+	// 		fmt.Println(id, err)
+	// 	}
+	// }
 
-	err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	ids      := []int{5,6,4,5,7,2,1,9}
-	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for _, id := range ids {
-		_, err := t.Insert(map[string]types.DataType{
-			"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
-			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
-			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
-		})
-		if err != nil {
-			fmt.Println(id, err)
-		}
-	}
-
-
+	//TODO:add primary key feature for bptree package
 	fmt.Println("id_1")
 	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
 		printData(t.Columns(), []map[string]types.DataType{row})
@@ -137,20 +107,21 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	// records, err := t.FindByIndex(
-	// 	// "id_1",
-	// 	"firstname_lastname_1",
-	// 	"<=",
-	// 	map[string]types.DataType{
-	// 		// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(5),
-	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-	// 		"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set("Zargaryan"),
-	// 	},
-	// )
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// printData(t.Columns(), records)
+	fmt.Println("=======================")
+	records, err := t.FindByIndex(
+		// "id_1",
+		"firstname_lastname_id_1",
+		">",
+		map[string]types.DataType{
+			// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(5),
+			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey"),
+			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set("Sargsyan"),
+		},
+	)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printData(t.Columns(), records)
 
 	// for i := 0; i < 10; i++ {
 	// 	record, err := t.FindByIndex("id_1", false, map[string]types.DataType{

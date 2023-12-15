@@ -25,29 +25,29 @@ func New(df *data.DataFile, tree *bptree.BPlusTree, columns []string, uniq bool)
 }
 
 type operator struct {
-	cmpOption  map[int]bool
+	cmpOption  map[int]struct{}
 	scanOption bptree.ScanOptions
 }
 
 var operatorMapping = map[string]operator {
 	"<":  {
-		cmpOption:  map[int]bool{ 1: true },
+		cmpOption:  map[int]struct{}{ 1: {} },
 		scanOption: bptree.ScanOptions{Reverse: true, Strict: false},
 	},
 	"<=": {
-		cmpOption:  map[int]bool{ 1: true, 0: true },
+		cmpOption:  map[int]struct{}{ 1: {}, 0: {} },
 		scanOption: bptree.ScanOptions{Reverse: true, Strict: true},
 	},
 	"=":  {
-		cmpOption:  map[int]bool{ 0:  true },
+		cmpOption:  map[int]struct{}{ 0: {} },
 		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
 	},
 	">=": {
-		cmpOption:  map[int]bool{ 0:  true, -1: true },
+		cmpOption:  map[int]struct{}{ 0: {}, -1: {} },
 		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
 	},
 	">":  {
-		cmpOption:  map[int]bool{ -1:  true },
+		cmpOption:  map[int]struct{}{ -1: {} },
 		scanOption: bptree.ScanOptions{Reverse: false, Strict: false},
 	},
 }
@@ -80,18 +80,17 @@ func (i *Index) Delete(values map[string]types.DataType) error {
 func (i *Index) Find(
 	values map[string]types.DataType,
 	operator string,
-	scanFn func(ptr allocator.Pointable) (map[string]types.DataType, error),
-) ([]map[string]types.DataType, error) {
+	scanFn func(ptr allocator.Pointable) error,
+) error {
 	key, err := i.key(values)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	op := operatorMapping[operator]
 	opts := op.scanOption
 	opts.Key = key
-	result := []map[string]types.DataType{}
-	err = i.tree.Scan(op.scanOption, func(k [][]byte, v []byte) (bool, error) {
+	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
 		if i.stop(k, operator, key) {
 			return true, nil
 		}
@@ -101,17 +100,8 @@ func (i *Index) Find(
 		if err != nil {
 			return false, err
 		}
-
-		row, err := scanFn(ptr)
-		if err != nil {
-			return false, err
-		}
-
-		result = append(result, row)
-		return false, nil
+		return false, scanFn(ptr)
 	})
-
-	return result, err
 }
 
 func (i *Index) Scan(
@@ -131,12 +121,12 @@ func (i *Index) Columns() []string {
 	return cp
 }
 
-func (i *Index) KeySize() int {
-	return i.tree.Options().MaxKeySize
-}
-
 func (i *Index) Close() error {
 	return i.tree.Close()
+}
+
+func (i *Index) Remove() {
+	i.tree.Remove()
 }
 
 func (i *Index) key(values map[string]types.DataType) ([][]byte, error) {

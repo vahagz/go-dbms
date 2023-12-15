@@ -31,7 +31,8 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 		opts = &DefaultOptions
 	}
 
-	p, err := pager.Open(fmt.Sprintf("%s.dat", fileName), opts.PageSize, false, 0644)
+	pagerFile := fmt.Sprintf("%s.dat", fileName)
+	p, err := pager.Open(pagerFile, opts.PageSize, false, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	}
 
 	df := &DataFile{
-		file:    fileName,
+		file:    pagerFile,
 		mu:      &sync.RWMutex{},
 		heap:    heap,
 		columns: opts.Columns,
