@@ -9,14 +9,23 @@ import (
 )
 
 type Index struct {
+	meta    *Meta
 	df      *data.DataFile
 	tree    *bptree.BPlusTree
 	columns []string
 	uniq    bool
+	primary *Index
 }
 
-func New(df *data.DataFile, tree *bptree.BPlusTree, columns []string, uniq bool) *Index {
+func New(
+	meta *Meta,
+	df *data.DataFile,
+	tree *bptree.BPlusTree,
+	columns []string,
+	uniq bool,
+) *Index {
 	return &Index{
+		meta:    meta,
 		df:      df,
 		tree:    tree,
 		columns: columns,
@@ -52,46 +61,50 @@ var operatorMapping = map[string]operator {
 	},
 }
 
-func (i *Index) Insert(ptr allocator.Pointable, values map[string]types.DataType) error {
-	key, err := i.key(values)
+func (i *Index) SetPK(pk *Index) {
+	i.primary = pk
+}
+
+func (i *Index) Insert(dataPtr allocator.Pointable, values map[string]types.DataType) error {
+	val, err := dataPtr.MarshalBinary()
 	if err != nil {
 		return err
 	}
 
-	val, err := ptr.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	_, err = i.tree.PutMem(key, val, bptree.PutOptions{Update: false})
+	_, err = i.tree.PutMem(
+		i.key(values),
+		i.primary.key(values),
+		val,
+		bptree.PutOptions{Update: false},
+	)
 	return err
 }
 
-func (i *Index) Delete(values map[string]types.DataType) error {
-	key, err := i.key(values)
-	if err != nil {
-		return err
+func (i *Index) Delete(values map[string]types.DataType, withPK bool) (int, error) {
+	var pk [][]byte
+	if withPK {
+		pk = i.primary.key(values)
 	}
 
-	i.tree.DelMem(key)
-	return nil
+	return i.tree.DelMem(i.key(values), pk)
 }
 
 func (i *Index) Find(
 	values map[string]types.DataType,
+	withPK bool,
 	operator string,
 	scanFn func(ptr allocator.Pointable) error,
 ) error {
-	key, err := i.key(values)
-	if err != nil {
-		return err
+	var pk [][]byte
+	if withPK {
+		pk = i.primary.key(values)
 	}
 
 	op := operatorMapping[operator]
 	opts := op.scanOption
-	opts.Key = key
+	opts.Key = append(i.key(values), pk...)
 	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
-		if i.stop(k, operator, key) {
+		if i.stop(k, operator, opts.Key) {
 			return true, nil
 		}
 
@@ -115,10 +128,22 @@ func (i *Index) Scan(
 	})
 }
 
+func (i *Index) Meta() *Meta {
+	return i.meta
+}
+
+func (i *Index) CanInsert(values map[string]types.DataType) bool {
+	return i.tree.CanInsert(i.key(values), i.primary.key(values))
+}
+
 func (i *Index) Columns() []string {
 	cp := make([]string, len(i.columns))
 	copy(cp, i.columns)
 	return cp
+}
+
+func (i *Index) Options() bptree.Options {
+	return i.tree.Options()
 }
 
 func (i *Index) Close() error {
@@ -129,7 +154,11 @@ func (i *Index) Remove() {
 	i.tree.Remove()
 }
 
-func (i *Index) key(values map[string]types.DataType) ([][]byte, error) {
+func (i *Index) key(values map[string]types.DataType) [][]byte {
+	if i == nil {
+		return nil
+	}
+
 	key := make([][]byte, len(i.columns))
 
 	for i, col := range i.columns {
@@ -140,7 +169,7 @@ func (i *Index) key(values map[string]types.DataType) ([][]byte, error) {
 		}
 	}
 
-	return key, nil
+	return key
 }
 
 func (i *Index) stop(

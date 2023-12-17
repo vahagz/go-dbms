@@ -27,12 +27,12 @@ var bin = binary.LittleEndian
 // ZERO will set all bits with 0
 // CURRENT will set current counter value (tree.meta.counter)
 
-type counterOption int
+type suffixOption int
 
 const (
-	counterFill counterOption = iota
-	counterZero
-	counterCurrent
+	suffixFill suffixOption = iota
+	suffixZero
+	suffixCurrent
 )
 
 type nodeType int
@@ -101,9 +101,15 @@ type BPlusTree struct {
 
 // Get fetches the value associated with the given key.
 // Returns error if key not found.
-func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
-	if key == nil || len(key) == 0 {
-		return nil, customerrors.ErrEmptyKey
+func (tree *BPlusTree) Get(key, suffix [][]byte) ([][]byte, error) {
+	key, err := tree.validateAndMerge(key, suffix)
+	if err != nil {
+		return nil, err
+	}
+
+	suffixPresent := false
+	if suffix != nil {
+		suffixPresent = true
 	}
 
 	result := [][]byte{}
@@ -112,7 +118,13 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 		Reverse: false,
 		Strict:  true,
 	}, func(k [][]byte, v []byte) (bool, error) {
-		if helpers.CompareMatrix(key, tree.removeCounterIfRequired(k)) != 0 {
+		k1 := key
+		k2 := k
+		if !suffixPresent {
+			k2 = tree.removeSuffix(k)
+		}
+
+		if helpers.CompareMatrix(k1, k2) != 0 {
 			return true, nil
 		}
 
@@ -123,8 +135,8 @@ func (tree *BPlusTree) Get(key [][]byte) ([][]byte, error) {
 
 // Put puts the key-value pair into the B+ tree. If the key already exists,
 // its value will be updated.
-func (tree *BPlusTree) Put(key [][]byte, val []byte, opt PutOptions) (bool, error) {
-	success, err := tree.PutMem(key, val, opt)
+func (tree *BPlusTree) Put(key, suffix [][]byte, val []byte, opt PutOptions) (bool, error) {
+	success, err := tree.PutMem(key, suffix, val, opt)
 	if err != nil {
 		return false, err
 	}
@@ -132,17 +144,10 @@ func (tree *BPlusTree) Put(key [][]byte, val []byte, opt PutOptions) (bool, erro
 	return success, tree.WriteAll()
 }
 
-func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt PutOptions) (bool, error) {
-	key = helpers.Copy(key)
-	keylen := 0
-	for _, v := range key {
-		keylen += len(v)
-	}
-
-	if keylen > int(tree.meta.keySize) {
-		return false, customerrors.ErrKeyTooLarge
-	} else if keylen == 0 {
-		return false, customerrors.ErrEmptyKey
+func (tree *BPlusTree) PutMem(key, suffix [][]byte, val []byte, opt PutOptions) (bool, error) {
+	key, err := tree.validateAndMerge(key, suffix)
+	if err != nil {
+		return false, err
 	}
 
 	tree.mu.Lock()
@@ -169,17 +174,29 @@ func (tree *BPlusTree) PutMem(key [][]byte, val []byte, opt PutOptions) (bool, e
 
 // Del removes the key-value entry from the B+ tree. If the key does not
 // exist, returns error.
-func (tree *BPlusTree) Del(key [][]byte) (int, error) {
-	return tree.DelMem(key), tree.WriteAll()
+func (tree *BPlusTree) Del(key, suffix [][]byte) (int, error) {
+	count, err := tree.DelMem(key, suffix)
+	if err != nil {
+		return 0, err
+	}
+	return count, tree.WriteAll()
 }
 
-func (tree *BPlusTree) DelMem(key [][]byte) int {
+func (tree *BPlusTree) DelMem(key, suffix [][]byte) (int, error) {
+	key, err := tree.validateAndMerge(key, suffix)
+	if err != nil {
+		return 0, err
+	}
+
+	suffixPresent := false
+	if suffix != nil {
+		suffixPresent = true
+	}
+
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
-	key = tree.addCounterIfRequired(helpers.Copy(key), counterZero)
 	count := 0
-
 	cnt := true
 	for cnt {
 		cnt = false
@@ -192,10 +209,14 @@ func (tree *BPlusTree) DelMem(key [][]byte) int {
 			_ int,
 			ptr cache.Pointable[*node],
 		) (bool, error) {
-			if helpers.CompareMatrix(
-				tree.removeCounterIfRequired(key),
-				tree.removeCounterIfRequired(k),
-			) == 0 {
+			k1 := key
+			k2 := k
+			if !suffixPresent {
+				k1 = tree.removeSuffix(k1)
+				k2 = tree.removeSuffix(k2)
+			}
+
+			if helpers.CompareMatrix(k1, k2) == 0 {
 				cnt = true
 				ptr.Lock()
 				if isDelete := tree.del(k, ptr); isDelete {
@@ -207,11 +228,11 @@ func (tree *BPlusTree) DelMem(key [][]byte) int {
 	}
 
 	if count > 0 {
-		tree.meta.size -= uint32(count)
+		tree.meta.size -= uint64(count)
 		tree.meta.dirty = true
 	}
 
-	return count
+	return count, nil
 }
 
 // Scan performs an index scan starting at the given key. Each entry will be
@@ -236,9 +257,9 @@ func (tree *BPlusTree) Scan(
 		// key and start the scan there.
 		opts.Key = helpers.Copy(opts.Key)
 		if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
-			opts.Key = tree.addCounterIfRequired(opts.Key, counterFill)
+			opts.Key = tree.addSuffix(opts.Key, suffixFill)
 		} else {
-			opts.Key = tree.addCounterIfRequired(opts.Key, counterZero)
+			opts.Key = tree.addSuffix(opts.Key, suffixZero)
 		}
 	}
 
@@ -250,6 +271,20 @@ func (tree *BPlusTree) Scan(
 	) (bool, error) {
 		return scanFn(key, val)
 	})
+}
+
+func (tree *BPlusTree) CanInsert(key, suffix [][]byte) bool {
+	key, err := tree.validateAndMerge(key, suffix)
+	if err != nil {
+		return false
+	}
+
+	tree.mu.RLock()
+	defer tree.mu.RUnlock()
+	
+	leaf, _, found := tree.searchRec(tree.rootR(), key, cache.WRITE)
+	defer leaf.RUnlock()
+	return !(found && tree.IsUniq())
 }
 
 func (tree *BPlusTree) PrepareSpace(size uint32) {
@@ -290,20 +325,15 @@ func (tree *BPlusTree) Close() error {
 
 // returns copy of options
 func (tree *BPlusTree) Options() Options {
-	keySize := tree.meta.keySize
-	keyCols := tree.meta.keyCols
-	if !tree.IsUniq() {
-		keySize -= 8
-		keyCols--
-	}
-
 	return Options{
-		PageSize:     int(tree.meta.pageSize),
-		MaxKeySize:   int(keySize),
-		KeyCols:      int(keyCols),
-		MaxValueSize: int(tree.meta.valSize),
-		Degree:       int(tree.meta.degree),
-		Uniq:         tree.IsUniq(),
+		PageSize:      int(tree.meta.pageSize),
+		MaxKeySize:    int(tree.meta.keySize),
+		KeyCols:       int(tree.meta.keyCols),
+		MaxSuffixSize: int(tree.meta.suffixSize),
+		SuffixCols:    int(tree.meta.suffixCols),
+		MaxValueSize:  int(tree.meta.valSize),
+		Degree:        int(tree.meta.degree),
+		Uniq:          tree.IsUniq(),
 	}
 }
 
@@ -418,7 +448,7 @@ func (tree *BPlusTree) CheckConsistency(list [][]byte) bool {
 	traverse(tree.rootF(cache.NONE), 0, cache.NONE)
 
 	for k := range m {
-		vals, err := tree.Get([][]byte{m[k].val})
+		vals, err := tree.Get([][]byte{m[k].val}, nil)
 		if err != nil {
 			panic(err)
 		} else if len(vals) == 0 {
@@ -428,6 +458,28 @@ func (tree *BPlusTree) CheckConsistency(list [][]byte) bool {
 	}
 
 	return true
+}
+
+func (tree *BPlusTree) validateAndMerge(key, suffix [][]byte) ([][]byte, error) {
+	key = helpers.Copy(key)
+	if suffix != nil {
+		for _, v := range suffix {
+			key = append(key, append(make([]byte, 0, len(v)), v...))
+		}
+	}
+
+	keylen := 0
+	for _, v := range key {
+		keylen += len(v)
+	}
+
+	if keylen > int(tree.meta.keySize + tree.meta.suffixSize) {
+		return nil, customerrors.ErrKeyTooLarge
+	} else if keylen == 0 {
+		return nil, customerrors.ErrEmptyKey
+	}
+
+	return key, nil
 }
 
 func (tree *BPlusTree) print(nPtr cache.Pointable[*node], indent int, flag cache.LOCKMODE) {
@@ -564,7 +616,6 @@ func (tree *BPlusTree) put(e entry, opt PutOptions) (bool, error) {
 	if opt.Update {
 		return tree.update(e)
 	}
-	e.key = tree.addCounterIfRequired(e.key, counterCurrent)
 	return true, tree.insert(e)
 }
 
@@ -1065,31 +1116,26 @@ func (tree *BPlusTree) freeNode(ptr cache.Pointable[*node]) {
 	tree.heap.Free(rawPtr)
 }
 
-// addCounterIfRequired adds extra counter bytes at end of key
+// addSuffixIfRequired adds extra counter bytes at end of key
 // if Uniq option was set to False while creating BPTree
-func (tree *BPlusTree) addCounterIfRequired(key [][]byte, flag counterOption) [][]byte {
-	if tree.IsUniq() {
-		return key
+func (tree *BPlusTree) addSuffix(key [][]byte, flag suffixOption) [][]byte {
+	suf := make([]byte, tree.meta.suffixSize)
+	if flag == suffixFill {
+		for i := range suf {
+			suf[i] = math.MaxUint8
+		}
+	} else if flag == suffixZero {
+		// do nothing, already filled with zeros
+	} else if flag == suffixCurrent {
+		bin.PutUint64(suf[0:8], tree.meta.counter)
 	}
 
-	counter := make([]byte, 8)
-	if flag == counterFill {
-		bin.PutUint64(counter, math.MaxUint64)
-	} else if flag == counterZero {
-		bin.PutUint64(counter, 0)
-	} else if flag == counterCurrent {
-		bin.PutUint64(counter, tree.meta.counter)
-	}
-
-	return append(key, counter)
+	return append(key, suf)
 }
 
-// reverse version of addCounterIfRequired
-func (tree *BPlusTree) removeCounterIfRequired(key [][]byte) [][]byte {
-	if tree.IsUniq() {
-		return key
-	}
-	return key[:len(key)-1]
+// reverse version of addSuffixIfRequired
+func (tree *BPlusTree) removeSuffix(key [][]byte) [][]byte {
+	return key[:len(key)-int(tree.meta.suffixCols)]
 }
 
 // open opens the B+ tree stored on disk using the heap.
@@ -1120,8 +1166,8 @@ func (tree *BPlusTree) open(opts *Options) error {
 func (tree *BPlusTree) leafNodeSize() uint32 {
 	return uint32(leafNodeSize(
 		int(tree.meta.degree),
-		int(tree.meta.keySize),
-		int(tree.meta.keyCols),
+		int(tree.meta.keySize + tree.meta.suffixSize),
+		int(tree.meta.keyCols + tree.meta.suffixCols),
 		int(tree.meta.valSize),
 	))
 }
@@ -1129,8 +1175,8 @@ func (tree *BPlusTree) leafNodeSize() uint32 {
 func (tree *BPlusTree) internalNodeSize() uint32 {
 	return uint32(internalNodeSize(
 		int(tree.meta.degree),
-		int(tree.meta.keySize),
-		int(tree.meta.keyCols),
+		int(tree.meta.keySize + tree.meta.suffixSize),
+		int(tree.meta.keyCols + tree.meta.suffixCols),
 	))
 }
 
@@ -1139,24 +1185,29 @@ func (tree *BPlusTree) internalNodeSize() uint32 {
 // root node are expected to be written to file during insertion.
 func (tree *BPlusTree) init(opts *Options) error {
 	tree.meta = &metadata{
-		dirty:    true,
-		version:  version,
-		flags:    0,
-		size:     0,
-		pageSize: uint32(opts.PageSize),
-		keySize:  uint16(opts.MaxKeySize),
-		keyCols:  uint16(opts.KeyCols),
-		valSize:  uint16(opts.MaxValueSize),
-		counter:  0,
-		degree:   uint16(opts.Degree),
+		dirty:      true,
+		version:    version,
+		flags:      0,
+		size:       0,
+		pageSize:   uint32(opts.PageSize),
+		suffixCols: uint16(opts.SuffixCols),
+		suffixSize: uint16(opts.MaxSuffixSize),
+		keySize:    uint16(opts.MaxKeySize),
+		keyCols:    uint16(opts.KeyCols),
+		valSize:    uint16(opts.MaxValueSize),
+		counter:    0,
+		degree:     uint16(opts.Degree),
+	}
+
+	if !opts.Uniq && opts.SuffixCols == 0 {
+		// add extra column for counter to maintain uniqness
+		tree.meta.suffixCols = 1
+		tree.meta.suffixSize = 8
+	} else if opts.SuffixCols > 0 {
+		opts.Uniq = true
 	}
 
 	helpers.SetBit(&tree.meta.flags, uniquenessBit, opts.Uniq)
-	if !opts.Uniq {
-		// add extra column for counter to maintain uniqness
-		tree.meta.keyCols++
-		tree.meta.keySize += 8
-	}
 
 	tree.metaPtr = tree.heap.Alloc(metadataSize)
 

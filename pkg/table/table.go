@@ -2,8 +2,12 @@ package table
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+	"sync"
+
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
@@ -11,10 +15,8 @@ import (
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
-	"os"
-	"path"
-	"strings"
-	"sync"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -79,31 +81,30 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 		dataToInsertMap[column.Name] = dataToInsert[len(dataToInsert)-1]
 	}
 
+	canInsert := true
+	var conflictIndex string
+	for _, index := range t.indexes {
+		if !index.CanInsert(dataToInsertMap) {
+			canInsert = false
+			conflictIndex = index.Meta().Name
+			break
+		}
+	}
+
+	if !canInsert {
+		return nil, fmt.Errorf("can't insert, '%s' causes conflict", conflictIndex)
+	}
+
 	ptr, err := t.df.Insert(dataToInsert)
 	if err != nil {
 		return nil, err
 	}
 
-	insertedIndexes := make([]string, 0, len(t.indexes))
-	for k := len(t.meta.Indexes) - 1; k >= 0; k-- {
-		i := t.meta.Indexes[k].Name
-		index := t.indexes[i]
-		err := index.Insert(ptr, dataToInsertMap)
+	for _, index := range t.indexes {
+		err = index.Insert(ptr, dataToInsertMap)
 		if err != nil {
-			t.df.DeleteMem(ptr)
-			for _, indexName := range insertedIndexes {
-				dataToDeleteMap := map[string]types.DataType{}
-				for _, col := range t.indexes[indexName].Columns() {
-					dataToDeleteMap[col] = dataToInsertMap[col]
-				}
-				err = t.indexes[indexName].Delete(dataToDeleteMap)
-				if err != nil {
-					return nil, err
-				}
-			}
-			return nil, err
+			panic(errors.Wrapf(err, "failed to insert into index:'%s'", index.Meta().Name))
 		}
-		insertedIndexes = append(insertedIndexes, i)
 	}
 
 	return ptr, nil
@@ -121,7 +122,7 @@ func (t *Table) FindByIndex(
 	defer t.mu.RUnlock()
 
 	result := []map[string]types.DataType{}
-	return result, t.indexes[indexName].Find(values, operator, func(ptr allocator.Pointable) error {
+	return result, t.indexes[indexName].Find(values, false, operator, func(ptr allocator.Pointable) error {
 		result = append(result, t.Get(ptr))
 		return nil
 	})
@@ -178,9 +179,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		}
 	}
 
-	if !opts.Primary {
-		columns = append(columns, t.indexes[*t.meta.PrimaryKey].Columns()...)
-	} else {
+	if opts.Primary {
 		opts.Uniq = true
 	}
 
@@ -207,13 +206,23 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		}
 	}
 
+	suffixSize := 0
+	suffixCols := 0
+	if !opts.Primary {
+		opts := t.indexes[*t.meta.PrimaryKey].Options()
+		suffixSize = opts.MaxKeySize
+		suffixCols = opts.KeyCols
+	}
+
 	indexOpts := &bptree.Options{
-		KeyCols:      len(columns),
-		MaxKeySize:   keySize,
-		MaxValueSize: allocator.PointerSize,
-		Degree:       200,
-		PageSize:     os.Getpagesize(),
-		Uniq:         true,
+		KeyCols:       len(columns),
+		MaxSuffixSize: suffixSize,
+		SuffixCols:    suffixCols,
+		MaxKeySize:    keySize,
+		MaxValueSize:  allocator.PointerSize,
+		Degree:        200,
+		PageSize:      os.Getpagesize(),
+		Uniq:          true,
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), indexOpts)
@@ -221,7 +230,14 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		return err
 	}
 
-	i := index.New(t.df, tree, columns, opts.Uniq)
+	meta := &index.Meta{
+		Name:    *name,
+		Columns: columns,
+		Uniq:    opts.Uniq,
+		Options: indexOpts,
+	}
+
+	i := index.New(meta, t.df, tree, columns, opts.Uniq)
 	t.indexes[*name] = i
 
 	err = t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
@@ -234,14 +250,11 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 
 	if opts.Primary {
 		t.meta.PrimaryKey = name
+	} else {
+		i.SetPK(t.indexes[*t.meta.PrimaryKey])
 	}
 
-	t.meta.Indexes = append(t.meta.Indexes, &metaIndex{
-		Name:    *name,
-		Columns: columns,
-		Uniq:    opts.Uniq,
-		Options: indexOpts,
-	})
+	t.meta.Indexes = append(t.meta.Indexes, meta)
 	return t.writeMeta()
 }
 
@@ -302,7 +315,7 @@ func (t *Table) readMeta(opts *Options) error {
 
   if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		t.meta = &metadata{
-			Indexes:    []*metaIndex{},
+			Indexes:    []*index.Meta{},
 			PrimaryKey: nil,
 			Columns:    opts.Columns,
 			ColumnsMap: map[string]*column.Column{},
@@ -333,7 +346,19 @@ func (t *Table) readIndexes() error {
 			return err
 		}
 
-		t.indexes[metaindex.Name] = index.New(t.df, bpt, metaindex.Columns, metaindex.Uniq)
+		t.indexes[metaindex.Name] = index.New(
+			metaindex,
+			t.df,
+			bpt,
+			metaindex.Columns,
+			metaindex.Uniq,
+		)
+	}
+
+	for k, i := range t.indexes {
+		if k != *t.meta.PrimaryKey {
+			i.SetPK(t.indexes[*t.meta.PrimaryKey])
+		}
 	}
 
 	return nil

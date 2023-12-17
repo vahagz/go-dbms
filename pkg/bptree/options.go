@@ -17,12 +17,17 @@ type Options struct {
 
 	// MaxKeySize represents the maximum size allowed for the key.
 	// Put call with keys larger than this will result in error.
-	// Branching factor reduces as this size increases. So smaller
-	// the better.
 	MaxKeySize int `json:"max_key_size"`
 
 	// Count of columns of key
 	KeyCols int `json:"key_cols"`
+
+	// Count of columns of suffix in key
+	// If set 0, bptree will take value from counter
+	SuffixCols int `json:"suffix_cols"`
+
+	// Max size allowed for suffix
+	MaxSuffixSize int `json:"max_suffix_size"`
 
 	// MaxValueSize represents the maximum size allowed for the value.
 	// Put call with values larger than this will result in error.
