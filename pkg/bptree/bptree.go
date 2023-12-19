@@ -47,11 +47,13 @@ const (
 // testing setup. Degree of the tree is computed based on maxKeySize and pageSize
 // used by the pager. If nil options are provided, defaultOptions will be used.
 func Open(fileName string, opts *Options) (*BPlusTree, error) {
-	if opts == nil {
-		opts = &defaultOptions
-	}
 	if opts.Degree < 5 {
 		return nil, errors.New("degree must be >= 5")
+	}
+
+	if opts.Uniq {
+		opts.SuffixCols = 0
+		opts.MaxSuffixSize = 0
 	}
 
 	pagerFile := fmt.Sprintf("%s.idx", fileName)
@@ -107,11 +109,7 @@ func (tree *BPlusTree) Get(key, suffix [][]byte) ([][]byte, error) {
 		return nil, err
 	}
 
-	suffixPresent := false
-	if suffix != nil {
-		suffixPresent = true
-	}
-
+	suffixPresent := suffix != nil
 	result := [][]byte{}
 	return result, tree.Scan(ScanOptions{
 		Key:     key,
@@ -188,14 +186,10 @@ func (tree *BPlusTree) DelMem(key, suffix [][]byte) (int, error) {
 		return 0, err
 	}
 
-	suffixPresent := false
-	if suffix != nil {
-		suffixPresent = true
-	}
-
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 
+	suffixPresent := suffix != nil
 	count := 0
 	cnt := true
 	for cnt {
@@ -523,9 +517,19 @@ func (tree *BPlusTree) scan(
 		}
 	} else {
 		beginAt, idx, _ = tree.searchRec(root, key, flag)
-		if opts.Reverse {
+		// ======= magic =======
+		if tree.IsUniq() {
+			if !opts.Strict {
+				if opts.Reverse {
+					idx--
+				} else {
+					idx++
+				}
+			}
+		} else if opts.Reverse {
 			idx--
 		}
+		// =====================
 	}
 
 	// starting at found leaf node, follow the 'next' pointer until.
@@ -1119,6 +1123,10 @@ func (tree *BPlusTree) freeNode(ptr cache.Pointable[*node]) {
 // addSuffixIfRequired adds extra counter bytes at end of key
 // if Uniq option was set to False while creating BPTree
 func (tree *BPlusTree) addSuffix(key [][]byte, flag suffixOption) [][]byte {
+	if tree.IsUniq() {
+		return key
+	}
+
 	suf := make([]byte, tree.meta.suffixSize)
 	if flag == suffixFill {
 		for i := range suf {
@@ -1133,7 +1141,7 @@ func (tree *BPlusTree) addSuffix(key [][]byte, flag suffixOption) [][]byte {
 	return append(key, suf)
 }
 
-// reverse version of addSuffixIfRequired
+// reverse version of addSuffix
 func (tree *BPlusTree) removeSuffix(key [][]byte) [][]byte {
 	return key[:len(key)-int(tree.meta.suffixCols)]
 }
@@ -1203,8 +1211,6 @@ func (tree *BPlusTree) init(opts *Options) error {
 		// add extra column for counter to maintain uniqness
 		tree.meta.suffixCols = 1
 		tree.meta.suffixSize = 8
-	} else if opts.SuffixCols > 0 {
-		opts.Uniq = true
 	}
 
 	helpers.SetBit(&tree.meta.flags, uniquenessBit, opts.Uniq)

@@ -379,12 +379,7 @@ func (t *Table) createDirs() error {
 func (t *Table) row2map(row []types.DataType) map[string]types.DataType {
 	rowMap := map[string]types.DataType{}
 	for i, data := range row {
-		for _, c := range t.meta.Columns {
-			if t.meta.Columns[i].Name == c.Name {
-				rowMap[t.meta.Columns[i].Name] = data
-				break
-			}
-		}
+		rowMap[t.meta.Columns[i].Name] = data
 	}
 	return rowMap
 }

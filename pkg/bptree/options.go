@@ -1,14 +1,5 @@
 package bptree
 
-import "os"
-
-// defaultOptions to be used by New().
-var defaultOptions = Options{
-	PageSize:     os.Getpagesize(),
-	MaxKeySize:   100,
-	MaxValueSize: 12,
-}
-
 // Options represents the configuration options for the B+ tree index.
 type Options struct {
 	// PageSize to be for file I/O. All reads and writes will always
