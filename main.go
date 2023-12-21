@@ -69,11 +69,6 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
 	// ids      := []int{5,6,4,5,7,2,1,9}
 	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
 	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
@@ -86,6 +81,11 @@ func main() {
 	// 	if err != nil {
 	// 		fmt.Println(id, err)
 	// 	}
+	// }
+	
+	// err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
+	// if err != nil {
+	// 	logrus.Fatal(err)
 	// }
 
 	fmt.Println("id_1")
@@ -116,9 +116,9 @@ func main() {
 			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Mery"),
 			// "lastname": types.Type(t.ColumnsMap()["lastname"].Meta).Set("Galstyan"),
 		},
-		func(row map[string]types.DataType) (skip, stop bool, err error) {
+		func(row map[string]types.DataType) (keep, stop bool, err error) {
 			return row["lastname"].Value() != "Galstyan", false, nil
-			// return false, false, nil
+			// return true, false, nil
 		},
 	)
 	if err != nil {

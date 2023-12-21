@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -71,11 +72,11 @@ func (t *DataTypeSTRING) Set(value interface{}) DataType {
 }
 
 func (t *DataTypeSTRING) Fill() DataType {
-	return t
+	panic(errors.New("Fill not allowed for string type"))
 }
 
 func (t *DataTypeSTRING) Zero() DataType {
-	return t
+	panic(errors.New("Zero not allowed for string type"))
 }
 
 func (t *DataTypeSTRING) GetCode() TypeCode {

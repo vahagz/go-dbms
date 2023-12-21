@@ -118,8 +118,9 @@ func (i *Index) Find(
 	}
 
 	opts.Key = append(i.key(values), pk...)
+	searchingKey := opts.Key
 	if postfixColsCount > 0 {
-		opts.Key = i.removeAutoSetCols(opts.Key, prefixColsCount, postfixColsCount)
+		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCount, postfixColsCount)
 	}
 
 	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
@@ -129,7 +130,7 @@ func (i *Index) Find(
 		if postfixColsCount > 0 {
 			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
 		}
-		if i.stop(k, operator, opts.Key) {
+		if i.stop(k, operator, searchingKey) {
 			return true, nil
 		}
 
@@ -208,6 +209,8 @@ func (i *Index) stop(
 func (i *Index) removeAutoSetCols(k [][]byte, prefixCount, postfixCount int) [][]byte {
 	newKey := make([][]byte, 0, len(k) - postfixCount)
 	newKey = append(newKey, k[:prefixCount]...)
-	newKey = append(newKey, k[prefixCount + postfixCount:]...)
+	if len(k) >= prefixCount + postfixCount {
+		newKey = append(newKey, k[prefixCount + postfixCount:]...)
+	}
 	return newKey
 }
