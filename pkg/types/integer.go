@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"go-dbms/util/helpers"
+	"math"
 )
 
 func init() {
@@ -113,6 +114,20 @@ func (t *DataTypeINTEGER) Value() interface{} {
 
 func (t *DataTypeINTEGER) Set(value interface{}) DataType {
 	copy(t.value, helpers.Bytesof(value))
+	return t
+}
+
+func (t *DataTypeINTEGER) Fill() DataType {
+	for i := range t.value {
+		t.value[i] = math.MaxUint8
+	}
+	return t
+}
+
+func (t *DataTypeINTEGER) Zero() DataType {
+	for i := range t.value {
+		t.value[i] = 0
+	}
 	return t
 }
 

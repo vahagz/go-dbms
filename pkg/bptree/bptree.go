@@ -119,7 +119,7 @@ func (tree *BPlusTree) Get(key, suffix [][]byte) ([][]byte, error) {
 		k1 := key
 		k2 := k
 		if !suffixPresent {
-			k2 = tree.removeSuffix(k)
+			k2 = tree.RemoveSuffix(k)
 		}
 
 		if helpers.CompareMatrix(k1, k2) != 0 {
@@ -206,8 +206,8 @@ func (tree *BPlusTree) DelMem(key, suffix [][]byte) (int, error) {
 			k1 := key
 			k2 := k
 			if !suffixPresent {
-				k1 = tree.removeSuffix(k1)
-				k2 = tree.removeSuffix(k2)
+				k1 = tree.RemoveSuffix(k1)
+				k2 = tree.RemoveSuffix(k2)
 			}
 
 			if helpers.CompareMatrix(k1, k2) == 0 {
@@ -501,8 +501,11 @@ func (tree *BPlusTree) scan(
 	flag cache.LOCKMODE,
 	scanFn func(key [][]byte, val []byte, index int, leaf cache.Pointable[*node]) (bool, error),
 ) error {
-	var beginAt cache.Pointable[*node]
-	idx := 0
+	var (
+		beginAt cache.Pointable[*node]
+		found bool
+		idx int
+	)
 
 	root := tree.rootF(flag)
 	if len(key) == 0 {
@@ -516,9 +519,9 @@ func (tree *BPlusTree) scan(
 			idx = len(beginAt.Get().entries) - 1
 		}
 	} else {
-		beginAt, idx, _ = tree.searchRec(root, key, flag)
+		beginAt, idx, found = tree.searchRec(root, key, flag)
 		// ======= magic =======
-		if tree.IsUniq() {
+		if tree.IsUniq() && found {
 			if !opts.Strict {
 				if opts.Reverse {
 					idx--
@@ -1142,7 +1145,7 @@ func (tree *BPlusTree) addSuffix(key [][]byte, flag suffixOption) [][]byte {
 }
 
 // reverse version of addSuffix
-func (tree *BPlusTree) removeSuffix(key [][]byte) [][]byte {
+func (tree *BPlusTree) RemoveSuffix(key [][]byte) [][]byte {
 	return key[:len(key)-int(tree.meta.suffixCols)]
 }
 

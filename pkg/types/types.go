@@ -34,6 +34,8 @@ type DataType interface {
 
 	Value() interface{}
 	Set(value interface{}) DataType
+	Fill() DataType
+	Zero() DataType
 }
 
 func Type(meta DataTypeMeta) DataType {

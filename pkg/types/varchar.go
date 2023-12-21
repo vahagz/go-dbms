@@ -1,8 +1,10 @@
 package types
 
 import (
+	"encoding/binary"
 	"fmt"
 	"go-dbms/util/helpers"
+	"math"
 )
 
 func init() {
@@ -51,11 +53,15 @@ type DataTypeVARCHAR struct {
 }
 
 func (t *DataTypeVARCHAR) MarshalBinary() (data []byte, err error) {
-	return t.value, nil
+	buf := make([]byte, t.Size())
+	binary.BigEndian.PutUint16(buf[:2], t.Len)
+	copy(buf[2:], t.value)
+	return buf, nil
 }
 
 func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
-	t.Len = uint16(copy(t.value, data))
+	t.Len = binary.BigEndian.Uint16(data[:2])
+	copy(t.value, data[2:])
 	return nil
 }
 
@@ -82,6 +88,22 @@ func (t *DataTypeVARCHAR) Set(value interface{}) DataType {
 	return t
 }
 
+func (t *DataTypeVARCHAR) Fill() DataType {
+	t.Len = t.Meta.Cap
+	for i := range t.value {
+		t.value[i] = math.MaxUint8
+	}
+	return t
+}
+
+func (t *DataTypeVARCHAR) Zero() DataType {
+	t.Len = t.Meta.Cap
+	for i := range t.value {
+		t.value[i] = 0
+	}
+	return t
+}
+
 func (t *DataTypeVARCHAR) GetCode() TypeCode {
 	return t.Code
 }
@@ -91,5 +113,5 @@ func (t *DataTypeVARCHAR) IsFixedSize() bool {
 }
 
 func (t *DataTypeVARCHAR) Size() int {
-	return int(t.Meta.Cap)
+	return 2 + int(t.Meta.Cap) // 2 for length size
 }

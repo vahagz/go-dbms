@@ -23,10 +23,6 @@ func CreateDir(dir string) error {
 func CompareMatrix(a, b [][]byte) int {
 	var cmp int
 	for i := range a {
-		if a[i] == nil || b[i] == nil {
-			break
-		}
-
 		cmp = bytes.Compare(a[i], b[i])
 		if cmp != 0 {
 			break

@@ -110,11 +110,15 @@ func main() {
 	records, err := t.FindByIndex(
 		// "id_1",
 		"firstname_lastname_1",
-		">",
+		">=",
 		map[string]types.DataType{
-			// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(5),
-			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey"),
-			// "lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set("Sargsyan"),
+			// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(3),
+			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Mery"),
+			// "lastname": types.Type(t.ColumnsMap()["lastname"].Meta).Set("Galstyan"),
+		},
+		func(row map[string]types.DataType) (skip, stop bool, err error) {
+			return row["lastname"].Value() != "Galstyan", false, nil
+			// return false, false, nil
 		},
 	)
 	if err != nil {

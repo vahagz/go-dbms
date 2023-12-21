@@ -114,6 +114,7 @@ func (t *Table) FindByIndex(
 	indexName string,
 	operator string,
 	values map[string]types.DataType,
+	scanFn func(row map[string]types.DataType) (keep, stop bool, err error),
 ) (
 	[]map[string]types.DataType,
 	error,
@@ -121,10 +122,22 @@ func (t *Table) FindByIndex(
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
+	index, ok := t.indexes[indexName]
+	if !ok {
+		return nil, fmt.Errorf("index not found => '%s'", indexName)
+	}
+
 	result := []map[string]types.DataType{}
-	return result, t.indexes[indexName].Find(values, false, operator, func(ptr allocator.Pointable) error {
-		result = append(result, t.Get(ptr))
-		return nil
+	return result, index.Find(values, false, operator, func(ptr allocator.Pointable) (stop bool, err error) {
+		row := t.Get(ptr)
+		if keep, stop, err := scanFn(row); err != nil {
+			return true, err
+		} else if stop {
+			return true, nil
+		} else if keep {
+			result = append(result, row)
+		}
+		return false, nil
 	})
 }
 
@@ -184,6 +197,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 	}
 
 	keySize := 0
+	columnsList := make([]*column.Column, 0, len(columns))
 	for _, columnName := range columns {
 		if col, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
@@ -191,6 +205,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 			return fmt.Errorf("column must be of fixed size")
 		} else {
 			keySize += col.Meta.Size()
+			columnsList = append(columnsList, col)
 		}
 	}
 
@@ -222,7 +237,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		MaxValueSize:  allocator.PointerSize,
 		Degree:        200,
 		PageSize:      os.Getpagesize(),
-		Uniq:          true,
+		Uniq:          opts.Uniq,
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), indexOpts)
@@ -237,7 +252,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		Options: indexOpts,
 	}
 
-	i := index.New(meta, t.df, tree, columns, opts.Uniq)
+	i := index.New(meta, t.df, tree, columnsList, opts.Uniq)
 	t.indexes[*name] = i
 
 	err = t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
@@ -346,11 +361,16 @@ func (t *Table) readIndexes() error {
 			return err
 		}
 
+		columns := make([]*column.Column, 0, len(metaindex.Columns))
+		for _, colName := range metaindex.Columns {
+			columns = append(columns, t.meta.ColumnsMap[colName])
+		}
+
 		t.indexes[metaindex.Name] = index.New(
 			metaindex,
 			t.df,
 			bpt,
-			metaindex.Columns,
+			columns,
 			metaindex.Uniq,
 		)
 	}

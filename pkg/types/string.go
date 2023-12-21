@@ -70,6 +70,14 @@ func (t *DataTypeSTRING) Set(value interface{}) DataType {
 	return t
 }
 
+func (t *DataTypeSTRING) Fill() DataType {
+	return t
+}
+
+func (t *DataTypeSTRING) Zero() DataType {
+	return t
+}
+
 func (t *DataTypeSTRING) GetCode() TypeCode {
 	return t.Code
 }

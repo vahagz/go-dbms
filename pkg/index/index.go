@@ -3,6 +3,7 @@ package index
 import (
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
@@ -12,7 +13,7 @@ type Index struct {
 	meta    *Meta
 	df      *data.DataFile
 	tree    *bptree.BPlusTree
-	columns []string
+	columns []*column.Column
 	uniq    bool
 	primary *Index
 }
@@ -21,7 +22,7 @@ func New(
 	meta *Meta,
 	df *data.DataFile,
 	tree *bptree.BPlusTree,
-	columns []string,
+	columns []*column.Column,
 	uniq bool,
 ) *Index {
 	return &Index{
@@ -93,7 +94,7 @@ func (i *Index) Find(
 	values map[string]types.DataType,
 	withPK bool,
 	operator string,
-	scanFn func(ptr allocator.Pointable) error,
+	scanFn func(ptr allocator.Pointable) (stop bool, err error),
 ) error {
 	var pk [][]byte
 	if withPK {
@@ -102,8 +103,32 @@ func (i *Index) Find(
 
 	op := operatorMapping[operator]
 	opts := op.scanOption
+	prefixColsCount := len(values)
+	postfixColsCount := 0
+
+	for _, col := range i.columns {
+		if _, ok := values[col.Name]; !ok {
+			postfixColsCount++
+			if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
+				values[col.Name] = types.Type(col.Meta).Fill()
+			} else {
+				values[col.Name] = types.Type(col.Meta).Zero()
+			}
+		}
+	}
+
 	opts.Key = append(i.key(values), pk...)
+	if postfixColsCount > 0 {
+		opts.Key = i.removeAutoSetCols(opts.Key, prefixColsCount, postfixColsCount)
+	}
+
 	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
+		if !i.tree.IsUniq() {
+			k = i.tree.RemoveSuffix(k)
+		}
+		if postfixColsCount > 0 {
+			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
+		}
 		if i.stop(k, operator, opts.Key) {
 			return true, nil
 		}
@@ -113,7 +138,7 @@ func (i *Index) Find(
 		if err != nil {
 			return false, err
 		}
-		return false, scanFn(ptr)
+		return scanFn(ptr)
 	})
 }
 
@@ -136,10 +161,8 @@ func (i *Index) CanInsert(values map[string]types.DataType) bool {
 	return i.tree.CanInsert(i.key(values), i.primary.key(values))
 }
 
-func (i *Index) Columns() []string {
-	cp := make([]string, len(i.columns))
-	copy(cp, i.columns)
-	return cp
+func (i *Index) Columns() []*column.Column {
+	return i.columns
 }
 
 func (i *Index) Options() bptree.Options {
@@ -162,7 +185,7 @@ func (i *Index) key(values map[string]types.DataType) [][]byte {
 	key := make([][]byte, len(i.columns))
 
 	for i, col := range i.columns {
-		if col, ok := values[col]; ok {
+		if col, ok := values[col.Name]; ok {
 			key[i] = col.Bytes()
 		} else {
 			key[i] = nil
@@ -180,4 +203,11 @@ func (i *Index) stop(
 	cmp := helpers.CompareMatrix(searchingKey, currentKey)
 	_, ok := operatorMapping[operator].cmpOption[cmp]
 	return !ok
+}
+
+func (i *Index) removeAutoSetCols(k [][]byte, prefixCount, postfixCount int) [][]byte {
+	newKey := make([][]byte, 0, len(k) - postfixCount)
+	newKey = append(newKey, k[:prefixCount]...)
+	newKey = append(newKey, k[prefixCount + postfixCount:]...)
+	return newKey
 }
