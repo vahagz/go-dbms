@@ -42,7 +42,16 @@ func (m *DataTypeVARCHARMeta) Size() int {
 	return int(m.Cap)
 }
 
+func (m *DataTypeVARCHARMeta) Default() DataType {
+	cp := *m
+	return Type(&cp).Set("")
+}
+
 func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
+	return true
+}
+
+func (m *DataTypeVARCHARMeta) IsNumeric() bool {
 	return true
 }
 
@@ -109,8 +118,16 @@ func (t *DataTypeVARCHAR) GetCode() TypeCode {
 	return t.Code
 }
 
+func (t *DataTypeVARCHAR) Default() DataType {
+	return t.Meta.Default()
+}
+
 func (t *DataTypeVARCHAR) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
+}
+
+func (t *DataTypeVARCHAR) IsNumeric() bool {
+	return t.Meta.IsNumeric()
 }
 
 func (t *DataTypeVARCHAR) Size() int {

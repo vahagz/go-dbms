@@ -10,5 +10,5 @@ type Options struct {
 }
 
 type IndexOptions struct {
-	Primary, Uniq bool
+	Primary, Uniq, AutoIncrement bool
 }

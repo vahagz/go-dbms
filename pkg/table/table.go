@@ -75,7 +75,7 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 
 	for _, column := range t.meta.Columns {
 		if data, ok := values[column.Name]; !ok {
-			dataToInsert = append(dataToInsert, types.Type(column.Meta))
+			dataToInsert = append(dataToInsert, column.Meta.Default())
 		} else {
 			dataToInsert = append(dataToInsert, data)
 		}
@@ -187,14 +187,15 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 	if opts.Primary && t.meta.PrimaryKey != nil {
 		return errors.New("primary index already created")
 	}
+	if opts.AutoIncrement {
+		if len(columns) != 1 {
+			return fmt.Errorf("auto increment supported only fofr single column indexes")
+		}
+	}
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
 		}
-	}
-
-	if opts.Primary {
-		opts.Uniq = true
 	}
 
 	keySize := 0
@@ -210,6 +211,12 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		}
 	}
 
+	if opts.AutoIncrement {
+		if !columnsList[0].Meta.IsNumeric() {
+			return fmt.Errorf("auto increment is supported for numeric types")
+		}
+	}
+
 	if name == nil {
 		name = new(string)
 		*name = strings.Join(columns, "_")
@@ -220,6 +227,10 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 				break
 			}
 		}
+	}
+
+	if opts.Primary {
+		opts.Uniq = true
 	}
 
 	suffixSize := 0

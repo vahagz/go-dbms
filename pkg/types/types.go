@@ -22,7 +22,9 @@ var typesMap = map[TypeCode]newable{}
 type DataTypeMeta interface {
 	GetCode() TypeCode
 	Size() int
+	Default() DataType
 	IsFixedSize() bool
+	IsNumeric() bool
 }
 
 type DataType interface {

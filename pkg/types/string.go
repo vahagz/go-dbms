@@ -35,7 +35,16 @@ func (m *DataTypeSTRINGMeta) Size() int {
 	return -1
 }
 
+func (m *DataTypeSTRINGMeta) Default() DataType {
+	cp := *m
+	return Type(&cp).Set("")
+}
+
 func (m *DataTypeSTRINGMeta) IsFixedSize() bool {
+	return false
+}
+
+func (m *DataTypeSTRINGMeta) IsNumeric() bool {
 	return false
 }
 
@@ -84,8 +93,16 @@ func (t *DataTypeSTRING) GetCode() TypeCode {
 	return t.Code
 }
 
+func (t *DataTypeSTRING) Default() DataType {
+	return t.Meta.Default()
+}
+
 func (t *DataTypeSTRING) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
+}
+
+func (t *DataTypeSTRING) IsNumeric() bool {
+	return t.Meta.IsNumeric()
 }
 
 func (t *DataTypeSTRING) Size() int {

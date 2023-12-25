@@ -35,7 +35,7 @@ func main() {
 	tablePath := path.Join(dir, "test", "table")
 	options := &table.Options{
 		Columns: []*column.Column{
-			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4)),
+			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4, true)),
 			column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
 			column.New("lastname",  types.Meta(types.TYPE_VARCHAR, 32)),
 		},
@@ -64,7 +64,7 @@ func main() {
 	logrus.RegisterExitHandler(exitFunc)
 	defer exitFunc()
 
-	// err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true })
+	// err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true, AutoIncrement: true })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
@@ -77,10 +77,10 @@ func main() {
 	// ids      := []int{5,6,4,5,7,2,1,9}
 	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
 	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for i := 100; i < 1000; i++ {
+	for i := 0; i < 10; i++ {
 		_, err := t.Insert(map[string]types.DataType{
 			// "id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
-			"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(i),
+			// "id":        types.Type(t.ColumnsMap()["id"].Meta).Set(i),
 			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
 			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
 		})
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	fmt.Println("id_1")
-	_n_ := 0
+	_n_ := 1
 	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
 		fmt.Printf("%v ", _n_)
 		_n_++

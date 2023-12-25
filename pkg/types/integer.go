@@ -27,14 +27,21 @@ func init() {
 			return &DataTypeINTEGERMeta{
 				Signed:   args[0].(bool),
 				ByteSize: helpers.Convert(args[1], new(uint8)),
+				AI: autoIncrement{ Enabled: args[2].(bool) },
 			}
 		},
 	}
 }
 
+type autoIncrement struct {
+	Enabled bool   `json:"enabled"`
+	Value   uint64 `json:"value"`
+}
+
 type DataTypeINTEGERMeta struct {
-	Signed   bool  `json:"signed"`
-	ByteSize uint8 `json:"bit_size"`
+	Signed   bool          `json:"signed"`
+	ByteSize uint8         `json:"bit_size"`
+	AI       autoIncrement `json:"auto_increment,omitempty"`
 }
 
 func (m *DataTypeINTEGERMeta) GetCode() TypeCode {
@@ -45,9 +52,23 @@ func (m *DataTypeINTEGERMeta) Size() int {
 	return int(m.ByteSize)
 }
 
+func (m *DataTypeINTEGERMeta) Default() DataType {
+	cp := *m
+	if m.AI.Enabled {
+		m.AI.Value++
+		return Type(&cp).Set(m.AI.Value)
+	}
+	return Type(&cp).Set(0)
+}
+
 func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
 	return true
 }
+
+func (m *DataTypeINTEGERMeta) IsNumeric() bool {
+	return true
+}
+
 
 type DataTypeINTEGER struct {
 	value []byte
@@ -147,8 +168,16 @@ func (t *DataTypeINTEGER) GetCode() TypeCode {
 	return t.Code
 }
 
+func (t *DataTypeINTEGER) Default() DataType {
+	return t.Meta.Default()
+}
+
 func (t *DataTypeINTEGER) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
+}
+
+func (t *DataTypeINTEGER) IsNumeric() bool {
+	return t.Meta.IsNumeric()
 }
 
 func (t *DataTypeINTEGER) Size() int {
