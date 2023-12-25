@@ -1,15 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"go-dbms/pkg/column"
-	"go-dbms/pkg/table"
-	"go-dbms/pkg/types"
 	r "math/rand"
 	"os"
 	"path"
 	"time"
+
+	"go-dbms/pkg/column"
+	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
 
 	"github.com/sirupsen/logrus"
 )
@@ -74,32 +76,32 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// ids      := []int{5,6,4,5,7,2,1,9}
-	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for i := 0; i < 10; i++ {
-		_, err := t.Insert(map[string]types.DataType{
-			// "id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
-			// "id":        types.Type(t.ColumnsMap()["id"].Meta).Set(i),
-			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
-			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
-		})
-		if err != nil {
-			fmt.Println(i, err)
-		}
-	}
+	// // ids      := []int{5,6,4,5,7,2,1,9}
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for i := 0; i < 400000; i++ {
+	// 	_, err := t.Insert(map[string]types.DataType{
+	// 		// "id":        types.Type(t.Column("id").Meta).Set(id),
+	// 		// "id":        types.Type(t.Column("id").Meta).Set(i),
+	// 		"firstname": types.Type(t.Column("firstname").Meta).Set(names[rand.Int31n(4)]),
+	// 		"lastname":  types.Type(t.Column("lastname").Meta).Set(surnames[rand.Int31n(4)]),
+	// 	})
+	// 	if err != nil {
+	// 		fmt.Println(i, err)
+	// 	}
+	// }
 
-	fmt.Println("id_1")
-	_n_ := 1
-	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-		fmt.Printf("%v ", _n_)
-		_n_++
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// fmt.Println("id_1")
+	// _n_ := 1
+	// err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
+	// 	fmt.Printf("%v ", _n_)
+	// 	_n_++
+	// 	printData(t.Columns(), []map[string]types.DataType{row})
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// fmt.Println("firstname_lastname_1")
 	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
@@ -112,23 +114,36 @@ func main() {
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
-	// 	// "id_1",
-	// 	"firstname_lastname_1",
+	// 	"id_1",
 	// 	">=",
-	// 	// nil,
-	// 	statement.Where("firstname", ">", types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey")),
 	// 	map[string]types.DataType{
-	// 		// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(3),
-	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Mery"),
-	// 		// "lastname": types.Type(t.ColumnsMap()["lastname"].Meta).Set("Galstyan"),
+	// 		"id": types.Type(t.Column("id").Meta).Set(345678),
 	// 	},
+	// 	// nil,
+	// 	statement.Where("id", ">", types.Type(t.Column("id").Meta).Set(345700)),
 	// 	nil,
-	// 	// statement.Where("firstname", "=", types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey")),
+	// 	// statement.Where("firstname", "=", types.Type(t.Column("firstname").Meta).Set("Sergey")),
 	// )
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 	// printData(t.Columns(), records)
+	
+	fmt.Println("=======================")
+	records, err := t.FindByIndex(
+		"firstname_lastname_1",
+		"=",
+		map[string]types.DataType{
+			"firstname": types.Type(t.Column("firstname").Meta).Set("Mery"),
+			"lastname": types.Type(t.Column("lastname").Meta).Set("Galstyan"),
+		},
+		nil,
+		nil,
+	)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printData(t.Columns(), records)
 }
 
 // func main() {
@@ -578,14 +593,19 @@ func (b *binaryMarshalerUnmarshaler) UnmarshalBinary(d []byte) error {
 }
 
 func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
-	str := ""
+	buf := bytes.Buffer{}
 	for _, d := range data {
 		for _, col := range columns {
-			str += fmt.Sprintf("'%s' -> '%v', ", col.Name, d[col.Name].Value())
+			val := fmt.Sprintf("%v", d[col.Name].Value())
+			buf.WriteByte('\'')
+			buf.Write([]byte(col.Name))
+			buf.Write([]byte("' -> '"))
+			buf.Write([]byte(val))
+			buf.WriteString("', ")
 		}
-		str += "\n"
+		buf.WriteString("\n")
 	}
-	return str
+	return buf.String()
 }
 
 func printData(columns []*column.Column, data []map[string]types.DataType) {
