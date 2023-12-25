@@ -276,7 +276,7 @@ func (tree *BPlusTree) CanInsert(key, suffix [][]byte) bool {
 	tree.mu.RLock()
 	defer tree.mu.RUnlock()
 	
-	leaf, _, found := tree.searchRec(tree.rootR(), key, cache.WRITE)
+	leaf, _, found := tree.searchRec(tree.rootR(), key, cache.READ)
 	defer leaf.RUnlock()
 	return !(found && tree.IsUniq())
 }
