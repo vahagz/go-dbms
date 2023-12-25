@@ -15,7 +15,7 @@ import (
 )
 
 var seed = time.Now().Unix()
-// var seed int64 = 1702483180
+// var seed int64 = 1703502765
 var rand = r.New(r.NewSource(seed))
 
 // func main() {
@@ -68,28 +68,32 @@ func main() {
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
-
-	// ids      := []int{5,6,4,5,7,2,1,9}
-	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	// for _, id := range ids {
-	// 	_, err := t.Insert(map[string]types.DataType{
-	// 		"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
-	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
-	// 		"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
-	// 	})
-	// 	if err != nil {
-	// 		fmt.Println(id, err)
-	// 	}
-	// }
 	
 	// err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
 
+	// ids      := []int{5,6,4,5,7,2,1,9}
+	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	for i := 100; i < 1000; i++ {
+		_, err := t.Insert(map[string]types.DataType{
+			// "id":        types.Type(t.ColumnsMap()["id"].Meta).Set(id),
+			"id":        types.Type(t.ColumnsMap()["id"].Meta).Set(i),
+			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set(names[rand.Int31n(4)]),
+			"lastname":  types.Type(t.ColumnsMap()["lastname"].Meta).Set(surnames[rand.Int31n(4)]),
+		})
+		if err != nil {
+			fmt.Println(i, err)
+		}
+	}
+
 	fmt.Println("id_1")
+	_n_ := 0
 	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
+		fmt.Printf("%v ", _n_)
+		_n_++
 		printData(t.Columns(), []map[string]types.DataType{row})
 		return false, nil
 	})
@@ -97,45 +101,34 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	fmt.Println("firstname_lastname_1")
-	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	fmt.Println("=======================")
-	records, err := t.FindByIndex(
-		// "id_1",
-		"firstname_lastname_1",
-		">=",
-		map[string]types.DataType{
-			// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(3),
-			"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Mery"),
-			// "lastname": types.Type(t.ColumnsMap()["lastname"].Meta).Set("Galstyan"),
-		},
-		func(row map[string]types.DataType) (keep, stop bool, err error) {
-			return row["lastname"].Value() != "Galstyan", false, nil
-			// return true, false, nil
-		},
-	)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	printData(t.Columns(), records)
-
-	// for i := 0; i < 10; i++ {
-	// 	record, err := t.FindByIndex("id_1", false, map[string]types.DataType{
-	// 		"id": types.Type(types.TYPE_INT, t.ColumnsMap()["id"].Meta).Set(i),
-	// 	})
-	// 	if err != nil {
-	// 		logrus.Error(err)
-	// 		continue
-	// 	}
-	// 	printData(t.Columns(), record)
+	// fmt.Println("firstname_lastname_1")
+	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+	// 	printData(t.Columns(), []map[string]types.DataType{row})
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
 	// }
+
+	// fmt.Println("=======================")
+	// records, err := t.FindByIndex(
+	// 	// "id_1",
+	// 	"firstname_lastname_1",
+	// 	">=",
+	// 	// nil,
+	// 	statement.Where("firstname", ">", types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey")),
+	// 	map[string]types.DataType{
+	// 		// "id": types.Type(t.ColumnsMap()["id"].Meta).Set(3),
+	// 		"firstname": types.Type(t.ColumnsMap()["firstname"].Meta).Set("Mery"),
+	// 		// "lastname": types.Type(t.ColumnsMap()["lastname"].Meta).Set("Galstyan"),
+	// 	},
+	// 	nil,
+	// 	// statement.Where("firstname", "=", types.Type(t.ColumnsMap()["firstname"].Meta).Set("Sergey")),
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// printData(t.Columns(), records)
 }
 
 // func main() {

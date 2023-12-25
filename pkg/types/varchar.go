@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"go-dbms/util/helpers"
@@ -114,4 +115,16 @@ func (t *DataTypeVARCHAR) IsFixedSize() bool {
 
 func (t *DataTypeVARCHAR) Size() int {
 	return 2 + int(t.Meta.Cap) // 2 for length size
+}
+
+func (t *DataTypeVARCHAR) Compare(operator string, val DataType) bool {
+	switch operator {
+		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
+		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
+		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
+		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
+		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
+		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+	}
+	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }

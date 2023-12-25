@@ -1,9 +1,12 @@
 package types
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
-	"go-dbms/util/helpers"
 	"math"
+
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -62,7 +65,16 @@ func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 }
 
 func (t *DataTypeINTEGER) Bytes() []byte {
-	return t.value
+	cp := append(make([]byte, 0, 8), t.value...)
+	if len(cp) < 8 {
+		for i := len(cp); i < 8; i++ {
+			cp = append(cp, 0)
+		}
+	}
+
+	b := make([]byte, len(cp))
+	binary.LittleEndian.PutUint64(b, binary.BigEndian.Uint64(cp))
+	return b[len(b)-len(t.value):]
 }
 
 func (t *DataTypeINTEGER) Value() interface{} {
@@ -141,4 +153,16 @@ func (t *DataTypeINTEGER) IsFixedSize() bool {
 
 func (t *DataTypeINTEGER) Size() int {
 	return int(t.Meta.ByteSize)
+}
+
+func (t *DataTypeINTEGER) Compare(operator string, val DataType) bool {
+	switch operator {
+		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
+		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
+		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
+		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
+		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
+		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+	}
+	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }

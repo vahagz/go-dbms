@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -89,4 +90,16 @@ func (t *DataTypeSTRING) IsFixedSize() bool {
 
 func (t *DataTypeSTRING) Size() int {
 	return len(t.value)
+}
+
+func (t *DataTypeSTRING) Compare(operator string, val DataType) bool {
+	switch operator {
+		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
+		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
+		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
+		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
+		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
+		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+	}
+	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }

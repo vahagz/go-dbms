@@ -13,6 +13,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/index"
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
 
@@ -113,8 +114,9 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 func (t *Table) FindByIndex(
 	indexName string,
 	operator string,
+	endCondition *statement.WhereStatement,
 	values map[string]types.DataType,
-	scanFn func(row map[string]types.DataType) (keep, stop bool, err error),
+	filter *statement.WhereStatement,
 ) (
 	[]map[string]types.DataType,
 	error,
@@ -130,11 +132,10 @@ func (t *Table) FindByIndex(
 	result := []map[string]types.DataType{}
 	return result, index.Find(values, false, operator, func(ptr allocator.Pointable) (stop bool, err error) {
 		row := t.Get(ptr)
-		if keep, stop, err := scanFn(row); err != nil {
-			return true, err
-		} else if stop {
+		if endCondition != nil && endCondition.Compare(row) {
 			return true, nil
-		} else if keep {
+		}
+		if filter == nil || filter.Compare(row) {
 			result = append(result, row)
 		}
 		return false, nil
@@ -235,7 +236,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		SuffixCols:    suffixCols,
 		MaxKeySize:    keySize,
 		MaxValueSize:  allocator.PointerSize,
-		Degree:        200,
+		Degree:        10,
 		PageSize:      os.Getpagesize(),
 		Uniq:          opts.Uniq,
 	}

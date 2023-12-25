@@ -36,6 +36,7 @@ type DataType interface {
 	Set(value interface{}) DataType
 	Fill() DataType
 	Zero() DataType
+	Compare(operator string, val DataType) bool
 }
 
 func Type(meta DataTypeMeta) DataType {
