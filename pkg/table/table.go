@@ -114,8 +114,8 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 func (t *Table) FindByIndex(
 	indexName string,
 	operator string,
-	endCondition *statement.WhereStatement,
 	values map[string]types.DataType,
+	endCondition *statement.WhereStatement,
 	filter *statement.WhereStatement,
 ) (
 	[]map[string]types.DataType,
@@ -291,6 +291,10 @@ func (t *Table) Columns() []*column.Column {
 
 func (t *Table) ColumnsMap() map[string]*column.Column {
 	return t.meta.ColumnsMap
+}
+
+func (t* Table) Column(name string) *column.Column {
+	return t.meta.ColumnsMap[name]
 }
 
 func (t *Table) Close() error {
