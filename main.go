@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-dbms/pkg/column"
+	"go-dbms/pkg/index"
 	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
 
@@ -79,7 +80,7 @@ func main() {
 	// // ids      := []int{5,6,4,5,7,2,1,9}
 	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
 	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	// for i := 0; i < 400000; i++ {
+	// for i := 0; i < 100; i++ {
 	// 	_, err := t.Insert(map[string]types.DataType{
 	// 		// "id":        types.Type(t.Column("id").Meta).Set(id),
 	// 		// "id":        types.Type(t.Column("id").Meta).Set(i),
@@ -92,10 +93,7 @@ func main() {
 	// }
 
 	// fmt.Println("id_1")
-	// _n_ := 1
 	// err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-	// 	fmt.Printf("%v ", _n_)
-	// 	_n_++
 	// 	printData(t.Columns(), []map[string]types.DataType{row})
 	// 	return false, nil
 	// })
@@ -103,14 +101,14 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// fmt.Println("firstname_lastname_1")
-	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-	// 	printData(t.Columns(), []map[string]types.DataType{row})
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
+	fmt.Println("firstname_lastname_1")
+	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+		printData(t.Columns(), []map[string]types.DataType{row})
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
@@ -132,12 +130,20 @@ func main() {
 	fmt.Println("=======================")
 	records, err := t.FindByIndex(
 		"firstname_lastname_1",
-		"=",
-		map[string]types.DataType{
-			"firstname": types.Type(t.Column("firstname").Meta).Set("Mery"),
-			"lastname": types.Type(t.Column("lastname").Meta).Set("Galstyan"),
+		&index.Filter{
+			Operator:  ">=",
+			Value:     map[string]types.DataType{
+				"firstname": types.Type(t.Column("firstname").Meta).Set("Mery"),
+				"lastname":  types.Type(t.Column("lastname").Meta).Set("Galstyan"),
+			},
 		},
-		nil,
+		&index.Filter{
+			Operator:  "<",
+			Value:     map[string]types.DataType{
+				"firstname": types.Type(t.Column("firstname").Meta).Set("Sergey"),
+				"lastname":  types.Type(t.Column("lastname").Meta).Set("Sargsyan"),
+			},
+		},
 		nil,
 	)
 	if err != nil {

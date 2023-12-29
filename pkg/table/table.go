@@ -111,30 +111,21 @@ func (t *Table) Insert(values map[string]types.DataType) (allocator.Pointable, e
 	return ptr, nil
 }
 
-func (t *Table) FindByIndex(
-	indexName string,
-	operator string,
-	values map[string]types.DataType,
-	endCondition *statement.WhereStatement,
-	filter *statement.WhereStatement,
-) (
+func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (
 	[]map[string]types.DataType,
 	error,
 ) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	index, ok := t.indexes[indexName]
+	index, ok := t.indexes[name]
 	if !ok {
-		return nil, fmt.Errorf("index not found => '%s'", indexName)
+		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
 	result := []map[string]types.DataType{}
-	return result, index.Find(values, false, operator, func(ptr allocator.Pointable) (stop bool, err error) {
+	return result, index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
 		row := t.Get(ptr)
-		if endCondition != nil && endCondition.Compare(row) {
-			return true, nil
-		}
 		if filter == nil || filter.Compare(row) {
 			result = append(result, row)
 		}

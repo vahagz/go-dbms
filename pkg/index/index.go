@@ -1,12 +1,12 @@
 package index
 
 import (
+	"fmt"
 	allocator "go-dbms/pkg/allocator/heap"
 	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
-	"go-dbms/util/helpers"
 )
 
 type Index struct {
@@ -32,34 +32,6 @@ func New(
 		columns: columns,
 		uniq:    uniq,
 	}
-}
-
-type operator struct {
-	cmpOption  map[int]struct{}
-	scanOption bptree.ScanOptions
-}
-
-var operatorMapping = map[string]operator {
-	"<":  {
-		cmpOption:  map[int]struct{}{ 1: {} },
-		scanOption: bptree.ScanOptions{Reverse: true, Strict: false},
-	},
-	"<=": {
-		cmpOption:  map[int]struct{}{ 1: {}, 0: {} },
-		scanOption: bptree.ScanOptions{Reverse: true, Strict: true},
-	},
-	"=":  {
-		cmpOption:  map[int]struct{}{ 0: {} },
-		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
-	},
-	">=": {
-		cmpOption:  map[int]struct{}{ 0: {}, -1: {} },
-		scanOption: bptree.ScanOptions{Reverse: false, Strict: true},
-	},
-	">":  {
-		cmpOption:  map[int]struct{}{ -1: {} },
-		scanOption: bptree.ScanOptions{Reverse: false, Strict: false},
-	},
 }
 
 func (i *Index) SetPK(pk *Index) {
@@ -90,34 +62,25 @@ func (i *Index) Delete(values map[string]types.DataType, withPK bool) (int, erro
 	return i.tree.DelMem(i.key(values), pk)
 }
 
-func (i *Index) Find(
-	values map[string]types.DataType,
-	withPK bool,
-	operator string,
-	scanFn func(ptr allocator.Pointable) (stop bool, err error),
-) error {
-	var pk [][]byte
-	if withPK {
-		pk = i.primary.key(values)
-	}
-
-	op := operatorMapping[operator]
+func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
+	op := operatorMapping[start.Operator]
 	opts := op.scanOption
-	prefixColsCount := len(values)
+	prefixColsCount := len(start.Value)
 	postfixColsCount := 0
 
 	for _, col := range i.columns {
-		if _, ok := values[col.Name]; !ok {
+		if _, ok := start.Value[col.Name]; !ok {
 			postfixColsCount++
 			if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
-				values[col.Name] = types.Type(col.Meta).Fill()
+				start.Value[col.Name] = types.Type(col.Meta).Fill()
 			} else {
-				values[col.Name] = types.Type(col.Meta).Zero()
+				start.Value[col.Name] = types.Type(col.Meta).Zero()
 			}
 		}
 	}
 
-	opts.Key = append(i.key(values), pk...)
+	endKey := i.key(end.Value)
+	opts.Key = i.key(start.Value)
 	searchingKey := opts.Key
 	if postfixColsCount > 0 {
 		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCount, postfixColsCount)
@@ -130,13 +93,19 @@ func (i *Index) Find(
 		if postfixColsCount > 0 {
 			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
 		}
-		if i.stop(k, operator, searchingKey) {
+		fmt.Println(
+			shouldStop(k, start.Operator, searchingKey),
+			shouldStop(k, end.Operator, endKey),
+			string(searchingKey[0]), string(searchingKey[1]),
+			string(endKey[0]), string(endKey[1]),
+			string(k[0]), string(k[1]),
+		)
+		if shouldStop(k, start.Operator, searchingKey) || shouldStop(k, end.Operator, endKey) {
 			return true, nil
 		}
 
 		ptr := i.df.Pointer()
-		err := ptr.UnmarshalBinary(v)
-		if err != nil {
+		if err := ptr.UnmarshalBinary(v); err != nil {
 			return false, err
 		}
 		return scanFn(ptr)
@@ -194,16 +163,6 @@ func (i *Index) key(values map[string]types.DataType) [][]byte {
 	}
 
 	return key
-}
-
-func (i *Index) stop(
-	currentKey [][]byte,
-	operator string,
-	searchingKey [][]byte,
-) bool {
-	cmp := helpers.CompareMatrix(searchingKey, currentKey)
-	_, ok := operatorMapping[operator].cmpOption[cmp]
-	return !ok
 }
 
 func (i *Index) removeAutoSetCols(k [][]byte, prefixCount, postfixCount int) [][]byte {
