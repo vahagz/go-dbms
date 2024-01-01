@@ -126,7 +126,7 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 	// printData(t.Columns(), records)
-	
+
 	fmt.Println("=======================")
 	records, err := t.FindByIndex(
 		"firstname_lastname_1",

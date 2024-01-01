@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"go-dbms/pkg/pager"
+
 	"go-dbms/util/helpers"
+
+	"github.com/vahagz/pager"
 )
 
 var bin = binary.BigEndian

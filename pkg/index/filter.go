@@ -1,9 +1,10 @@
 package index
 
 import (
-	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
+
+	"github.com/vahagz/bptree"
 )
 
 type Filter struct {

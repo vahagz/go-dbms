@@ -1,6 +1,6 @@
 package index
 
-import "go-dbms/pkg/bptree"
+import "github.com/vahagz/bptree"
 
 type Meta struct {
 	Name    string          `json:"name"`

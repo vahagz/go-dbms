@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"sync"
 
-	allocator "go-dbms/pkg/allocator/heap"
-	"go-dbms/pkg/cache"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/customerrors"
-	"go-dbms/pkg/pager"
 	"go-dbms/pkg/types"
 
 	"github.com/pkg/errors"
+	allocator "github.com/vahagz/disk-allocator/heap"
+	"github.com/vahagz/disk-allocator/heap/cache"
+	"github.com/vahagz/pager"
 )
 
 // bin is the byte order used for all marshals/unmarshals.

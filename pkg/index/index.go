@@ -2,11 +2,12 @@ package index
 
 import (
 	"fmt"
-	allocator "go-dbms/pkg/allocator/heap"
-	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
+
+	"github.com/vahagz/bptree"
+	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
 type Index struct {

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	allocator "go-dbms/pkg/allocator/heap"
-	"go-dbms/pkg/bptree"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/index"
@@ -18,6 +16,8 @@ import (
 	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
+	"github.com/vahagz/bptree"
+	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
 const (
