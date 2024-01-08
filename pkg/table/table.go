@@ -34,6 +34,11 @@ type Table struct {
 	indexes map[string]*index.Index
 }
 
+type entry struct{
+	ptr  allocator.Pointable
+	data map[string]types.DataType
+}
+
 func Open(tablePath string, opts *Options) (*Table, error) {
 	dataOptions := data.DefaultOptions
 	dataOptions.Columns = opts.Columns
@@ -131,6 +136,52 @@ func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *state
 		}
 		return false, nil
 	})
+}
+
+func (t *Table) DeleteByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (
+	[]map[string]types.DataType,
+	error,
+) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	index, ok := t.indexes[name]
+	if !ok {
+		return nil, fmt.Errorf("index not found => '%s'", name)
+	}
+
+	entries := []entry{}
+
+	err :=  index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
+		row := t.Get(ptr)
+		if filter == nil || filter.Compare(row) {
+			entries = append(entries, entry{ptr, row})
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to scan index => '%s'", name)
+	}
+
+	result := make([]map[string]types.DataType, 0, len(entries))
+	for _, e := range entries {
+		for name, i := range t.indexes {
+			withPK := t.meta.PrimaryKey != nil
+			if t.meta.PrimaryKey != nil && *t.meta.PrimaryKey == name {
+				withPK = false
+			}
+	
+			_, err = i.Delete(e.data, withPK)
+			if err != nil {
+				return nil, errors.Wrap(err, "error while deleting from index")
+			}
+		}
+	
+		t.df.DeleteMem(e.ptr)
+		result = append(result, t.row2pk(e.data))
+	}
+
+	return result, nil
 }
 
 func (t *Table) Get(ptr allocator.Pointable) map[string]types.DataType {
@@ -281,6 +332,13 @@ func (t *Table) Columns() []*column.Column {
 	return t.meta.Columns
 }
 
+func (t *Table) PrimaryColumns() []*column.Column {
+	if t.meta.PrimaryKey == nil {
+		return nil
+	}
+	return t.indexes[*t.meta.PrimaryKey].Columns()
+}
+
 func (t *Table) ColumnsMap() map[string]*column.Column {
 	return t.meta.ColumnsMap
 }
@@ -410,4 +468,25 @@ func (t *Table) row2map(row []types.DataType) map[string]types.DataType {
 		rowMap[t.meta.Columns[i].Name] = data
 	}
 	return rowMap
+}
+
+func (t *Table) row2pk(row map[string]types.DataType) map[string]types.DataType {
+	if t.meta.PrimaryKey == nil {
+		return nil
+	}
+
+	pkCols := t.indexes[*t.meta.PrimaryKey].Columns()
+	pkRow := make(map[string]types.DataType, 1)
+	for _, col := range pkCols {
+		pkRow[col.Name] = row[col.Name]
+	}
+	return pkRow
+}
+
+func (t *Table) rows2pk(rows []map[string]types.DataType) []map[string]types.DataType {
+	pkRows := make([]map[string]types.DataType, 0, len(rows))
+	for _, row := range rows {
+		pkRows = append(pkRows, t.row2pk(row))
+	}
+	return pkRows
 }

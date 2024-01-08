@@ -101,14 +101,14 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	// fmt.Println("firstname_lastname_1")
-	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-	// 	printData(t.Columns(), []map[string]types.DataType{row})
-	// 	return false, nil
-	// })
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
+	fmt.Println("firstname_lastname_1")
+	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+		printData(t.Columns(), []map[string]types.DataType{row})
+		return false, nil
+	})
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
@@ -128,28 +128,29 @@ func main() {
 	// printData(t.Columns(), records)
 
 	fmt.Println("=======================")
-	records, err := t.FindByIndex(
+	records, err := t.DeleteByIndex(
 		"firstname_lastname_1",
 		&index.Filter{
-			Operator:  ">=",
-			Value:     map[string]types.DataType{
-				"firstname": types.Type(t.Column("firstname").Meta).Set("Mery"),
+			Operator: "=",
+			Value:    map[string]types.DataType{
+				"firstname": types.Type(t.Column("firstname").Meta).Set("Vahag"),
 				"lastname":  types.Type(t.Column("lastname").Meta).Set("Galstyan"),
 			},
 		},
-		&index.Filter{
-			Operator:  "<",
-			Value:     map[string]types.DataType{
-				"firstname": types.Type(t.Column("firstname").Meta).Set("Sergey"),
-				"lastname":  types.Type(t.Column("lastname").Meta).Set("Sargsyan"),
-			},
-		},
+		nil,
+		// &index.Filter{
+		// 	Operator: "<",
+		// 	Value:    map[string]types.DataType{
+		// 		"firstname": types.Type(t.Column("firstname").Meta).Set("Sergey"),
+		// 		"lastname":  types.Type(t.Column("lastname").Meta).Set("Sargsyan"),
+		// 	},
+		// },
 		nil,
 	)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	printData(t.Columns(), records)
+	printData(t.PrimaryColumns(), records)
 }
 
 // func main() {

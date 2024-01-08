@@ -79,7 +79,11 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 		}
 	}
 
-	endKey := i.key(end.Value)
+	var endKey [][]byte
+	if end != nil {
+		endKey = i.key(end.Value)
+	}
+
 	opts.Key = i.key(start.Value)
 	searchingKey := opts.Key
 	if postfixColsCount > 0 {
@@ -93,7 +97,7 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 		if postfixColsCount > 0 {
 			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
 		}
-		if shouldStop(k, start.Operator, searchingKey) || shouldStop(k, end.Operator, endKey) {
+		if shouldStop(k, start.Operator, searchingKey) || (endKey != nil && shouldStop(k, end.Operator, endKey)) {
 			return true, nil
 		}
 
