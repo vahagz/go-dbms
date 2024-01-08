@@ -241,6 +241,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		Degree:        10,
 		PageSize:      os.Getpagesize(),
 		Uniq:          opts.Uniq,
+		CacheSize:     10000,
 	}
 
 	tree, err := bptree.Open(t.indexPath(*name), indexOpts)

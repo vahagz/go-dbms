@@ -1,7 +1,6 @@
 package index
 
 import (
-	"fmt"
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/types"
@@ -94,13 +93,6 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 		if postfixColsCount > 0 {
 			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
 		}
-		fmt.Println(
-			shouldStop(k, start.Operator, searchingKey),
-			shouldStop(k, end.Operator, endKey),
-			string(searchingKey[0]), string(searchingKey[1]),
-			string(endKey[0]), string(endKey[1]),
-			string(k[0]), string(k[1]),
-		)
 		if shouldStop(k, start.Operator, searchingKey) || shouldStop(k, end.Operator, endKey) {
 			return true, nil
 		}

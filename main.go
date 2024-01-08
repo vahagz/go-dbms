@@ -101,14 +101,14 @@ func main() {
 	// 	logrus.Fatal(err)
 	// }
 
-	fmt.Println("firstname_lastname_1")
-	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// fmt.Println("firstname_lastname_1")
+	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+	// 	printData(t.Columns(), []map[string]types.DataType{row})
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
