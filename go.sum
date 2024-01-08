@@ -47,8 +47,8 @@ github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
-github.com/vahagz/bptree v0.0.1 h1:UQ0JfzadmveideH7cgLELQvCHZhWdulC8gITgthp1Vc=
-github.com/vahagz/bptree v0.0.1/go.mod h1:DaGos5RqNdVU6CKJk6ZZl2QO4UUXp1ZE5jzDVkkCsJc=
+github.com/vahagz/bptree v0.0.4 h1:OsySAzW9QfLRtbXf+/5nhcoQQjz2WhFm0B+GGQw27KU=
+github.com/vahagz/bptree v0.0.4/go.mod h1:DaGos5RqNdVU6CKJk6ZZl2QO4UUXp1ZE5jzDVkkCsJc=
 github.com/vahagz/disk-allocator v0.0.2 h1:/sM+Z/IlDmHCdak9OCN+WkjtA+zCJVe0juZa/v6ZTxY=
 github.com/vahagz/disk-allocator v0.0.2/go.mod h1:Nc7toATvFKqzq/Vt/QEFgCsvn7sxO4ZBrPaYiUk+g80=
 github.com/vahagz/pager v0.0.1 h1:6wzCMbPeGbYommN15Z10etTrjCnEooerjYYvI02HULg=
