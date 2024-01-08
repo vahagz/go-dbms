@@ -3,6 +3,7 @@ module go-dbms
 go 1.19
 
 replace github.com/vahagz/bptree v0.0.4 => ./pkg/bptree
+
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
