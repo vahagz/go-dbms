@@ -4,6 +4,7 @@ go 1.19
 
 replace (
 	github.com/vahagz/bptree v0.0.4 => ./pkg/bptree
+	github.com/vahagz/disk-allocator v0.0.2 => ./pkg/bptree/pkg/disk-allocator
 	github.com/vahagz/pager v0.0.1 => ./pkg/bptree/pkg/disk-allocator/pkg/pager
 )
 

@@ -1,8 +1,9 @@
 package data
 
 import (
-	"go-dbms/pkg/column"
 	"os"
+
+	"go-dbms/pkg/column"
 )
 
 // defaultOptions to be used by New().
