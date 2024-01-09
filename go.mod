@@ -2,7 +2,10 @@ module go-dbms
 
 go 1.19
 
-replace github.com/vahagz/bptree v0.0.4 => ./pkg/bptree
+replace (
+	github.com/vahagz/bptree v0.0.4 => ./pkg/bptree
+	github.com/vahagz/pager v0.0.1 => ./pkg/bptree/pkg/disk-allocator/pkg/pager
+)
 
 require (
 	github.com/pkg/errors v0.9.1
