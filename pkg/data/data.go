@@ -88,6 +88,19 @@ func (df *DataFile) Get(ptr allocator.Pointable) []types.DataType {
 	return dataCopy
 }
 
+// Get fetches the record map from the given pointer. Returns error if record not found.
+func (df *DataFile) GetMap(ptr allocator.Pointable) map[string]types.DataType {
+	df.mu.RLock()
+	defer df.mu.RUnlock()
+
+	r := df.fetchN(ptr).Get()
+	dataCopy := make(map[string]types.DataType, len(r.data))
+	for i, data := range r.data {
+		dataCopy[df.columns[i].Name] = data
+	}
+	return dataCopy
+}
+
 // InsertRecord inserts the value into the df
 // and returns page id where was inserted
 func (df *DataFile) Insert(val []types.DataType) (allocator.Pointable, error) {
@@ -118,22 +131,13 @@ func (df *DataFile) InsertMem(val []types.DataType) (allocator.Pointable, error)
 // record place, new pointer will be allocated and set.
 // Pointer where data stored will be returned.
 func (df *DataFile) Update(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
-	if ptr, err := df.UpdateMem(ptr, values); err != nil {
-		return nil, err
-	} else {
-		return ptr, df.writeAll()
-	}
+	return df.UpdateMem(ptr, values), df.writeAll()
 }
 
-func (df *DataFile) UpdateMem(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
+func (df *DataFile) UpdateMem(ptr allocator.Pointable, values []types.DataType) allocator.Pointable {
 	df.mu.Lock()
 	defer df.mu.Unlock()
-
-	ptr, err := df.update(ptr, values)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to update data")
-	}
-	return ptr, nil
+	return df.update(ptr, values)
 }
 
 // Delete marks pointer as 'free' for future reuse
@@ -145,7 +149,7 @@ func (df *DataFile) Delete(ptr allocator.Pointable) error {
 func (df *DataFile) DeleteMem(ptr allocator.Pointable) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
-	df.delete(ptr)
+	df.free(ptr)
 }
 
 // Scan performs pointers scan starting from first pointer (next pointer after meta)
@@ -193,23 +197,33 @@ func (df *DataFile) Link(ptr allocator.Pointable) {
 	df.heap.Link(ptr)
 }
 
-func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) (allocator.Pointable, error) {
+func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) allocator.Pointable {
 	newRecord := df.newRecord(values)
 	if newRecord.Size() <= ptr.Size() {
 		p := df.fetchW(ptr)
 		r := p.Get()
 		*r = *newRecord
 		p.Unlock()
-		return ptr, nil
+		return ptr
 	}
 
-	df.delete(ptr)
-	ptr = df.heap.Alloc(newRecord.Size())
-	df.cache.Add(ptr)
-	return ptr, ptr.Set(newRecord)
+	df.free(ptr)
+	ptr = df.alloc(newRecord.Size())
+
+	if err := ptr.Set(newRecord); err != nil {
+		panic(err)
+	}
+
+	return ptr 
 }
 
-func (df *DataFile) delete(ptr allocator.Pointable) {
+func (df *DataFile) alloc(size uint32) allocator.Pointable {
+	ptr := df.heap.Alloc(size)
+	df.cache.Add(ptr)
+	return ptr
+}
+
+func (df *DataFile) free(ptr allocator.Pointable) {
 	df.cache.Del(ptr)
 	df.heap.Free(ptr)
 }
