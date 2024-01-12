@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
 	"github.com/vahagz/disk-allocator/heap/cache"
-	"github.com/vahagz/pager"
 )
 
 // bin is the byte order used for all marshals/unmarshals.
@@ -32,15 +31,13 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	}
 
 	pagerFile := fmt.Sprintf("%s.dat", fileName)
-	p, err := pager.Open(pagerFile, opts.PageSize, false, 0644)
-	if err != nil {
-		return nil, err
-	}
-
 	heap, err := allocator.Open(fileName, &allocator.Options{
 		TargetPageSize: uint16(opts.PageSize),
 		TreePageSize:   uint16(opts.PageSize),
-		Pager:          p,
+		PagerOptions:   allocator.PagerOptions{
+			FileName: pagerFile,
+			PageSize: opts.PageSize,
+		},
 	})
 	if err != nil {
 		return nil, err
