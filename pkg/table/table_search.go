@@ -7,9 +7,48 @@ import (
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 
+	"github.com/pkg/errors"
 	"github.com/vahagz/bptree"
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
+
+func (t *Table) Find(filter *statement.WhereStatement) []index.Entry {
+	var err error
+	result := []index.Entry{}
+
+	if t.meta.PrimaryKey == nil {
+		err = t.df.Scan(func(ptr allocator.Pointable, r []types.DataType) (bool, error) {
+			row := t.row2map(r)
+			if filter == nil || filter.Compare(row) {
+				result = append(result, index.Entry{
+					Ptr: ptr,
+					Row: row,
+				})
+			}
+			return false, nil
+		})
+	} else {
+		err = t.indexes[*t.meta.PrimaryKey].Scan(index.ScanOptions{
+			ScanOptions: bptree.ScanOptions{
+				Strict:  true,
+			},
+		}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
+			row := t.get(ptr)
+			if filter == nil || filter.Compare(row) {
+				result = append(result, index.Entry{
+					Ptr: ptr,
+					Row: row,
+				})
+			}
+			return false, nil
+		})
+	}
+
+	if err != nil {
+		panic(errors.Wrapf(err, "unexpected error while full scanning table"))
+	}
+	return result
+}
 
 func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (
 	[]map[string]types.DataType,
@@ -34,6 +73,9 @@ func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *state
 }
 
 func (t *Table) FullScan(scanFn func(ptr allocator.Pointable, row map[string]types.DataType) (bool, error)) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
 		return scanFn(ptr, t.row2map(row))
 	})
@@ -58,17 +100,6 @@ func (t *Table) FullScanByIndex(
 			Strict:  true,
 		},
 	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
-		row := t.get(ptr)
-		for _, v := range key[:len(key) - 1] {
-			fmt.Print(string(v), ",")
-		}
-		fmt.Print(key[len(key) - 1])
-		fmt.Print(" | ")
-		for _, dt := range row {
-			fmt.Print(dt.Value(), " ")
-		}
-		fmt.Println()
-
 		return scanFn(t.get(ptr))
 	})
 }

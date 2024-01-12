@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/index"
 	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
 
@@ -69,27 +68,27 @@ func main() {
 
 
 
-	err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true, AutoIncrement: true })
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
-	surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
-	for i := 0; i < 10; i++ {
-		err := t.Insert(map[string]types.DataType{
-			// "id":        types.Type(t.Column("id").Meta).Set(id),
-			// "id":        types.Type(t.Column("id").Meta).Set(i),
-			"firstname": types.Type(t.Column("firstname").Meta).Set(names[rand.Int31n(4)]),
-			"lastname":  types.Type(t.Column("lastname").Meta).Set(surnames[rand.Int31n(4)]),
-		})
-		if err != nil {
-			fmt.Println(i, err)
-		}
-	}
+	// err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true, AutoIncrement: true })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// err = t.CreateIndex(nil, []string{"firstname","lastname"}, table.IndexOptions{})
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// names    := []string{"Vahag",     "Sergey",    "Bagrat",   "Mery"}
+	// surnames := []string{"Zargaryan", "Voskanyan", "Galstyan", "Sargsyan"}
+	// for i := 0; i < 10; i++ {
+	// 	err := t.Insert(map[string]types.DataType{
+	// 		// "id":        types.Type(t.Column("id").Meta).Set(id),
+	// 		// "id":        types.Type(t.Column("id").Meta).Set(i),
+	// 		"firstname": types.Type(t.Column("firstname").Meta).Set(names[rand.Int31n(4)]),
+	// 		"lastname":  types.Type(t.Column("lastname").Meta).Set(surnames[rand.Int31n(4)]),
+	// 	})
+	// 	if err != nil {
+	// 		fmt.Println(i, err)
+	// 	}
+	// }
 
 
 
@@ -113,13 +112,16 @@ func main() {
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
-	// 	"id_1",
-	// 	">=",
-	// 	map[string]types.DataType{
-	// 		"id": types.Type(t.Column("id").Meta).Set(345678),
+	// 	"firstname_lastname_1",
+	// 	&index.Filter{
+	// 		Operator: "=",
+	// 		Value:    map[string]types.DataType{
+	// 			"firstname": types.Type(t.Column("firstname").Meta).Set("Sergey"),
+	// 			"lastname":  types.Type(t.Column("lastname").Meta).Set("Sargsyan"),
+	// 		},
 	// 	},
-	// 	// nil,
-	// 	statement.Where("id", ">", types.Type(t.Column("id").Meta).Set(345700)),
+	// 	// statement.Where("id", ">", types.Type(t.Column("id").Meta).Set(345700)),
+	// 	nil,
 	// 	nil,
 	// 	// statement.Where("firstname", "=", types.Type(t.Column("firstname").Meta).Set("Sergey")),
 	// )
@@ -177,84 +179,42 @@ func main() {
 	// printData(t.PrimaryColumns(), records)
 
 	fmt.Println("=======================")
-	_, err = t.UpdateByIndex(
-		"id_1",
-		&index.Filter{
-			Operator: "=",
-			Value:    map[string]types.DataType{
-				"id": types.Type(t.Column("id").Meta).Set(5),
-			},
-		},
+	// records, err := t.UpdateByIndex(
+	// 	"id_1",
+	// 	&index.Filter{
+	// 		Operator: "=",
+	// 		Value:    map[string]types.DataType{
+	// 			"id": types.Type(t.Column("id").Meta).Set(6),
+	// 			// "firstname": types.Type(t.Column("firstname").Meta).Set("Sergey"),
+	// 			// "lastname":  types.Type(t.Column("lastname").Meta).Set("RTYUIOLKNV"),
+	// 		},
+	// 	},
+	// 	nil,
+	// 	nil,
+	// 	map[string]types.DataType{
+	// 		// "id": types.Type(t.Column("id").Meta).Set(11),
+	// 		"firstname": types.Type(t.Column("firstname").Meta).Set("DGSAHJ"),
+	// 		"lastname": types.Type(t.Column("lastname").Meta).Set("00000OOOoo0"),
+	// 	},
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// printData(t.PrimaryColumns(), records)
+
+	records, err := t.Update(
 		nil,
-		nil,
+		// statement.Where("firstname", "=", types.Type(t.Column("firstname").Meta).Set("DGSAHJ")),
 		map[string]types.DataType{
-			"id": types.Type(t.Column("id").Meta).Set(11),
-		},
-	)
-	if err != nil {
-		// logrus.Fatal(err)
-		logrus.Error(err)
-	}
-
-
-	fmt.Println("id_1")
-	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	fmt.Println("firstname_lastname_1")
-	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-
-	records, err := t.UpdateByIndex(
-		"id_1",
-		&index.Filter{
-			Operator: "=",
-			Value:    map[string]types.DataType{
-				"id": types.Type(t.Column("id").Meta).Set(11),
-			},
-		},
-		nil,
-		nil,
-		map[string]types.DataType{
-			"firstname": types.Type(t.Column("firstname").Meta).Set("DDDAAA"),
 			// "id": types.Type(t.Column("id").Meta).Set(11),
+			"firstname": types.Type(t.Column("firstname").Meta).Set("AAAAA"),
+			"lastname": types.Type(t.Column("lastname").Meta).Set("BBBBB"),
 		},
 	)
 	if err != nil {
-		// logrus.Fatal(err)
-		logrus.Error(err)
+		logrus.Fatal(err)
 	}
 	printData(t.PrimaryColumns(), records)
-
-
-	fmt.Println("id_1")
-	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	fmt.Println("firstname_lastname_1")
-	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
 }
 
 // func main() {

@@ -13,6 +13,19 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+func (t *Table) Update(
+	filter *statement.WhereStatement,
+	updateValuesMap map[string]types.DataType,
+) (
+	[]map[string]types.DataType,
+	error,
+) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.update(t.Find(filter), updateValuesMap, t.indexes)
+}
+
 func (t *Table) UpdateByIndex(
 	name string,
 	start, end *index.Filter,
@@ -30,29 +43,22 @@ func (t *Table) UpdateByIndex(
 		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
-	entries := updIndex.ScanEntries(start, end, filter)
+	return t.update(
+		updIndex.ScanEntries(start, end, filter),
+		updateValuesMap,
+		t.getAffectedIndexes(updIndex, updateValuesMap),
+	)
+}
+
+func (t *Table) update(
+	entries []index.Entry,
+	updateValuesMap map[string]types.DataType,
+	indexesToUpdate map[string]*index.Index,
+) (
+	[]map[string]types.DataType,
+	error,
+) {
 	result := make([]map[string]types.DataType, 0, len(entries))
-	indexesToUpdate := make(map[string]*index.Index, len(t.indexes))
-
-	for _, i := range t.indexes {
-		for col := range updateValuesMap {
-			isPrimary := false
-			if t.meta.PrimaryKey != nil && updIndex.Meta().Name == *t.meta.PrimaryKey {
-				isPrimary = true
-			}
-
-			colFound := false
-			if !isPrimary {
-				colFound = -1 != slices.IndexFunc(i.Columns(), func(c *column.Column) bool {
-					return c.Name == col
-				})
-			}
-
-			if isPrimary || colFound {
-				indexesToUpdate[i.Meta().Name] = i
-			}
-		}
-	}
 
 	for _, e := range entries {
 		updated := make(map[string]types.DataType, len(e.Row))
@@ -64,7 +70,7 @@ func (t *Table) UpdateByIndex(
 			}
 		}
 
-		if err := t.update(e.Ptr, e.Row, updated, indexesToUpdate); err != nil {
+		if err := t.updateRow(e.Ptr, e.Row, updated, indexesToUpdate); err != nil {
 			return nil, errors.Wrapf(err, "failed to update table")
 		}
 		result = append(result, t.row2pk(e.Row))
@@ -73,7 +79,7 @@ func (t *Table) UpdateByIndex(
 	return result, nil
 }
 
-func (t *Table) update(
+func (t *Table) updateRow(
 	oldPtr allocator.Pointable,
 	oldRow, newRow map[string]types.DataType,
 	indexesToUpdate map[string]*index.Index,
@@ -120,4 +126,33 @@ func (t *Table) updateIndex(
 
 	t.insertIndex(i, newPtr, newRow)
 	return nil
+}
+
+func (t *Table) getAffectedIndexes(
+	targetIndex *index.Index,
+	row map[string]types.DataType,
+) map[string]*index.Index {
+	indexesToUpdate := make(map[string]*index.Index, len(t.indexes))
+
+	for _, i := range t.indexes {
+		for col := range row {
+			isPrimary := false
+			if t.meta.PrimaryKey != nil && targetIndex.Meta().Name == *t.meta.PrimaryKey {
+				isPrimary = true
+			}
+
+			colFound := false
+			if !isPrimary {
+				colFound = -1 != slices.IndexFunc(i.Columns(), func(c *column.Column) bool {
+					return c.Name == col
+				})
+			}
+
+			if isPrimary || colFound {
+				indexesToUpdate[i.Meta().Name] = i
+			}
+		}
+	}
+
+	return indexesToUpdate
 }
