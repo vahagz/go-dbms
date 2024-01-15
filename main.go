@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-dbms/pkg/column"
+	"go-dbms/pkg/index"
 	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
 
@@ -68,7 +69,11 @@ func main() {
 
 
 
-	// err = t.CreateIndex(nil, []string{"id"}, table.IndexOptions{ Primary: true, AutoIncrement: true })
+	err = t.CreateIndex(nil, &index.IndexOptions{
+		Columns:       []string{"id"},
+		Primary:       true,
+		AutoIncrement: true,
+	})
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }

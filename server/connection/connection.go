@@ -1,4 +1,4 @@
-package server
+package connection
 
 import (
 	"bufio"
@@ -10,7 +10,8 @@ import (
 
 	"go-dbms/services/auth"
 	"go-dbms/util/helpers"
-	"go-dbms/util/logger"
+
+	"github.com/sirupsen/logrus"
 )
 
 type ConnectionT struct {
@@ -45,7 +46,7 @@ func (c *ConnectionT) WaitAuth(authTimeout int) error {
 	go func() {
 		credentials, readErr := bufio.NewReader(c.conn).ReadString(';')
 		if readErr != nil {
-			logger.L.Warn(readErr)
+			logrus.Warn(readErr)
 			ch<- errors.New("Error while reading credentials")
 			return
 		}
@@ -66,7 +67,7 @@ func (c *ConnectionT) WaitAuth(authTimeout int) error {
 
 	select {
 	case <-ctx.Done():
-		logger.L.Error("Auth context canceled: ", ctx.Err())
+		logrus.Error("Auth context canceled: ", ctx.Err())
 		return errors.New("Auth timeout")
 	case err := <-ch:
 		return err
@@ -77,11 +78,11 @@ func (c *ConnectionT) Send(blob []byte) (int, error) {
 	blob = append(blob, '\x00')
 	n, err := c.conn.Write(blob)
 	if err != nil {
-		logger.L.Error("Error while sending data: ", err)
+		logrus.Error("Error while sending data: ", err)
 		err = errors.New("Response error")
 	}
 	
-	logger.L.Infof("Server sent %v bytes", n)
+	logrus.Infof("Server sent %v bytes", n)
 	return n, err
 }
 
