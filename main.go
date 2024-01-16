@@ -5,20 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	r "math/rand"
-	"os"
-	"path"
 	"time"
 
 	"go-dbms/pkg/column"
-	"go-dbms/pkg/index"
-	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser"
 
 	"github.com/sirupsen/logrus"
 )
 
-// var seed = time.Now().Unix()
-var seed int64 = 1704977223
+var seed = time.Now().UnixMilli()
+// var seed int64 = 1704977223
 var rand = r.New(r.NewSource(seed))
 
 // func main() {
@@ -32,48 +29,83 @@ var rand = r.New(r.NewSource(seed))
 
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
-
-	dir, _ := os.Getwd()
-	tablePath := path.Join(dir, "test", "table")
-	options := &table.Options{
-		Columns: []*column.Column{
-			column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4, true)),
-			column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
-			column.New("lastname",  types.Meta(types.TYPE_VARCHAR, 32)),
-		},
-	}
-
-	t, err := table.Open(tablePath, options)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
-	var getDuration time.Duration
-	var insertDuration time.Duration
-	var deleteDuration time.Duration
-	start := time.Now()
-	exitFunc := func() {
-		fmt.Println()
-		fmt.Println("INSERT DURATION =>", insertDuration)
-		fmt.Println("DELETE DURATION =>", deleteDuration)
-		fmt.Println("GET DURATION =>", getDuration)
-		fmt.Println("TOTAL DURATION =>", time.Since(start))
-		fmt.Println("SEED =>", seed)
-		if err := t.Close(); err != nil {
-			logrus.Error(err)
+	ps := &parser.ParserServiceT{}
+	q, err := ps.ParseQuery([]byte(`
+		{
+			"type": "SELECT",
+			"columns": ["c1","c2","c3","c4"],
+			"db": "test_db",
+			"table": "test_table",
+			"where": {
+				"and": [
+					{
+						"statement": {
+							"column": "c1",
+							"operator": "=",
+							"value": "dddd"
+						}
+					},
+					{
+						"statement": {
+							"column": "c2",
+							"operator": ">=",
+							"value": 100
+						}
+					}
+				]
+			}
 		}
+	`))
+	if err != nil {
+		logrus.Fatal(err)	
 	}
-	logrus.RegisterExitHandler(exitFunc)
-	defer exitFunc()
+
+	b, _ := json.Marshal(q)
+	fmt.Println(string(b))
+
+
+	// logrus.SetLevel(logrus.DebugLevel)
+
+	// dir, _ := os.Getwd()
+	// tablePath := path.Join(dir, "test", "table")
+	// options := &table.Options{
+	// 	Columns: []*column.Column{
+	// 		column.New("id",        types.Meta(types.TYPE_INTEGER, true, 4, true)),
+	// 		column.New("firstname", types.Meta(types.TYPE_VARCHAR, 32)),
+	// 		column.New("lastname",  types.Meta(types.TYPE_VARCHAR, 32)),
+	// 	},
+	// }
+
+	// t, err := table.Open(tablePath, options)
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+
+	// var getDuration time.Duration
+	// var insertDuration time.Duration
+	// var deleteDuration time.Duration
+	// start := time.Now()
+	// exitFunc := func() {
+	// 	fmt.Println()
+	// 	fmt.Println("INSERT DURATION =>", insertDuration)
+	// 	fmt.Println("DELETE DURATION =>", deleteDuration)
+	// 	fmt.Println("GET DURATION =>", getDuration)
+	// 	fmt.Println("TOTAL DURATION =>", time.Since(start))
+	// 	fmt.Println("SEED =>", seed)
+	// 	if err := t.Close(); err != nil {
+	// 		logrus.Error(err)
+	// 	}
+	// }
+	// logrus.RegisterExitHandler(exitFunc)
+	// defer exitFunc()
 
 
 
-	err = t.CreateIndex(nil, &index.IndexOptions{
-		Columns:       []string{"id"},
-		Primary:       true,
-		AutoIncrement: true,
-	})
+	// err = t.CreateIndex(nil, &index.IndexOptions{
+	// 	Columns:       []string{"id"},
+	// 	Primary:       true,
+	// 	AutoIncrement: true,
+	// })
 	// if err != nil {
 	// 	logrus.Fatal(err)
 	// }
@@ -97,23 +129,23 @@ func main() {
 
 
 
-	fmt.Println("id_1")
-	err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// fmt.Println("id_1")
+	// err = t.FullScanByIndex("id_1", false, func(row map[string]types.DataType) (bool, error) {
+	// 	printData(t.Columns(), []map[string]types.DataType{row})
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
-	fmt.Println("firstname_lastname_1")
-	err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
-		printData(t.Columns(), []map[string]types.DataType{row})
-		return false, nil
-	})
-	if err != nil {
-		logrus.Fatal(err)
-	}
+	// fmt.Println("firstname_lastname_1")
+	// err = t.FullScanByIndex("firstname_lastname_1", false, func(row map[string]types.DataType) (bool, error) {
+	// 	printData(t.Columns(), []map[string]types.DataType{row})
+	// 	return false, nil
+	// })
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
 
 	// fmt.Println("=======================")
 	// records, err := t.FindByIndex(
@@ -183,7 +215,7 @@ func main() {
 	// }
 	// printData(t.PrimaryColumns(), records)
 
-	fmt.Println("=======================")
+	// fmt.Println("=======================")
 	// records, err := t.UpdateByIndex(
 	// 	"id_1",
 	// 	&index.Filter{
@@ -207,19 +239,19 @@ func main() {
 	// }
 	// printData(t.PrimaryColumns(), records)
 
-	records, err := t.Update(
-		nil,
-		// statement.Where("firstname", "=", types.Type(t.Column("firstname").Meta).Set("DGSAHJ")),
-		map[string]types.DataType{
-			// "id": types.Type(t.Column("id").Meta).Set(11),
-			"firstname": types.Type(t.Column("firstname").Meta).Set("AAAAA"),
-			"lastname": types.Type(t.Column("lastname").Meta).Set("BBBBB"),
-		},
-	)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	printData(t.PrimaryColumns(), records)
+	// records, err := t.Update(
+	// 	nil,
+	// 	// statement.Where("firstname", "=", types.Type(t.Column("firstname").Meta).Set("DGSAHJ")),
+	// 	map[string]types.DataType{
+	// 		// "id": types.Type(t.Column("id").Meta).Set(11),
+	// 		"firstname": types.Type(t.Column("firstname").Meta).Set("AAAAA"),
+	// 		"lastname": types.Type(t.Column("lastname").Meta).Set("BBBBB"),
+	// 	},
+	// )
+	// if err != nil {
+	// 	logrus.Fatal(err)
+	// }
+	// printData(t.PrimaryColumns(), records)
 }
 
 // func main() {

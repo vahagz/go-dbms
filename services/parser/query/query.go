@@ -1,27 +1,27 @@
 package query
 
-type QueryCommandType string
+type QueryType string
 
 const (
-	INSERT   QueryCommandType = "INSERT"
-	SELECT   QueryCommandType = "SELECT"
-	UPDATE   QueryCommandType = "UPDATE"
-	DELETE   QueryCommandType = "DELETE"
-	CREATE   QueryCommandType = "CREATE"
-	ALTER    QueryCommandType = "ALTER"
-	DROP     QueryCommandType = "DROP"
-	TRUNCATE QueryCommandType = "TRUNCATE"
-	RENAME   QueryCommandType = "RENAME"
+	INSERT   QueryType = "INSERT"
+	SELECT   QueryType = "SELECT"
+	UPDATE   QueryType = "UPDATE"
+	DELETE   QueryType = "DELETE"
+	CREATE   QueryType = "CREATE"
+	ALTER    QueryType = "ALTER"
+	DROP     QueryType = "DROP"
+	TRUNCATE QueryType = "TRUNCATE"
+	RENAME   QueryType = "RENAME"
 )
 
 type Querier interface {
-	Type() QueryCommandType
+	GetType() QueryType
 }
 
 type Query struct {
-	Command QueryCommandType `json:"command"`
+	Type QueryType `json:"type"`
 }
 
-func (q *Query) Type() QueryCommandType {
-	return q.Command
+func (q *Query) GetType() QueryType {
+	return q.Type
 }

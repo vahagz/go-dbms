@@ -7,19 +7,19 @@ import (
 )
 
 type WhereStatement struct {
-	and       []*WhereStatement
-	or        []*WhereStatement
-	statement *Statement
+	And       []*WhereStatement `json:"and,omitempty"`
+	Or        []*WhereStatement `json:"or,omitempty"`
+	Statement *Statement        `json:"statement,omitempty"`
 }
 
 func (ws *WhereStatement) Compare(row map[string]types.DataType) bool {
-	if ws.statement != nil {
-		target := row[ws.statement.column]
-		return target.Compare(ws.statement.operator, ws.statement.value)
+	if ws.Statement != nil {
+		target := row[ws.Statement.Column()]
+		return target.Compare(ws.Statement.Operator(), ws.Statement.Value())
 	}
 
-	if len(ws.and) != 0 {
-		for _, ws := range ws.and {
+	if len(ws.And) != 0 {
+		for _, ws := range ws.And {
 			if !ws.Compare(row) {
 				return false
 			}
@@ -27,8 +27,8 @@ func (ws *WhereStatement) Compare(row map[string]types.DataType) bool {
 		return true
 	}
 
-	if len(ws.or) != 0 {
-		for _, ws := range ws.or {
+	if len(ws.Or) != 0 {
+		for _, ws := range ws.Or {
 			if ws.Compare(row) {
 				return true
 			}
@@ -44,11 +44,11 @@ func NewStatement(column, operator string, value types.DataType) *Statement {
 }
 
 func Where(column, operator string, value types.DataType) *WhereStatement {
-	return &WhereStatement{statement: NewStatement(column, operator, value)}
+	return &WhereStatement{Statement: NewStatement(column, operator, value)}
 }
 
 func WhereS(s *Statement) *WhereStatement {
-	return &WhereStatement{statement: s}
+	return &WhereStatement{Statement: s}
 }
 
 func And(list ...*Statement) *WhereStatement {
@@ -58,7 +58,7 @@ func And(list ...*Statement) *WhereStatement {
 	}
 
 	return &WhereStatement{
-		and: andList,
+		And: andList,
 	}
 }
 
@@ -69,6 +69,6 @@ func Or(list ...*Statement) *WhereStatement {
 	}
 
 	return &WhereStatement{
-		or: orList,
+		Or: orList,
 	}
 }
