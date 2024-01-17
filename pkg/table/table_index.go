@@ -14,7 +14,7 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) error {
+func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -25,7 +25,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 		return errors.New("primary index already created")
 	}
 	if opts.AutoIncrement {
-		if len(columns) != 1 {
+		if len(opts.Columns) != 1 {
 			return fmt.Errorf("auto increment supported only fofr single column indexes")
 		}
 	}
@@ -36,8 +36,8 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 	}
 
 	keySize := 0
-	columnsList := make([]*column.Column, 0, len(columns))
-	for _, columnName := range columns {
+	columnsList := make([]*column.Column, 0, len(opts.Columns))
+	for _, columnName := range opts.Columns {
 		if col, ok := t.meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
 		} else if !col.Meta.IsFixedSize() {
@@ -56,7 +56,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 
 	if name == nil {
 		name = new(string)
-		*name = strings.Join(columns, "_")
+		*name = strings.Join(opts.Columns, "_")
 		for i := 1; i < 100; i++ {
 			postfix := fmt.Sprintf("_%d", i)
 			if _, ok := t.indexes[*name + postfix]; !ok {
@@ -79,7 +79,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 	}
 
 	indexOpts := &bptree.Options{
-		KeyCols:       len(columns),
+		KeyCols:       len(opts.Columns),
 		MaxSuffixSize: suffixSize,
 		SuffixCols:    suffixCols,
 		MaxKeySize:    keySize,
@@ -97,7 +97,7 @@ func (t *Table) CreateIndex(name *string, columns []string, opts IndexOptions) e
 
 	meta := &index.Meta{
 		Name:    *name,
-		Columns: columns,
+		Columns: opts.Columns,
 		Uniq:    opts.Uniq,
 		Options: indexOpts,
 	}

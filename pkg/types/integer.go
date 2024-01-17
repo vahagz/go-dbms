@@ -27,7 +27,7 @@ func init() {
 			return &DataTypeINTEGERMeta{
 				Signed:   args[0].(bool),
 				ByteSize: helpers.Convert(args[1], new(uint8)),
-				AI: autoIncrement{ Enabled: args[2].(bool) },
+				AI:       autoIncrement{ Enabled: args[2].(bool) },
 			}
 		},
 	}

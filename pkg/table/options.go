@@ -8,7 +8,3 @@ import (
 type Options struct {
 	Columns []*column.Column
 }
-
-type IndexOptions struct {
-	Primary, Uniq, AutoIncrement bool
-}
