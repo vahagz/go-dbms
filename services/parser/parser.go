@@ -17,6 +17,10 @@ type ParserService interface {
 
 type ParserServiceT struct {  }
 
+func New() *ParserServiceT {
+	return &ParserServiceT{}
+}
+
 func (ps *ParserServiceT) ParseQuery(data []byte) (query.Querier, error) {
 	q := &query.Query{}
 	err := json.Unmarshal(data, &q)
