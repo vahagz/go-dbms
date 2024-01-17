@@ -42,17 +42,17 @@ func (dr *dataRow) UnmarshalJSON(data []byte) error {
 
 type dataMap map[string]types.DataType
 
-func (dr *dataMap) UnmarshalJSON(data []byte) error {
+func (dm *dataMap) UnmarshalJSON(data []byte) error {
 	m := map[string]interface{}{}
 	if err := json.Unmarshal(data, &m); err != nil {
 		return err
 	}
 
-	dm := dataMap{}
-	for key, item := range m {
-		dm[key] = types.ParseJSONValue(item)
+	mp := dataMap{}
+	for key, item := range mp {
+		mp[key] = types.ParseJSONValue(item)
 	}
 
-	*dr = dm
+	*dm = mp
 	return nil
 }
