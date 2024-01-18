@@ -24,13 +24,13 @@ func (es *ExecutorServiceT) ddlCreateTable(q *create.QueryCreateTable) (io.Reade
 		return nil, errors.Wrapf(err, "failed to create table: '%s'", q.Name)
 	}
 
-	for indexName, indexOptions := range q.Indexes {
-		in := indexName
-		if err = t.CreateIndex(&in, indexOptions.IndexOptions); err != nil {
-			return nil, errors.Wrapf(err, "failed to create index: '%s'", in)
+	for _, idx := range q.Indexes {
+		if err = t.CreateIndex(&idx.Name, idx.IndexOptions); err != nil {
+			return nil, errors.Wrapf(err, "failed to create index: '%s'", idx.Name)
 		}
 	}
 
-	p := newPipe(&EOS)
-	return p, nil
+	es.tables[q.Name] = t
+
+	return newPipe(EOS), nil
 }

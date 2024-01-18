@@ -9,6 +9,7 @@ import (
 	"go-dbms/pkg/table"
 	"go-dbms/services/parser/query"
 	"go-dbms/services/parser/query/ddl/create"
+	"go-dbms/services/parser/query/dml"
 
 	"github.com/pkg/errors"
 )
@@ -48,12 +49,21 @@ func New(dataPath string) (*ExecutorServiceT, error) {
 func (es *ExecutorServiceT) Exec(q query.Querier) (io.Reader, error) {
 	switch q.GetType() {
 		case query.CREATE: return es.ddlCreate(q.(create.Creater))
-		// case query.DELETE: return es.ddlCreate(q.(*create.QueryCreate))
-		// case query.INSERT: return es.ddlCreate(q.(*create.QueryCreate))
-		// case query.SELECT: return es.ddlCreate(q.(*create.QueryCreate))
-		// case query.UPDATE: return es.ddlCreate(q.(*create.QueryCreate))
+		case query.DELETE: return es.dmlDelete(q.(*dml.QueryDelete))
+		case query.INSERT: return es.dmlInsert(q.(*dml.QueryInsert))
+		case query.SELECT: return es.dmlSelect(q.(*dml.QuerySelect))
+		case query.UPDATE: return es.dmlUpdate(q.(*dml.QueryUpdate))
 		default:           panic(fmt.Errorf("invalid query type: '%s'", q.GetType()))
 	}
+}
+
+func (es *ExecutorServiceT) Close() error {
+	for name, table := range es.tables {
+		if err := table.Close(); err != nil {
+			return errors.Wrapf(err, "failed to close table: '%s'", name)
+		}
+	}
+	return nil
 }
 
 func (es *ExecutorServiceT) tablePath(tableName string) string {

@@ -1,39 +1,45 @@
 package executor
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"io"
 	"sync"
 )
 
-const prefixSize = 4
+const HeaderSize = 4
 
-var bin = binary.BigEndian
+var Bin = binary.BigEndian
 
-var EOS = []byte(`END`) // end of stream
+var EOS = []byte(`EOS`) // end of stream
 
 type Pipe struct {
-	m      *sync.Mutex
-	prefix []byte
-	reader *io.PipeReader
-	writer *io.PipeWriter
+	m    *sync.Mutex
+	head []byte
+	r    *io.PipeReader
+	w    *io.PipeWriter
+	br   *bufio.Reader
+	bw   *bufio.Writer
 }
 
-func newPipe(buf *[]byte) *Pipe {
+func newPipe(buf []byte) *Pipe {
 	pr, pw := io.Pipe()
+
 	p := &Pipe{
-		m:      &sync.Mutex{},
-		prefix: make([]byte, prefixSize),
-		reader: pr,
-		writer: pw,
+		m:    &sync.Mutex{},
+		head: make([]byte, HeaderSize),
+		r:    pr,
+		w:    pw,
+		br:   bufio.NewReader(pr),
+		bw:   bufio.NewWriter(pw),
 	}
 
-	b := *buf
-	if len(b) > 0 {
+	if len(buf) > 0 {
 		go func() {
-			p.Write(b)
-			if buf == &EOS {
-				p.CloseWriter()
+			_, err := p.Write(buf)
+			if err != nil {
+				panic(err)
 			}
 		}()
 	}
@@ -42,19 +48,19 @@ func newPipe(buf *[]byte) *Pipe {
 }
 
 func (p *Pipe) Read(data []byte) (n int, err error) {
-	return p.reader.Read(data)
+	return p.br.Read(data)
 }
 
 func (p *Pipe) Write(data []byte) (n int, err error) {
-	prefix := p.prefix
+	head := p.head
 	locked := p.m.TryLock()
 	if !locked {
-		prefix = make([]byte, prefixSize)
+		head = make([]byte, HeaderSize)
 	}
 
-	bin.PutUint32(prefix, uint32(len(data)))
+	Bin.PutUint32(head, uint32(len(data)))
 
-	pn, err := p.writer.Write(prefix)
+	pn, err := p.bw.Write(head)
 	if err != nil {
 		return pn, err
 	}
@@ -63,18 +69,21 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 		p.m.Unlock()
 	}
 
-	n, err = p.writer.Write(data)
+	n, err = p.bw.Write(data)
 	n += pn
 	if err != nil {
 		return n, err
+	} else if bytes.Equal(data, EOS) {
+		err = p.CloseWriter()
 	}
-	return n, nil
+	return n, err
 }
 
 func (p *Pipe) CloseReader() error {
-	return p.reader.Close()
+	return p.r.Close()
 }
 
 func (p *Pipe) CloseWriter() error {
-	return p.writer.Close()
+	p.bw.Flush()
+	return p.w.Close()
 }

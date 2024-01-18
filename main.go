@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	r "math/rand"
 	"os"
 	"path"
@@ -13,6 +14,7 @@ import (
 	"go-dbms/pkg/types"
 	"go-dbms/services/executor"
 	"go-dbms/services/parser"
+	"go-dbms/util/response"
 
 	"github.com/sirupsen/logrus"
 )
@@ -33,66 +35,88 @@ var rand = r.New(r.NewSource(seed))
 
 func main() {
 	pwd, _ := os.Getwd()
+	ps := parser.New()
 	es, err := executor.New(path.Join(pwd, "test/tables"))
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	ps := parser.New()
-	q, err := ps.ParseQuery([]byte(`
-		{
-			"type": "CREATE",
-			"target": "TABLE",
-			"name": "table3",
-			"columns": [
-				{
-					"name": "col1",
-					"type": 0,
-					"meta": {
-						"signed": true,
-						"bit_size": 4,
-						"auto_increment": {
-							"enabled": true
-						}
+	defer func() {
+		if err := es.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	q, err := ps.ParseQuery([]byte(`{
+		"type": "CREATE",
+		"target": "TABLE",
+		"name": "testtable",
+		"columns": [
+			{
+				"name": "id",
+				"type": 0,
+				"meta": {
+					"signed": false,
+					"bit_size": 4,
+					"auto_increment": {
+						"enabled": true
 					}
-				},
-				{
-					"name": "col2",
-					"type": 1,
-					"meta": {}
 				}
-			],
-			"indexes": {
-				"id_1": {
-					"name": "id_1",
-					"columns": [
-						"col1"
-					],
-					"primary": true,
-					"auto_increment": true
+			},
+			{
+				"name": "firstname",
+				"type": 2,
+				"meta": {
+					"cap": 32
+				}
+			},
+			{
+				"name": "lastname",
+				"type": 2,
+				"meta": {
+					"cap": 32
 				}
 			}
-		}
-	`))
+		],
+		"indexes": [
+			{
+				"name": "id_1",
+				"columns": [ "id" ],
+				"primary": true,
+				"auto_increment": true
+			},
+			{
+				"name": "firstname_lastname_1",
+				"columns": [ "firstname", "lastname" ]
+			}
+		]
+	}`))
 	if err != nil {
-		logrus.Fatal(err)	
+		logrus.Fatal(err)
 	}
-
-	r, err := es.Exec(q)
+	res, err := es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+	
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "INSERT",
+		"table": "testtable",
+		"columns": [ "firstname", "lastname" ],
+		"values": [
+			[ "Vahag", "Zargaryan" ]
+		]
+	}`))
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
-	buf := make([]byte, 20)
-	for {
-		n, err := r.Read(buf)
-		fmt.Println(n, string(buf[:n]))
-		if err != nil {
-			fmt.Println(err)
-			break
-		}
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
 	}
-	
+	printResponse(res)
 
 	// logrus.SetLevel(logrus.DebugLevel)
 
@@ -756,4 +780,16 @@ func randomString(length int) string {
 		bytes = append(bytes, byte('a' + rand.Intn(int('z') - int('a'))))
 	}
 	return string(bytes)
+}
+
+func printResponse(res io.Reader) {
+	rr := response.NewReader(res)
+	for {
+		msg, err := rr.ReadLine()
+		fmt.Printf("%v '%s'\n", len(msg), string(msg))
+		if err != nil {
+			fmt.Println(err)
+			break
+		}
+	}
 }

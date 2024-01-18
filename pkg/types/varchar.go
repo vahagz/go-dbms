@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-dbms/util/helpers"
 	"math"
+	"strconv"
 )
 
 func init() {
@@ -144,4 +145,35 @@ func (t *DataTypeVARCHAR) Compare(operator string, val DataType) bool {
 		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
+}
+
+func (t *DataTypeVARCHAR) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+	switch code {
+		case TYPE_INTEGER: {
+			if meta == nil {
+				meta = &DataTypeINTEGERMeta{
+					Signed: true,
+					ByteSize: 4,
+				}
+			}
+			number, _ := strconv.Atoi(string(t.value))
+			return Type(meta).Set(number), nil
+		}
+		case TYPE_STRING, TYPE_VARCHAR: {
+			if meta == nil {
+				meta = t.Meta
+			} else {
+				if code == TYPE_VARCHAR {
+					meta = &DataTypeVARCHARMeta{
+						Cap: t.Meta.Cap,
+					}
+				} else {
+					meta = &DataTypeSTRINGMeta{}
+				}
+			}
+			return Type(meta).Set(t.Value()), nil
+		}
+	}
+
+	return nil, fmt.Errorf("typecast from %v to %v not supported", t.Code, code)
 }

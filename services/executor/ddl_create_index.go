@@ -27,5 +27,5 @@ func (es *ExecutorServiceT) ddlCreateIndex(q *create.QueryCreateIndex) (io.Reade
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create index: '%s'", q.Name)
 	}
-	return newPipe(&EOS), nil
+	return newPipe(EOS), nil
 }

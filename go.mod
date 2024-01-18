@@ -6,6 +6,7 @@ replace (
 	github.com/vahagz/bptree v0.0.4 => ./pkg/bptree
 	github.com/vahagz/disk-allocator v0.0.2 => ./pkg/bptree/pkg/disk-allocator
 	github.com/vahagz/disk-allocator/heap => ./pkg/bptree/pkg/disk-allocator/heap
+	github.com/vahagz/rbtree v0.0.1 => ./pkg/bptree/pkg/disk-allocator/pkg/rbtree
 	github.com/vahagz/pager v0.0.1 => ./pkg/bptree/pkg/disk-allocator/pkg/rbtree/pkg/pager
 )
 
