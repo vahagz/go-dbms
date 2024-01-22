@@ -1,6 +1,6 @@
 [submodule "pkg/bptree"]
 	path = pkg/bptree
-	url = https://github.com/vahagz/bptree
+	url = git@github.com/vahagz/bptree.git
 [submodule "pkg/disk-allocator"]
 	path = pkg/disk-allocator
 	url = git@github.com:vahagz/disk-allocator.git
