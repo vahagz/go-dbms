@@ -33,6 +33,18 @@
   },
   "modules": [
     {
+      "module": "rbtree",
+      "dependencies": [ "pager" ]
+    },
+    {
+      "module": "disk-allocator/heap",
+      "dependencies": [ "rbtree", "pager" ]
+    },
+    {
+      "module": "bptree",
+      "dependencies": [ "disk-allocator/heap", "rbtree", "pager" ]
+    },
+    {
       "module": "go-dbms",
       "dependencies": [ "bptree", "disk-allocator/heap", "rbtree", "pager" ]
     }
