@@ -1,5 +1,8 @@
 #!/bin/bash
 
+GREEN='\033[92m'
+RESET='\033[0m'
+
 root=$(pwd)
 json=$(jq -c '.' './submodules.json')
 
@@ -11,7 +14,7 @@ for module in $(echo $json | jq -cr '.modules[]'); do
   moduleUrl=$(echo $json | jq -cr ".list.\"$moduleName\".url")
   moduleBranch=$(echo $json | jq -cr ".list.\"$moduleName\".branch")
 
-  echo "cd $root/$moduleGoPath"
+  echo -e "${GREEN}cd $root/$moduleGoPath${RESET}"
   cd $root/$moduleGoPath
   depListStr=$(echo $module | jq -r '.dependencies | join(", ")')
 
@@ -19,24 +22,24 @@ for module in $(echo $json | jq -cr '.modules[]'); do
     depUrl=$(echo $json | jq -cr ".list.\"$dep\".url")
     depBranch=$(echo $json | jq -cr ".list.\"$dep\".branch")
 
-    echo "go get $depUrl@$depBranch"
+    echo -e "${GREEN}go get $depUrl@$depBranch${RESET}"
     go get $depUrl@$depBranch
   done
 
-  echo "cd $root/$moduleRootPath"
+  echo -e "${GREEN}cd $root/$moduleRootPath${RESET}"
   cd $root/$moduleRootPath
 
-  echo "go mod tidy"
+  echo -e "${GREEN}go mod tidy${RESET}"
   go mod tidy
 
-  echo "git add ."
+  echo -e "${GREEN}git add .${RESET}"
   git add .
-  echo "git commit -m \"'$depListStr' dependencies upgrade\""
+  echo -e "${GREEN}git commit -m \"'$depListStr' dependencies upgrade\"${RESET}"
   git commit -m "'$depListStr' dependencies upgrade"
-  echo "git push"
+  echo -e "${GREEN}git push${RESET}"
   git push
-  echo "git checkout $branch"
+  echo -e "${GREEN}git checkout $branch${RESET}"
   git checkout $branch
-  echo "git pull"
+  echo -e "${GREEN}git pull${RESET}"
   git pull
 done
