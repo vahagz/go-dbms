@@ -6,6 +6,8 @@ RESET='\033[0m'
 root=$(pwd)
 json=$(jq -c '.' './submodules.json')
 
+export GOPROXY=direct
+
 for module in $(echo $json | jq -cr '.modules[]'); do
   moduleName=$(echo $module | jq -cr ".module")
   dependencies=$(echo $module | jq -cr ".dependencies[]")
@@ -22,8 +24,8 @@ for module in $(echo $json | jq -cr '.modules[]'); do
     depUrl=$(echo $json | jq -cr ".list.\"$dep\".url")
     depBranch=$(echo $json | jq -cr ".list.\"$dep\".branch")
 
-    echo -e "${GREEN}go get $depUrl@$depBranch${RESET}"
-    go get $depUrl@$depBranch
+    echo -e "${GREEN}go -u get $depUrl@$depBranch${RESET}"
+    go get -u $depUrl@$depBranch
   done
 
   echo -e "${GREEN}cd $root/$moduleRootPath${RESET}"
