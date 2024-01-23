@@ -22,7 +22,7 @@ func NewReader(r io.Reader) *Reader {
 }
 
 func (rr *Reader) ReadLine() (buf []byte, err error) {
-	n, err := rr.Read(rr.header)
+	n, err := rr.read(rr.header)
 	if err != nil {
 		return nil, err
 	} else if len(rr.header) != n {
@@ -31,7 +31,7 @@ func (rr *Reader) ReadLine() (buf []byte, err error) {
 
 	messageSize := executor.Bin.Uint32(rr.header)
 	message := make([]byte, messageSize)
-	n, err = rr.Read(message)
+	n, err = rr.read(message)
 	if err != nil {
 		return nil, err
 	} else if len(message) != n {
@@ -41,7 +41,7 @@ func (rr *Reader) ReadLine() (buf []byte, err error) {
 	return message, nil
 }
 
-func (rr *Reader) Read(buf []byte) (n int, err error) {
+func (rr *Reader) read(buf []byte) (n int, err error) {
 	for rr.buf.Len() < len(buf) {
 		n, err := rr.source.Read(buf)
 		if err != nil {
