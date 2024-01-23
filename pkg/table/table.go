@@ -35,6 +35,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 		mu:      &sync.RWMutex{},
 		path:    tablePath,
 		indexes: map[string]*index.Index{},
+		df:      &data.DataFile{},
 	}
 
 	err := table.init(opts)
@@ -53,7 +54,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 		return nil, err
 	}
 
-	table.df = df
+	*table.df = *df
 	return table, nil
 }
 
@@ -64,6 +65,10 @@ func (t *Table) HasIndex(name string) bool {
 
 func (t *Table) Columns() []*column.Column {
 	return t.meta.Columns
+}
+
+func (t *Table) PrimaryKey() *string {
+	return t.meta.PrimaryKey
 }
 
 func (t *Table) PrimaryColumns() []*column.Column {
