@@ -46,13 +46,15 @@ func (es *ExecutorServiceT) dmlInsert(q *dml.QueryInsert) (io.Reader, error) {
 		return nil, errors.Wrapf(err, "validation error")
 	}
 
+	t := es.tables[q.Table]
+
 	for i, v := range q.Values {
 		row := make(map[string]types.DataType, len(v))
 		for j, col := range q.Columns {
 			row[col] = v[j]
 		}
 
-		if err := es.tables[q.Table].Insert(row); err != nil {
+		if err := t.Insert(row); err != nil {
 			return nil, errors.Wrapf(err, "failed to insert into table, row: '%v'", i)
 		}
 	}
