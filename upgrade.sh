@@ -11,6 +11,7 @@ for module in $(echo $json | jq -cr '.modules[]'); do
   moduleUrl=$(echo $json | jq -cr ".list.\"$moduleName\".url")
   moduleBranch=$(echo $json | jq -cr ".list.\"$moduleName\".branch")
 
+  echo "cd $root/$moduleGoPath"
   cd $root/$moduleGoPath
   depListStr=$(echo $module | jq -r '.dependencies | join(", ")')
 
@@ -18,17 +19,24 @@ for module in $(echo $json | jq -cr '.modules[]'); do
     depUrl=$(echo $json | jq -cr ".list.\"$dep\".url")
     depBranch=$(echo $json | jq -cr ".list.\"$dep\".branch")
 
+    echo "go get $depUrl@$depBranch"
     go get $depUrl@$depBranch
   done
 
+  echo "cd $root/$moduleRootPath"
   cd $root/$moduleRootPath
 
-  git add .
-  git commit -m "'$depListStr' dependencies upgrade"
-  # git push HEAD:$branch
-  git push
-  git checkout $branch
-  git pull
-
+  echo "go mod tidy"
   go mod tidy
+
+  echo "git add ."
+  git add .
+  echo "git commit -m \"'$depListStr' dependencies upgrade\""
+  git commit -m "'$depListStr' dependencies upgrade"
+  echo "git push"
+  git push
+  echo "git checkout $branch"
+  git checkout $branch
+  echo "git pull"
+  git pull
 done
