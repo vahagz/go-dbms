@@ -3,21 +3,27 @@ package response
 import (
 	"bytes"
 	"errors"
-	"go-dbms/services/executor"
 	"io"
 )
 
-type Reader struct {
-	source io.Reader
-	buf    *bytes.Buffer
-	header []byte
+type endian interface {
+	Uint64(b []byte) uint64
 }
 
-func NewReader(r io.Reader) *Reader {
+type Reader struct {
+	source             io.Reader
+	buf                *bytes.Buffer
+	header, headerCopy []byte
+	byteOrder          endian
+}
+
+func NewReader(r io.Reader, hs int, byteOrder endian) *Reader {
 	return &Reader{
-		header: make([]byte, executor.HeaderSize),
-		source: r,
-		buf:    &bytes.Buffer{},
+		header:     make([]byte, hs),
+		headerCopy: make([]byte, 8),
+		byteOrder:  byteOrder,
+		source:     r,
+		buf:        &bytes.Buffer{},
 	}
 }
 
@@ -29,7 +35,8 @@ func (rr *Reader) ReadLine() (buf []byte, err error) {
 		return nil, errors.New("header size missmatch")
 	}
 
-	messageSize := executor.Bin.Uint32(rr.header)
+	copy(rr.headerCopy, rr.header)
+	messageSize := rr.byteOrder.Uint64(rr.headerCopy)
 	message := make([]byte, messageSize)
 	n, err = rr.read(message)
 	if err != nil {
