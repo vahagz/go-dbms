@@ -8,10 +8,10 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
-github.com/vahagz/bptree v0.0.5-0.20240124142002-30dd773c400b h1:Rb5BM1PcOrrmGDzQQBEbZVKtUxfleKkCnKgVgpw/l+A=
-github.com/vahagz/bptree v0.0.5-0.20240124142002-30dd773c400b/go.mod h1:TaFmohHkwMKo2KDta8GjO2/9kgXUymLUbMJjLrxYMAM=
-github.com/vahagz/disk-allocator/heap v0.0.0-20240124141934-a045858da972 h1:hUqLijsG0gUp1UETryfS8W9kfaLHX9F3vxoJaHZtbU0=
-github.com/vahagz/disk-allocator/heap v0.0.0-20240124141934-a045858da972/go.mod h1:ugD049A8lyp3X8pfphM6NX5L3P3Fit6JGjRs6976ihQ=
+github.com/vahagz/bptree v0.0.5-0.20240125142123-5dce93e95214 h1:gH7AJzzI1HDPEcU47c0x6Mj2cyHvgeoXLzD2QxV9HKA=
+github.com/vahagz/bptree v0.0.5-0.20240125142123-5dce93e95214/go.mod h1:IDr134oviCc0ZA/Hll7fLAZT76t1CWPxp1IA2Qktomo=
+github.com/vahagz/disk-allocator/heap v0.0.0-20240125142055-f5edeff2c2bc h1:vHEmYDXNiHF3OGjPKbOgUkwd4MS4x7z3tErE5G6hPi4=
+github.com/vahagz/disk-allocator/heap v0.0.0-20240125142055-f5edeff2c2bc/go.mod h1:ugD049A8lyp3X8pfphM6NX5L3P3Fit6JGjRs6976ihQ=
 github.com/vahagz/pager v0.0.2-0.20240124141821-d9a252b6212b h1:lWKnLH6JUoAP6biMhJRiIjK2yZK/9C6qZU1BIvt3DxE=
 github.com/vahagz/pager v0.0.2-0.20240124141821-d9a252b6212b/go.mod h1:46G/eN1+gw4I5FgyY2sIFDgAJuQvwNADs49wTKqfyOk=
 github.com/vahagz/rbtree v0.0.2-0.20240124141912-f00f8bc1d2fd h1:8w8so/fqPGMCcdi3mTmxLQfk+vdRS9DrVRXZvgGI6uY=
