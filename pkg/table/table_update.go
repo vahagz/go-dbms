@@ -2,6 +2,7 @@ package table
 
 import (
 	"fmt"
+	"slices"
 
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
-	"golang.org/x/exp/slices"
 )
 
 func (t *Table) Update(

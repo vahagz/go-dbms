@@ -3,12 +3,20 @@ package helpers
 import (
 	"reflect"
 	"unsafe"
-
-	"golang.org/x/exp/constraints"
 )
 
 type eface struct {
 	typ, val unsafe.Pointer
+}
+
+type signed interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64
+}
+type unsigned interface {
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr
+}
+type integer interface {
+	signed | unsigned
 }
 
 func Sizeof[T any](v T) int {
@@ -25,7 +33,7 @@ func Frombytes[T any](srcBytes []byte, dst *T) {
 	*dst = *(*T)(unsafe.Pointer(&dstBytes[0]))
 }
 
-func Convert[T constraints.Integer](from interface{}, to *T) T {
+func Convert[T integer](from interface{}, to *T) T {
 	srcSize := Sizeof(from)
 	dstSize := Sizeof(*to)
 
