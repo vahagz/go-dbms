@@ -47,88 +47,107 @@ func main() {
 		}
 	}()
 
-	// q, err := ps.ParseQuery([]byte(`{
-	// 	"type": "CREATE",
-	// 	"target": "TABLE",
-	// 	"name": "testtable",
-	// 	"columns": [
-	// 		{
-	// 			"name": "id",
-	// 			"type": 0,
-	// 			"meta": {
-	// 				"signed": false,
-	// 				"bit_size": 4,
-	// 				"auto_increment": {
-	// 					"enabled": true
-	// 				}
-	// 			}
-	// 		},
-	// 		{
-	// 			"name": "firstname",
-	// 			"type": 2,
-	// 			"meta": {
-	// 				"cap": 32
-	// 			}
-	// 		},
-	// 		{
-	// 			"name": "lastname",
-	// 			"type": 2,
-	// 			"meta": {
-	// 				"cap": 32
-	// 			}
-	// 		}
-	// 	],
-	// 	"indexes": [
-	// 		{
-	// 			"name": "id_1",
-	// 			"columns": [ "id" ],
-	// 			"primary": true,
-	// 			"auto_increment": true
-	// 		},
-	// 		{
-	// 			"name": "firstname_lastname_1",
-	// 			"columns": [ "firstname", "lastname" ]
-	// 		}
-	// 	]
-	// }`))
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// res, err := es.Exec(q)
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// printResponse(res)
-	
-	// q, err = ps.ParseQuery([]byte(`{
-	// 	"type": "INSERT",
-	// 	"table": "testtable",
-	// 	"columns": [ "firstname", "lastname" ],
-	// 	"values": [
-	// 		[ "Vahag", "Zargaryan" ],
-	// 		[ "Ruben", "Manandyan" ],
-	// 		[ "Sergey", "Zargaryan" ],
-	// 		[ "Arman", "Sargsyan" ],
-	// 		[ "Mery", "Voskanyan" ],
-	// 		[ "David", "Harutyunyan" ],
-	// 		[ "Alexader", "Bakunc" ]
-	// 	]
-	// }`))
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-
-	// res, err = es.Exec(q)
-	// if err != nil {
-	// 	logrus.Fatal(err)
-	// }
-	// printResponse(res)
-
-	
 	q, err := ps.ParseQuery([]byte(`{
+		"type": "CREATE",
+		"target": "TABLE",
+		"name": "testtable",
+		"columns": [
+			{
+				"name": "id",
+				"type": 0,
+				"meta": {
+					"signed": false,
+					"bit_size": 4,
+					"auto_increment": {
+						"enabled": true
+					}
+				}
+			},
+			{
+				"name": "firstname",
+				"type": 2,
+				"meta": {
+					"cap": 32
+				}
+			},
+			{
+				"name": "lastname",
+				"type": 2,
+				"meta": {
+					"cap": 32
+				}
+			}
+		],
+		"indexes": [
+			{
+				"name": "id_1",
+				"columns": [ "id" ],
+				"primary": true,
+				"auto_increment": true
+			},
+			{
+				"name": "firstname_lastname_1",
+				"columns": [ "firstname", "lastname" ]
+			}
+		]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	res, err := es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+	
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "INSERT",
+		"table": "testtable",
+		"columns": [ "firstname", "lastname" ],
+		"values": [
+			[ "Vahag", "Zargaryan" ],
+			[ "Ruben", "Manandyan" ],
+			[ "Sergey", "Zargaryan" ],
+			[ "Arman", "Sargsyan" ],
+			[ "Mery", "Voskanyan" ],
+			[ "David", "Harutyunyan" ],
+			[ "Alexader", "Bakunc" ]
+		]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
 		"type": "SELECT",
 		"table": "testtable",
-		"columns": [ "id", "firstname", "lastname" ],
+		"columns": [ "id", "firstname", "lastname" ]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "UPDATE",
+		"table": "testtable",
+		"values": {
+			"firstname": "dddddd"
+		},
 		"where_index": {
 			"name": "id_1",
 			"filter_start": {
@@ -167,7 +186,38 @@ func main() {
 		logrus.Fatal(err)
 	}
 
-	res, err := es.Exec(q)
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "SELECT",
+		"table": "testtable",
+		"columns": [ "id", "firstname", "lastname" ]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+	
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "DELETE",
+		"table": "testtable"
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
 	if err != nil {
 		logrus.Fatal(err)
 	}

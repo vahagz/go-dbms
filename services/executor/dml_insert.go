@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -48,16 +49,42 @@ func (es *ExecutorServiceT) dmlInsert(q *dml.QueryInsert) (io.Reader, error) {
 
 	t := es.tables[q.Table]
 
-	for i, v := range q.Values {
-		row := make(map[string]types.DataType, len(v))
-		for j, col := range q.Columns {
-			row[col] = v[j]
+	p := newPipe(nil)
+	go func ()  {
+		columns := t.PrimaryColumns()
+
+		for i, v := range q.Values {
+			row := make(map[string]types.DataType, len(v))
+			for j, col := range q.Columns {
+				row[col] = v[j]
+			}
+	
+			if pk, err := t.Insert(row); err != nil {
+				panic(errors.Wrapf(err, "failed to insert into table, row: '%v'", i))
+			} else {
+				record := make([]interface{}, 0, len(columns))
+				for _, col := range columns {
+					record = append(record, pk[col.Name].Value())
+				}
+
+				blob, err := json.Marshal(record)
+				if err != nil {
+					panic(errors.Wrap(err, "failed to marshal record"))
+				}
+
+				_, err = p.Write(blob)
+				if err != nil {
+					panic(errors.Wrap(err, "failed to push marshaled record"))
+				}
+			}
 		}
 
-		if err := t.Insert(row); err != nil {
-			return nil, errors.Wrapf(err, "failed to insert into table, row: '%v'", i)
+		if err := p.bw.Flush(); err != nil {
+			panic(err)
+		} else if _, err := p.Write(EOS); err != nil {
+			panic(err)
 		}
-	}
+	}()
 
-	return newPipe(EOS), nil
+	return p, nil
 }
