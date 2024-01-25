@@ -11,31 +11,58 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) DeleteByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (
-	[]map[string]types.DataType,
-	error,
-) {
+func (t *Table) Delete(
+	filter *statement.WhereStatement,
+	scanFn func(row map[string]types.DataType) error,
+) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	index, ok := t.indexes[name]
-	if !ok {
-		return nil, fmt.Errorf("index not found => '%s'", name)
-	}
-
-	entries := index.ScanEntries(start, end, filter)
-	result := make([]map[string]types.DataType, 0, len(entries))
-
-	for _, e := range entries {
-		t.delete(e.Ptr, e.Row)
-		result = append(result, t.row2pk(e.Row))
-	}
-
-	return result, nil
+	return t.delete(t.Find(filter), t.indexes, scanFn)
 }
 
-func (t *Table) delete(ptr allocator.Pointable, row map[string]types.DataType) {
-	for _, i := range t.indexes {
+func (t *Table) DeleteByIndex(
+	name string,
+	start, end *index.Filter,
+	filter *statement.WhereStatement,
+	scanFn func(row map[string]types.DataType) error,
+) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delIndex, ok := t.indexes[name]
+	if !ok {
+		return fmt.Errorf("index not found => '%s'", name)
+	}
+
+	return t.delete(
+		delIndex.ScanEntries(start, end, filter),
+		t.indexes,
+		scanFn,
+	)
+}
+
+func (t *Table) delete(
+	entries []index.Entry,
+	indexesToUpdate map[string]*index.Index,
+	scanFn func(row map[string]types.DataType) error,
+) error {
+	for _, e := range entries {
+		t.deleteRow(e.Ptr, e.Row, indexesToUpdate)
+		if err := scanFn(t.row2pk(e.Row)); err != nil {
+			return errors.Wrap(err, "failed to delete row")
+		}
+	}
+
+	return nil
+}
+
+func (t *Table) deleteRow(
+	ptr allocator.Pointable,
+	row map[string]types.DataType,
+	indexesToUpdate map[string]*index.Index,
+) {
+	for _, i := range indexesToUpdate {
 		t.deleteIndex(i, ptr, row)
 	}
 	t.df.DeleteMem(ptr)
