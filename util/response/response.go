@@ -2,26 +2,20 @@ package response
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 )
 
-type endian interface {
-	Uint64(b []byte) uint64
-}
-
 type Reader struct {
-	source             io.Reader
-	buf                *bytes.Buffer
-	header, headerCopy []byte
-	byteOrder          endian
+	source io.Reader
+	buf    *bytes.Buffer
+	header []byte
 }
 
-func NewReader(r io.Reader, hs int, byteOrder endian) *Reader {
+func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		header:     make([]byte, hs),
-		headerCopy: make([]byte, 8),
-		byteOrder:  byteOrder,
+		header:     make([]byte, 4),
 		source:     r,
 		buf:        &bytes.Buffer{},
 	}
@@ -35,8 +29,7 @@ func (rr *Reader) ReadLine() (buf []byte, err error) {
 		return nil, errors.New("header size missmatch")
 	}
 
-	copy(rr.headerCopy, rr.header)
-	messageSize := rr.byteOrder.Uint64(rr.headerCopy)
+	messageSize := binary.BigEndian.Uint32(rr.header)
 	message := make([]byte, messageSize)
 	n, err = rr.read(message)
 	if err != nil {
@@ -49,6 +42,8 @@ func (rr *Reader) ReadLine() (buf []byte, err error) {
 }
 
 func (rr *Reader) read(buf []byte) (n int, err error) {
+	rr.buf.Reset()
+
 	for rr.buf.Len() < len(buf) {
 		n, err := rr.source.Read(buf)
 		if err != nil {
