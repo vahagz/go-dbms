@@ -30,6 +30,52 @@ func (es *ExecutorServiceT) dmlSelectValidate(q *dml.QuerySelect) error {
 		if !table.HasIndex(q.WhereIndex.Name) {
 			return fmt.Errorf("index not found: '%s'", q.WhereIndex.Name)
 		}
+
+		fs := q.WhereIndex.FilterStart
+		if fs != nil {
+			for k, v := range fs.Value {
+				casted, err := v.Cast(table.Column(k).Typ, table.Column(k).Meta)
+				if err != nil {
+					return errors.Wrapf(err, "failed to cast %v to %v", v.GetCode(), table.Column(k).Typ)
+				}
+
+				fs.Value[k] = casted
+			}
+		}
+		
+		fe := q.WhereIndex.FilterEnd
+		if fe != nil {
+			for k, v := range fe.Value {
+				casted, err := v.Cast(table.Column(k).Typ, table.Column(k).Meta)
+				if err != nil {
+					return errors.Wrapf(err, "failed to cast %v to %v", v.GetCode(), table.Column(k).Typ)
+				}
+
+				fe.Value[k] = casted
+			}
+		}
+
+		var validateWhere func(w *statement.WhereStatement)
+		validateWhere = func (w *statement.WhereStatement) {
+			if w == nil {
+				return
+			}
+
+			if w.And != nil {
+				for _, ws := range w.And {
+					validateWhere(ws)
+				}
+			}
+			if w.Or != nil {
+				for _, ws := range w.Or {
+					validateWhere(ws)
+				}
+			}
+			if w.Statement != nil {
+				w.Statement.Val = types.Type(table.Column(w.Statement.Col).Meta).Set(w.Statement.Val.Value())
+			}
+		}
+		validateWhere((*statement.WhereStatement)(q.Where))
 	}
 
 	return nil
@@ -57,11 +103,12 @@ func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.Reader, error) {
 					Operator: q.WhereIndex.FilterStart.Operator,
 					Value:    q.WhereIndex.FilterStart.Value,
 				}
-			}
-			if q.WhereIndex.FilterEnd != nil {
-				indexFilterEnd = &index.Filter{
-					Operator: q.WhereIndex.FilterEnd.Operator,
-					Value:    q.WhereIndex.FilterEnd.Value,
+
+				if q.WhereIndex.FilterEnd != nil {
+					indexFilterEnd = &index.Filter{
+						Operator: q.WhereIndex.FilterEnd.Operator,
+						Value:    q.WhereIndex.FilterEnd.Value,
+					}
 				}
 			}
 		}
@@ -70,16 +117,18 @@ func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.Reader, error) {
 		}
 
 		process := func(row map[string]types.DataType) (bool, error) {
-			m := make(map[string]interface{}, len(row))
-			for k, dt := range row {
-				m[k] = dt.Value()
+			record := make([]interface{}, 0, len(q.Columns))
+			for _, col := range q.Columns {
+				record = append(record, row[col].Value())
 			}
-			blob, _ := json.Marshal(m)
-			_, err := p.Write(blob)
+
+			blob, err := json.Marshal(record)
 			if err != nil {
-				return true, errors.Wrap(err, "failed to push marshaled record")
+				return true, errors.Wrap(err, "failed to marshal record")
 			}
-			return false, nil
+
+			_, err = p.Write(blob)
+			return false, errors.Wrap(err, "failed to push marshaled record")
 		}
 
 		var err error
