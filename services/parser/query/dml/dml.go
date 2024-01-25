@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query"
 )
@@ -49,10 +50,23 @@ func (dm *dataMap) UnmarshalJSON(data []byte) error {
 	}
 
 	mp := dataMap{}
-	for key, item := range mp {
+	for key, item := range m {
 		mp[key] = types.ParseJSONValue(item)
 	}
 
 	*dm = mp
 	return nil
+}
+
+type indexFilter struct {
+	Operator string  `json:"operator"`
+	Value    dataMap `json:"value"`
+}
+
+type where statement.WhereStatement
+
+type whereIndex struct {
+	Name        string       `json:"name"`
+	FilterStart *indexFilter `json:"filter_start"`
+	FilterEnd   *indexFilter `json:"filter_end"`
 }

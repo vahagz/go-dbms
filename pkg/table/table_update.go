@@ -16,14 +16,12 @@ import (
 func (t *Table) Update(
 	filter *statement.WhereStatement,
 	updateValuesMap map[string]types.DataType,
-) (
-	[]map[string]types.DataType,
-	error,
-) {
+	scanFn func(row map[string]types.DataType) error,
+) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	return t.update(t.Find(filter), updateValuesMap, t.indexes)
+	return t.update(t.Find(filter), updateValuesMap, t.indexes, scanFn)
 }
 
 func (t *Table) UpdateByIndex(
@@ -31,22 +29,21 @@ func (t *Table) UpdateByIndex(
 	start, end *index.Filter,
 	filter *statement.WhereStatement,
 	updateValuesMap map[string]types.DataType,
-) (
-	[]map[string]types.DataType,
-	error,
-) {
+	scanFn func(row map[string]types.DataType) error,
+) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	updIndex, ok := t.indexes[name]
 	if !ok {
-		return nil, fmt.Errorf("index not found => '%s'", name)
+		return fmt.Errorf("index not found => '%s'", name)
 	}
 
 	return t.update(
 		updIndex.ScanEntries(start, end, filter),
 		updateValuesMap,
 		t.getAffectedIndexes(updIndex, updateValuesMap),
+		scanFn,
 	)
 }
 
@@ -54,12 +51,8 @@ func (t *Table) update(
 	entries []index.Entry,
 	updateValuesMap map[string]types.DataType,
 	indexesToUpdate map[string]*index.Index,
-) (
-	[]map[string]types.DataType,
-	error,
-) {
-	result := make([]map[string]types.DataType, 0, len(entries))
-
+	scanFn func(row map[string]types.DataType) error,
+) error {
 	for _, e := range entries {
 		updated := make(map[string]types.DataType, len(e.Row))
 		for col, oldVal := range e.Row {
@@ -71,12 +64,15 @@ func (t *Table) update(
 		}
 
 		if err := t.updateRow(e.Ptr, e.Row, updated, indexesToUpdate); err != nil {
-			return nil, errors.Wrapf(err, "failed to update table")
+			return errors.Wrap(err, "failed to update table")
 		}
-		result = append(result, t.row2pk(e.Row))
+
+		if err := scanFn(t.row2pk(e.Row)); err != nil {
+			return errors.Wrap(err, "failed to update table")
+		}
 	}
 
-	return result, nil
+	return nil
 }
 
 func (t *Table) updateRow(

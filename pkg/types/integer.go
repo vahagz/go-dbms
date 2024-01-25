@@ -195,3 +195,26 @@ func (t *DataTypeINTEGER) Compare(operator string, val DataType) bool {
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
+
+func (t *DataTypeINTEGER) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+	switch code {
+		case TYPE_INTEGER: {
+			if meta == nil {
+				meta = t.Meta
+			}
+			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_STRING, TYPE_VARCHAR: {
+			if meta == nil {
+				meta = t.Meta
+			} else if code == TYPE_VARCHAR {
+				meta = &DataTypeVARCHARMeta{
+					Cap: uint16(t.Meta.ByteSize),
+				}
+			}
+			return Type(meta).Set(fmt.Sprint(t.Value())), nil
+		}
+	}
+
+	return nil, fmt.Errorf("typecast from %v to %v not supported", t.Code, code)
+}

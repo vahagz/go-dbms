@@ -1,7 +1,6 @@
 package dml
 
 import (
-	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query"
 )
 
@@ -10,5 +9,5 @@ type QueryInsert struct {
 	DB      string    `json:"db"`
 	Table   string    `json:"table"`
 	Columns []string  `json:"columns"`
-	Values  [][]types.DataType `json:"values"`
+	Values  []dataRow `json:"values"`
 }

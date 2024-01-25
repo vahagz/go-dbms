@@ -6,7 +6,8 @@ import (
 
 type QueryCreateTable struct {
 	*QueryCreate
-	Name    string                            `json:"name"`
-	Columns []*column.Column                  `json:"columns"`
-	Indexes map[string]*QueryCreateTableIndex `json:"indexes"`
+	Database string                   `json:"database"`
+	Name     string                   `json:"name"`
+	Columns  []*column.Column         `json:"columns"`
+	Indexes  []*QueryCreateTableIndex `json:"indexes"`
 }

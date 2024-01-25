@@ -4,12 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	r "math/rand"
+	"os"
+	"path"
 	"time"
 
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/types"
+	"go-dbms/services/executor"
 	"go-dbms/services/parser"
+	"go-dbms/util/response"
 
 	"github.com/sirupsen/logrus"
 )
@@ -29,39 +34,194 @@ var rand = r.New(r.NewSource(seed))
 
 
 func main() {
-	ps := &parser.ParserServiceT{}
-	q, err := ps.ParseQuery([]byte(`
-		{
-			"type": "SELECT",
-			"columns": ["c1","c2","c3","c4"],
-			"db": "test_db",
-			"table": "test_table",
-			"where": {
-				"and": [
-					{
-						"statement": {
-							"column": "c1",
-							"operator": "=",
-							"value": "dddd"
-						}
-					},
-					{
-						"statement": {
-							"column": "c2",
-							"operator": ">=",
-							"value": 100
-						}
-					}
-				]
-			}
-		}
-	`))
+	pwd, _ := os.Getwd()
+	ps := parser.New()
+	es, err := executor.New(path.Join(pwd, "test/tables"))
 	if err != nil {
-		logrus.Fatal(err)	
+		logrus.Fatal(err)
 	}
 
-	b, _ := json.Marshal(q)
-	fmt.Println(string(b))
+	defer func() {
+		if err := es.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	q, err := ps.ParseQuery([]byte(`{
+		"type": "CREATE",
+		"target": "TABLE",
+		"name": "testtable",
+		"columns": [
+			{
+				"name": "id",
+				"type": 0,
+				"meta": {
+					"signed": false,
+					"bit_size": 4,
+					"auto_increment": {
+						"enabled": true
+					}
+				}
+			},
+			{
+				"name": "firstname",
+				"type": 2,
+				"meta": {
+					"cap": 32
+				}
+			},
+			{
+				"name": "lastname",
+				"type": 2,
+				"meta": {
+					"cap": 32
+				}
+			}
+		],
+		"indexes": [
+			{
+				"name": "id_1",
+				"columns": [ "id" ],
+				"primary": true,
+				"auto_increment": true
+			},
+			{
+				"name": "firstname_lastname_1",
+				"columns": [ "firstname", "lastname" ]
+			}
+		]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	res, err := es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+	
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "INSERT",
+		"table": "testtable",
+		"columns": [ "firstname", "lastname" ],
+		"values": [
+			[ "Vahag", "Zargaryan" ],
+			[ "Ruben", "Manandyan" ],
+			[ "Sergey", "Zargaryan" ],
+			[ "Arman", "Sargsyan" ],
+			[ "Mery", "Voskanyan" ],
+			[ "David", "Harutyunyan" ],
+			[ "Alexader", "Bakunc" ]
+		]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "SELECT",
+		"table": "testtable",
+		"columns": [ "id", "firstname", "lastname" ]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "UPDATE",
+		"table": "testtable",
+		"values": {
+			"firstname": "dddddd"
+		},
+		"where_index": {
+			"name": "id_1",
+			"filter_start": {
+				"operator": ">=",
+				"value": {
+					"id": 4
+				}
+			},
+			"filter_end": {
+				"operator": "<=",
+				"value": {
+					"id": 6
+				}
+			}
+		},
+		"where": {
+			"or": [
+				{
+					"statement": {
+						"column": "firstname",
+						"operator": "=",
+						"value": "Arman"
+					}
+				},
+				{
+					"statement": {
+						"column": "lastname",
+						"operator": "=",
+						"value": "Harutyunyan"
+					}
+				}
+			]
+		}
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "SELECT",
+		"table": "testtable",
+		"columns": [ "id", "firstname", "lastname" ]
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
+
+	
+	q, err = ps.ParseQuery([]byte(`{
+		"type": "DELETE",
+		"table": "testtable"
+	}`))
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	res, err = es.Exec(q)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	printResponse(res)
 
 
 	// logrus.SetLevel(logrus.DebugLevel)
@@ -726,4 +886,16 @@ func randomString(length int) string {
 		bytes = append(bytes, byte('a' + rand.Intn(int('z') - int('a'))))
 	}
 	return string(bytes)
+}
+
+func printResponse(res io.Reader) {
+	rr := response.NewReader(res)
+	for {
+		msg, err := rr.ReadLine()
+		fmt.Printf("%v '%s'\n", len(msg), string(msg))
+		if err != nil {
+			fmt.Println("error =>", err)
+			break
+		}
+	}
 }

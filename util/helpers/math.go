@@ -1,10 +1,8 @@
 package helpers
 
-import (
-	"golang.org/x/exp/constraints"
-)
+import "cmp"
 
-func Min[T constraints.Ordered](numbers ...T) T {
+func Min[T cmp.Ordered](numbers ...T) T {
 	var min T = numbers[0]
 	for _, n := range numbers {
 		if n < min {

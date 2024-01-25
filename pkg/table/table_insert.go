@@ -10,34 +10,42 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) Insert(values map[string]types.DataType) error {
+func (t *Table) Insert(values map[string]types.DataType) (map[string]types.DataType, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	t.setDefaults(values)
 
 	if err := t.validateMap(values); err != nil {
-		return errors.Wrap(err, "validation error")
+		return nil, errors.Wrap(err, "validation error")
 	}
 
 	if err := t.canInsert(values); err != nil {
-		return errors.Wrapf(err, "can't insert row")
+		return nil, errors.Wrapf(err, "can't insert row")
 	}
 
-	t.insert(values)
-
-	return nil
+	return t.insert(values), nil
 }
 
-func (t *Table) insert(row map[string]types.DataType) {
+func (t *Table) insert(row map[string]types.DataType) map[string]types.DataType {
 	ptr, err := t.df.Insert(t.map2row(row))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to insert into datafile"))
 	}
 
+	var pk map[string]types.DataType
 	for _, index := range t.indexes {
 		t.insertIndex(index, ptr, row)
+		if t.isPK(index) {
+			pkCols := index.Columns()
+			pk = make(map[string]types.DataType, len(pkCols))
+			for _, c := range pkCols {
+				pk[c.Name] = row[c.Name]
+			}
+		}
 	}
+
+	return pk
 }
 
 func (t *Table) insertIndex(i *index.Index, ptr allocator.Pointable, row map[string]types.DataType) {

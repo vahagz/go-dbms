@@ -1,0 +1,52 @@
+{
+  "list": {
+    "go-dbms": {
+      "rootPath": "",
+      "goPath": "",
+      "url": "github.com/vahagz/go-dbms",
+      "branch": "master"
+    },
+    "bptree": {
+      "rootPath": "pkg/bptree",
+      "goPath": "pkg/bptree",
+      "url": "github.com/vahagz/bptree",
+      "branch": "main"
+    },
+    "disk-allocator/heap": {
+      "rootPath": "pkg/disk-allocator",
+      "goPath": "pkg/disk-allocator/heap",
+      "url": "github.com/vahagz/disk-allocator/heap",
+      "branch": "main"
+    },
+    "rbtree": {
+      "rootPath": "pkg/rbtree",
+      "goPath": "pkg/rbtree",
+      "url": "github.com/vahagz/rbtree",
+      "branch": "main"
+    },
+    "pager": {
+      "rootPath": "pkg/pager",
+      "goPath": "pkg/pager",
+      "url": "github.com/vahagz/pager",
+      "branch": "main"
+    }
+  },
+  "modules": [
+    {
+      "module": "rbtree",
+      "dependencies": [ "pager" ]
+    },
+    {
+      "module": "disk-allocator/heap",
+      "dependencies": [ "rbtree", "pager" ]
+    },
+    {
+      "module": "bptree",
+      "dependencies": [ "disk-allocator/heap", "rbtree", "pager" ]
+    },
+    {
+      "module": "go-dbms",
+      "dependencies": [ "bptree", "disk-allocator/heap", "rbtree", "pager" ]
+    }
+  ]
+}

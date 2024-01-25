@@ -31,8 +31,20 @@ type Table struct {
 }
 
 func Open(tablePath string, opts *Options) (*Table, error) {
+	table := &Table{
+		mu:      &sync.RWMutex{},
+		path:    tablePath,
+		indexes: map[string]*index.Index{},
+		df:      &data.DataFile{},
+	}
+
+	err := table.init(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	dataOptions := data.DefaultOptions
-	dataOptions.Columns = opts.Columns
+	dataOptions.Columns = table.meta.Columns
 
 	df, err := data.Open(
 		path.Join(tablePath, dataFileName),
@@ -42,18 +54,21 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 		return nil, err
 	}
 
-	table := &Table{
-		mu:      &sync.RWMutex{},
-		path:    tablePath,
-		df:      df,
-		indexes: map[string]*index.Index{},
-	}
+	*table.df = *df
+	return table, nil
+}
 
-	return table, table.init(opts)
+func (t *Table) HasIndex(name string) bool {
+	_, ok := t.indexes[name]
+	return ok
 }
 
 func (t *Table) Columns() []*column.Column {
 	return t.meta.Columns
+}
+
+func (t *Table) PrimaryKey() *string {
+	return t.meta.PrimaryKey
 }
 
 func (t *Table) PrimaryColumns() []*column.Column {

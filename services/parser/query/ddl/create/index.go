@@ -10,4 +10,5 @@ type QueryCreateTableIndex struct {
 type QueryCreateIndex struct {
 	*QueryCreate
 	QueryCreateTableIndex
+	Table string `json:"table"`
 }
