@@ -7,7 +7,7 @@ type AuthService interface {
 	ValidateCredentials(username string, password string) bool
 }
 
-func New() AuthService {
+func New() *AuthServiceT {
 	return &AuthServiceT{}
 }
 
