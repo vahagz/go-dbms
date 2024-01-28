@@ -1,14 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
-	"go-dbms/services/executor"
-	"go-dbms/util/response"
-	"io"
 	"net"
 	"os"
+	"time"
+
+	"go-dbms/client/types"
+	"go-dbms/client/util/response"
 
 	"github.com/pkg/errors"
 )
@@ -23,55 +23,21 @@ type Client struct {
 	conn *net.TCPConn
 }
 
-func (c *Client) Query(b []byte) (res []byte, err error) {
+func (c *Client) Query(b []byte) (*types.Rows, error) {
 	header := make([]byte, 4)
 	binary.BigEndian.PutUint32(header, uint32(len(b)))
 
-	_, err = c.conn.Write(header)
-	if err != nil {
+	if _, err := c.conn.Write(header); err != nil {
 		fmt.Println("Error while sending header: ", err)
 		return nil, errors.New("Response error")
 	}
 
-	_, err = c.conn.Write(b)
-	if err != nil {
+	if _, err := c.conn.Write(b); err != nil {
 		fmt.Println("Error while sending data: ", err)
 		return nil, errors.New("Response error")
 	}
 
-	return readResponse(c.conn).Bytes(), nil
-}
-
-func readResponse(res io.Reader) *bytes.Buffer {
-	buf := new(bytes.Buffer)
-	rr := response.NewReader(res)
-
-	for {
-		msg, err := rr.ReadLine()
-		if err != nil {
-			fmt.Println("read error =>", err)
-			return buf
-		}
-		
-		if bytes.Compare(executor.EOS, msg) == 0 {
-			break
-		}
-
-		fmt.Println(string(msg))
-		_, err = buf.Write(msg)
-		if err != nil {
-			fmt.Println("write error =>", err)
-			return buf
-		}
-
-		// _, err = buf.WriteRune('\n')
-		// if err != nil {
-		// 	fmt.Println("write error =>", err)
-		// 	return buf
-		// }
-	}
-
-	return buf
+	return &types.Rows{Conn: c.conn, Res: response.NewReader(c.conn)}, nil
 }
 
 func main() {
@@ -95,14 +61,19 @@ func main() {
 	}
 
 	client := &Client{conn}
-	var res []byte
-	_ = res
+	var rows *types.Rows
+	_ = rows
 
-	res, err = client.Query([]byte("username:password"))
+	rows, err = client.Query([]byte("username:password"))
 	exitIfErr(errors.Wrap(err, "auth failed"))
-	fmt.Printf("total bytes received: %v\n", len(res))
+	var msg string
+	for rows.Next() {
+		rows.Scan(&msg)
+		fmt.Printf("[auth] bytes received: %v\n", len(msg))
+	}
 
-	// res, err = client.Query([]byte(`{
+	// t := time.Now()
+	// rows, err = client.Query([]byte(`{
 	// 	"type": "CREATE",
 	// 	"target": "TABLE",
 	// 	"name": "testtable",
@@ -147,10 +118,13 @@ func main() {
 	// 	]
 	// }`))
 	// exitIfErr(errors.Wrap(err, "query failed failed"))
-	// fmt.Printf("total bytes received: %v\n", len(res))
+	// for rows.Next() {
+	// 	fmt.Printf("[create] %v\n", time.Since(t))
+	// }
 
+	// t = time.Now()
 	// for i := 0; i < 4000; i++ {
-	// 	res, err = client.Query([]byte(`{
+	// 	rows, err = client.Query([]byte(`{
 	// 		"type": "INSERT",
 	// 		"table": "testtable",
 	// 		"columns": [ "firstname", "lastname" ],
@@ -168,26 +142,48 @@ func main() {
 	// 		]
 	// 	}`))
 	// 	exitIfErr(errors.Wrap(err, "query failed failed"))
+	// 	for rows.Next() {  }
 	// }
+	// fmt.Printf("[insert] %v\n", time.Since(t))
 
-	res, err = client.Query([]byte(`{
+	t := time.Now()
+	rows, err = client.Query([]byte(`{
 		"type": "SELECT",
 		"table": "testtable",
 		"columns": [ "id", "firstname", "lastname" ],
 		"where_index": {
 			"name": "id_1",
 			"filter_start": {
+				"operator": ">",
+				"value": {
+					"id": 0
+				}
+			},
+			"filter_end": {
 				"operator": "<=",
 				"value": {
-					"id": 100
+					"id": 1000
 				}
 			}
 		}
 	}`))
-	exitIfErr(errors.Wrap(err, "query failed failed"))
-	fmt.Printf("total bytes received: %v\n", len(res))
+	exitIfErr(errors.Wrap(err, "query failed"))
 
-	// res, err = client.Query([]byte(`{
+	for rows.Next() {
+		var (
+			id int
+			firstname, lastname string
+		)
+		if err := rows.Scan(&id, &firstname, &lastname); err != nil {
+			exitIfErr(errors.Wrap(err, "scan failed"))
+		}
+
+		fmt.Println(id, firstname, lastname)
+	}
+	fmt.Printf("[select] %v\n", time.Since(t))
+
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`{
 	// 	"type": "UPDATE",
 	// 	"table": "testtable",
 	// 	"values": {
@@ -228,9 +224,11 @@ func main() {
 	// 	}
 	// }`))
 	// exitIfErr(errors.Wrap(err, "query failed failed"))
-	// fmt.Printf("total bytes received: %v\n", len(res))
+	// for rows.Next() {  }
+	// fmt.Printf("[update] %v\n", time.Since(t))
 
-	// res, err = client.Query([]byte(`{
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`{
 	// 	"type": "DELETE",
 	// 	"table": "testtable",
 	// 	"where_index": {
@@ -250,7 +248,8 @@ func main() {
 	// 	}
 	// }`))
 	// exitIfErr(errors.Wrap(err, "query failed failed"))
-	// fmt.Printf("total bytes received: %v\n", len(res))
+	// for rows.Next() {  }
+	// fmt.Printf("[delete] %v\n", time.Since(t))
 
 	conn.Close()
 }
