@@ -1,57 +1,49 @@
 package response
 
 import (
-	"bytes"
 	"encoding/binary"
-	"errors"
 	"io"
 )
 
 type Reader struct {
 	source io.Reader
-	buf    *bytes.Buffer
-	header []byte
+	buf    []byte
+	len    int
 }
 
 func NewReader(r io.Reader) *Reader {
-	return &Reader{
-		header:     make([]byte, 4),
-		source:     r,
-		buf:        &bytes.Buffer{},
-	}
+	return &Reader{source: r}
 }
 
 func (rr *Reader) ReadLine() (buf []byte, err error) {
-	n, err := rr.read(rr.header)
+	err = rr.read(4)
 	if err != nil {
 		return nil, err
-	} else if len(rr.header) != n {
-		return nil, errors.New("header size missmatch")
 	}
 
-	messageSize := binary.BigEndian.Uint32(rr.header)
-	message := make([]byte, messageSize)
-	n, err = rr.read(message)
+	messageSize := binary.BigEndian.Uint32(rr.buf)
+	err = rr.read(int(messageSize))
 	if err != nil {
 		return nil, err
-	} else if len(message) != n {
-		return nil, errors.New("message size missmatch")
 	}
 
-	return message, nil
+	return rr.buf[:messageSize], nil
 }
 
-func (rr *Reader) read(buf []byte) (n int, err error) {
-	rr.buf.Reset()
+func (rr *Reader) read(n int) (err error) {
+	if len(rr.buf) < n {
+		rr.buf = make([]byte, n)
+	}
+	rr.len = 0
 
-	for rr.buf.Len() < len(buf) {
-		n, err := rr.source.Read(buf)
+	for rr.len < n {
+		rn, err := rr.source.Read(rr.buf[rr.len:n-rr.len])
 		if err != nil {
-			return 0, err
+			return err
 		}
 
-		rr.buf.Write(buf[:n])
+		rr.len += rn
 	}
 
-	return rr.buf.Read(buf)
+	return nil
 }
