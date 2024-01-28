@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"io"
@@ -19,8 +18,8 @@ type Pipe struct {
 	head []byte
 	r    *io.PipeReader
 	w    *io.PipeWriter
-	br   *bufio.Reader
-	bw   *bufio.Writer
+	// br   *bufio.Reader
+	// bw   *bufio.Writer
 }
 
 func newPipe(buf []byte) *Pipe {
@@ -31,8 +30,8 @@ func newPipe(buf []byte) *Pipe {
 		head: make([]byte, HeaderSize),
 		r:    pr,
 		w:    pw,
-		br:   bufio.NewReader(pr),
-		bw:   bufio.NewWriter(pw),
+		// br:   bufio.NewReader(pr),
+		// bw:   bufio.NewWriter(pw),
 	}
 
 	if len(buf) > 0 {
@@ -48,7 +47,7 @@ func newPipe(buf []byte) *Pipe {
 }
 
 func (p *Pipe) Read(data []byte) (n int, err error) {
-	return p.br.Read(data)
+	return p.r.Read(data)
 }
 
 func (p *Pipe) Write(data []byte) (n int, err error) {
@@ -60,7 +59,7 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 
 	Bin.PutUint32(head, uint32(len(data)))
 
-	pn, err := p.bw.Write(head)
+	pn, err := p.w.Write(head)
 	if err != nil {
 		return pn, err
 	}
@@ -69,7 +68,7 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 		p.m.Unlock()
 	}
 
-	n, err = p.bw.Write(data)
+	n, err = p.w.Write(data)
 	n += pn
 	if err != nil {
 		return n, err
@@ -84,6 +83,6 @@ func (p *Pipe) CloseReader() error {
 }
 
 func (p *Pipe) CloseWriter() error {
-	p.bw.Flush()
+	// p.bw.Flush()
 	return p.w.Close()
 }

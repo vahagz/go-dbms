@@ -79,9 +79,9 @@ func (es *ExecutorServiceT) dmlInsert(q *dml.QueryInsert) (io.Reader, error) {
 			}
 		}
 
-		if err := p.bw.Flush(); err != nil {
+		/*if err := p.bw.Flush(); err != nil {
 			panic(err)
-		} else if _, err := p.Write(EOS); err != nil {
+		} else*/ if _, err := p.Write(EOS); err != nil {
 			panic(err)
 		}
 	}()

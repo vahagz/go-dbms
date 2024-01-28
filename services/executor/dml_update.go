@@ -148,8 +148,8 @@ func (es *ExecutorServiceT) dmlUpdate(q *dml.QueryUpdate) (io.Reader, error) {
 
 		if err != nil {
 			panic(err)
-		} else if err := p.bw.Flush(); err != nil {
-			panic(err)
+		// } else if err := p.bw.Flush(); err != nil {
+		// 	panic(err)
 		} else if _, err := p.Write(EOS); err != nil {
 			panic(err)
 		}

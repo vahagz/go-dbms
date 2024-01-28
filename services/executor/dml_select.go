@@ -145,8 +145,8 @@ func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.Reader, error) {
 
 		if err != nil {
 			panic(err)
-		} else if err := p.bw.Flush(); err != nil {
-			panic(err)
+		// } else if err := p.bw.Flush(); err != nil {
+		// 	panic(err)
 		} else if _, err := p.Write(EOS); err != nil {
 			panic(err)
 		}
