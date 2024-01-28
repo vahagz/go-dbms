@@ -69,14 +69,14 @@ func (s *Server) Start() <-chan error {
 				conn.Close()
 				continue
 			}
-	
+
 			err = conn.SetKeepAlive(true)
 			if err != nil {
 				fmt.Printf("Unable to set keepalive: %s\n", err)
 				conn.Close()
 				continue
 			}
-	
+
 			go s.handleConnection(&connection.Connection{Conn: conn})
 		}
 	}()
