@@ -147,26 +147,11 @@ func main() {
 	// fmt.Printf("[insert] %v\n", time.Since(t))
 
 	t := time.Now()
-	rows, err = client.Query([]byte(`{
-		"type": "SELECT",
-		"table": "testtable",
-		"columns": [ "id", "firstname", "lastname" ],
-		"where_index": {
-			"name": "id_1",
-			"filter_start": {
-				"operator": ">",
-				"value": {
-					"id": 0
-				}
-			},
-			"filter_end": {
-				"operator": "<=",
-				"value": {
-					"id": 1000
-				}
-			}
-		}
-	}`))
+	rows, err = client.Query([]byte(`
+		SELECT id, firstname, lastname
+		FROM testtable
+		WHERE_INDEX id_1 id >= 100 AND id < 800;
+	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 
 	for rows.Next() {
