@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"errors"
 	"reflect"
 	"unsafe"
 )
@@ -44,4 +45,11 @@ func Convert[T integer](from interface{}, to *T) T {
 
 	Frombytes(Bytesof(from), to)
 	return *to
+}
+
+func SetLen[T any](sl []T, len int) []T {
+	if len > cap(sl) {
+		panic(errors.New("'len' must be less or equal to cap(sl)"))
+	}
+	return unsafe.Slice(unsafe.SliceData(sl), len)
 }
