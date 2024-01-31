@@ -25,6 +25,35 @@ var seed = time.Now().UnixMilli()
 var rand = r.New(r.NewSource(seed))
 
 func main() {
+	// sc := &scanner.Scanner{}
+	// sc.Init(bytes.NewReader([]byte(`
+	// 	SELECT id, firstname, lastname
+	// 	FROM testtable
+	// 	WHERE_INDEX id_1 id >= 1 AND id < 1000;
+	// `)))
+	// for tok := sc.Scan(); tok != scanner.EOF; tok = sc.Scan() {
+	// 	fmt.Printf("'%s'\n", sc.TokenText())
+	// }
+	// return
+
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	SELECT id, firstname, lastname
+	// 	FROM testtable
+	// 	WHERE_INDEX id_1 id >= 1 AND id < 1000;
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*dml.QuerySelect)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Columns)
+	// fmt.Println(qu.Table)
+	// fmt.Println(qu.WhereIndex)
+	// fmt.Println(qu.Where)
+	// return
+
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()

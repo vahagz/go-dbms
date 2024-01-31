@@ -1,5 +1,7 @@
 package query
 
+import "text/scanner"
+
 type QueryType string
 
 const (
@@ -16,6 +18,7 @@ const (
 
 type Querier interface {
 	GetType() QueryType
+	Parse(s *scanner.Scanner) error
 }
 
 type Query struct {

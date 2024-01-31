@@ -2,6 +2,7 @@ package dml
 
 import (
 	"go-dbms/services/parser/query"
+	"text/scanner"
 )
 
 type QueryInsert struct {
@@ -10,4 +11,8 @@ type QueryInsert struct {
 	Table   string    `json:"table"`
 	Columns []string  `json:"columns"`
 	Values  []dataRow `json:"values"`
+}
+
+func (qs *QueryInsert) Parse(s *scanner.Scanner) (err error) {
+	return nil
 }
