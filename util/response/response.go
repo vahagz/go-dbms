@@ -6,13 +6,13 @@ import (
 )
 
 type Reader struct {
-	source io.Reader
-	buf    []byte
-	len    int
+	src io.Reader
+	buf []byte
+	len int
 }
 
 func NewReader(r io.Reader) *Reader {
-	return &Reader{source: r}
+	return &Reader{src: r}
 }
 
 func (rr *Reader) ReadLine() (buf []byte, err error) {
@@ -37,7 +37,7 @@ func (rr *Reader) read(n int) (err error) {
 	rr.len = 0
 
 	for rr.len < n {
-		rn, err := rr.source.Read(rr.buf[rr.len:n-rr.len])
+		rn, err := rr.src.Read(rr.buf[rr.len:n-rr.len])
 		if err != nil {
 			return err
 		}
