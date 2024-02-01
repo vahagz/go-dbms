@@ -16,7 +16,7 @@ func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error)
 
 	switch queryType {
 		// case query.DELETE: q = &QueryDelete{}
-		// case query.INSERT: q = &QueryInsert{}
+		case query.INSERT: q = &QueryInsert{}
 		case query.SELECT: q = &QuerySelect{}
 		// case query.UPDATE: q = &QueryUpdate{}
 		default:           return nil, errors.New(fmt.Sprintf("unsupported query type: '%s'", queryType))
