@@ -56,30 +56,47 @@ func main() {
 	// fmt.Println(qu.Where)
 	// return
 	
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	INSERT_INTO testtable (firstname,lastname)
+	// 	VALUES
+	// 		("Vahag","Zargaryan"),
+	// 		("Ruben", "Manandyan"),
+	// 		("Sergey", "Zargaryan"),
+	// 		("Arman", "Sargsyan"),
+	// 		("Mery", "Voskanyan"),
+	// 		("David", "Harutyunyan"),
+	// 		("Alexader", "Bakunc"),
+	// 		("Hayk", "Vardanyan"),
+	// 		("Serob", "Gevorgyan"),
+	// 		("Gevorg", "Aznauryan");
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*dml.QueryInsert)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Table)
+	// fmt.Println(qu.Columns)
+	// fmt.Println(qu.Values)
+	// return
+	
 	ParserService := parser.New()
 	q, err := ParserService.ParseQuery([]byte(`
-		INSERT testtable (firstname,lastname)
-		VALUES
-			("Vahag","Zargaryan"),
-			("Ruben", "Manandyan"),
-			("Sergey", "Zargaryan"),
-			("Arman", "Sargsyan"),
-			("Mery", "Voskanyan"),
-			("David", "Harutyunyan"),
-			("Alexader", "Bakunc"),
-			("Hayk", "Vardanyan"),
-			("Serob", "Gevorgyan"),
-			("Gevorg", "Aznauryan");
+		DELETE_FROM testtable
+		WHERE_INDEX id_1 id >= 100 AND id < 800
+		WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
 	`))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	qu := q.(*dml.QueryInsert)
+	qu := q.(*dml.QueryDelete)
 	fmt.Println(qu.Type)
 	fmt.Println(qu.Table)
-	fmt.Println(qu.Columns)
-	fmt.Println(qu.Values)
+	fmt.Println(qu.WhereIndex)
+	fmt.Println(qu.Where)
 	return
 
 	pwd, _ := os.Getwd()

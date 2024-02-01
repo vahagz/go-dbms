@@ -15,7 +15,7 @@ func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error)
 	var q query.Querier
 
 	switch queryType {
-		// case query.DELETE: q = &QueryDelete{}
+		case query.DELETE: q = &QueryDelete{}
 		case query.INSERT: q = &QueryInsert{}
 		case query.SELECT: q = &QuerySelect{}
 		// case query.UPDATE: q = &QueryUpdate{}

@@ -10,8 +10,10 @@ var keyWords = map[string]struct{}{
 	"ORDER_BY":    {},
 	"LIMIT":       {},
 
-	"INSERT": {},
-	"VALUES": {},
+	"INSERT_INTO": {},
+	"VALUES":      {},
+
+	"DELETE_FROM": {},
 }
 
 var indexOperators = map[string]struct{}{
