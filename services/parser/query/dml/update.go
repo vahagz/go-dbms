@@ -1,8 +1,9 @@
 package dml
 
 import (
-	"go-dbms/services/parser/query"
 	"text/scanner"
+
+	"go-dbms/services/parser/query"
 )
 
 type QueryUpdate struct {

@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"text/scanner"
+
 	"go-dbms/services/parser/query"
 	"go-dbms/services/parser/query/dml"
-	"text/scanner"
 )
 
 type ParserService interface {
