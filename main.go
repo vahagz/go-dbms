@@ -18,6 +18,7 @@ import (
 	"go-dbms/services/auth"
 	"go-dbms/services/executor"
 	"go-dbms/services/parser"
+	"go-dbms/services/parser/query/dml"
 	"go-dbms/util/response"
 )
 
@@ -40,7 +41,8 @@ func main() {
 	// q, err := ParserService.ParseQuery([]byte(`
 	// 	SELECT id, firstname, lastname
 	// 	FROM testtable
-	// 	WHERE_INDEX id_1 id >= 1 AND id < 1000;
+	// 	WHERE_INDEX id_1 id >= 100 AND id < 800
+	// 	WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
 	// `))
 	// if err != nil {
 	// 	fmt.Println(err)
@@ -53,6 +55,32 @@ func main() {
 	// fmt.Println(qu.WhereIndex)
 	// fmt.Println(qu.Where)
 	// return
+	
+	ParserService := parser.New()
+	q, err := ParserService.ParseQuery([]byte(`
+		INSERT testtable (firstname,lastname)
+		VALUES
+			("Vahag","Zargaryan"),
+			("Ruben", "Manandyan"),
+			("Sergey", "Zargaryan"),
+			("Arman", "Sargsyan"),
+			("Mery", "Voskanyan"),
+			("David", "Harutyunyan"),
+			("Alexader", "Bakunc"),
+			("Hayk", "Vardanyan"),
+			("Serob", "Gevorgyan"),
+			("Gevorg", "Aznauryan");
+	`))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	qu := q.(*dml.QueryInsert)
+	fmt.Println(qu.Type)
+	fmt.Println(qu.Table)
+	fmt.Println(qu.Columns)
+	fmt.Println(qu.Values)
+	return
 
 	pwd, _ := os.Getwd()
 	as := auth.New()
