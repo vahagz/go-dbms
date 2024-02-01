@@ -37,6 +37,11 @@ func (qi *QueryInsert) Parse(s *scanner.Scanner) (err error) {
 }
 
 func (qi *QueryInsert) parseInto(s *scanner.Scanner) {
+	s.Scan()
+	if s.TokenText() != "INTO" {
+		panic(ErrSyntax)
+	}
+
 	tok := s.Scan()
 	word := s.TokenText()
 	_, isKW := keyWords[word]

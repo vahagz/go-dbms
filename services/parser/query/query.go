@@ -5,10 +5,10 @@ import "text/scanner"
 type QueryType string
 
 const (
-	INSERT   QueryType = "INSERT_INTO"
+	INSERT   QueryType = "INSERT"
 	SELECT   QueryType = "SELECT"
 	UPDATE   QueryType = "UPDATE"
-	DELETE   QueryType = "DELETE_FROM"
+	DELETE   QueryType = "DELETE"
 	CREATE   QueryType = "CREATE"
 	ALTER    QueryType = "ALTER"
 	DROP     QueryType = "DROP"

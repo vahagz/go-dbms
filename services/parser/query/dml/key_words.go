@@ -10,10 +10,10 @@ var keyWords = map[string]struct{}{
 	"ORDER_BY":    {},
 	"LIMIT":       {},
 
-	"INSERT_INTO": {},
-	"VALUES":      {},
+	"INSERT": {},
+	"VALUES": {},
 
-	"DELETE_FROM": {},
+	"DELETE": {},
 
 	"UPDATE": {},
 	"SET":    {},

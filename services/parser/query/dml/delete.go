@@ -45,6 +45,11 @@ func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
 }
 
 func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
+	s.Scan()
+	if s.TokenText() != "FROM" {
+		panic(ErrSyntax)
+	}
+
 	tok := s.Scan()
 	word := s.TokenText()
 	_, isKW := keyWords[word]

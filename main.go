@@ -56,35 +56,35 @@ func main() {
 	// fmt.Println(qu.Where)
 	// return
 
-	// ParserService := parser.New()
-	// q, err := ParserService.ParseQuery([]byte(`
-	// 	INSERT_INTO testtable (firstname,lastname)
-	// 	VALUES
-	// 		("Vahag","Zargaryan"),
-	// 		("Ruben", "Manandyan"),
-	// 		("Sergey", "Zargaryan"),
-	// 		("Arman", "Sargsyan"),
-	// 		("Mery", "Voskanyan"),
-	// 		("David", "Harutyunyan"),
-	// 		("Alexader", "Bakunc"),
-	// 		("Hayk", "Vardanyan"),
-	// 		("Serob", "Gevorgyan"),
-	// 		("Gevorg", "Aznauryan");
-	// `))
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
-	// qu := q.(*dml.QueryInsert)
-	// fmt.Println(qu.Type)
-	// fmt.Println(qu.Table)
-	// fmt.Println(qu.Columns)
-	// fmt.Println(qu.Values)
-	// return
+	ParserService := parser.New()
+	q, err := ParserService.ParseQuery([]byte(`
+		INSERT INTO testtable (firstname,lastname)
+		VALUES
+			("Vahag","Zargaryan"),
+			("Ruben", "Manandyan"),
+			("Sergey", "Zargaryan"),
+			("Arman", "Sargsyan"),
+			("Mery", "Voskanyan"),
+			("David", "Harutyunyan"),
+			("Alexader", "Bakunc"),
+			("Hayk", "Vardanyan"),
+			("Serob", "Gevorgyan"),
+			("Gevorg", "Aznauryan");
+	`))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	qu := q.(*dml.QueryInsert)
+	fmt.Println(qu.Type)
+	fmt.Println(qu.Table)
+	fmt.Println(qu.Columns)
+	fmt.Println(qu.Values)
+	return
 
 	// ParserService := parser.New()
 	// q, err := ParserService.ParseQuery([]byte(`
-	// 	DELETE_FROM testtable
+	// 	DELETE FROM testtable
 	// 	WHERE_INDEX id_1 id >= 100 AND id < 800
 	// 	WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
 	// `))
@@ -99,24 +99,24 @@ func main() {
 	// fmt.Println(qu.Where)
 	// return
 
-	ParserService := parser.New()
-	q, err := ParserService.ParseQuery([]byte(`
-		UPDATE testtable
-		SET firstname = "Vahag", lastname = "Zargaryan"
-		WHERE_INDEX id_1 id >= 100 AND id < 800
-		WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
-	`))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	qu := q.(*dml.QueryUpdate)
-	fmt.Println(qu.Type)
-	fmt.Println(qu.Table)
-	fmt.Println(qu.Values)
-	fmt.Println(qu.WhereIndex)
-	fmt.Println(qu.Where)
-	return
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	UPDATE testtable
+	// 	SET firstname = "Vahag", lastname = "Zargaryan"
+	// 	WHERE_INDEX id_1 id >= 100 AND id < 800
+	// 	WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*dml.QueryUpdate)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Table)
+	// fmt.Println(qu.Values)
+	// fmt.Println(qu.WhereIndex)
+	// fmt.Println(qu.Where)
+	// return
 
 	pwd, _ := os.Getwd()
 	as := auth.New()
