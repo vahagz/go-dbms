@@ -9,6 +9,9 @@ var keyWords = map[string]struct{}{
 	"HAVING":      {},
 	"ORDER_BY":    {},
 	"LIMIT":       {},
+
+	"INSERT": {},
+	"VALUES": {},
 }
 
 var indexOperators = map[string]struct{}{
