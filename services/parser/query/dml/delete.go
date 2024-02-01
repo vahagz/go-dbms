@@ -30,7 +30,7 @@ func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
 	qd.Type = query.DELETE
 
 	qd.parseFrom(s)
-	
+
 	word := s.TokenText()
 	if word == "WHERE_INDEX" {
 		qd.parseWhereIndex(s)
@@ -64,7 +64,7 @@ func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
 	}
 }
 
-func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
+func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 	tok := s.Scan()
 	word := s.TokenText()
 	_, isKW := keyWords[word]
@@ -72,16 +72,16 @@ func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 		panic(ErrSyntax)
 	}
 
-	qs.WhereIndex = &whereIndex{}
-	qs.WhereIndex.Name = word
-	qs.WhereIndex.FilterStart = &indexFilter{}
+	qd.WhereIndex = &whereIndex{}
+	qd.WhereIndex.Name = word
+	qd.WhereIndex.FilterStart = &indexFilter{}
 	col, op, val := parseWhereFilter(s, false)
 	var valInt interface{}
 	if err := json.Unmarshal([]byte(val), &valInt); err != nil {
 		panic(err)
 	}
-	qs.WhereIndex.FilterStart.Operator = op
-	qs.WhereIndex.FilterStart.Value = map[string]types.DataType{
+	qd.WhereIndex.FilterStart.Operator = op
+	qd.WhereIndex.FilterStart.Value = map[string]types.DataType{
 		col: types.ParseJSONValue(valInt),
 	}
 
@@ -93,14 +93,14 @@ func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 	}
 
 	if word == "AND" {
-		qs.WhereIndex.FilterEnd = &indexFilter{}
+		qd.WhereIndex.FilterEnd = &indexFilter{}
 		col, op, val := parseWhereFilter(s, false)
 		var valInt interface{}
 		if err := json.Unmarshal([]byte(val), &valInt); err != nil {
 			panic(err)
 		}
-		qs.WhereIndex.FilterEnd.Operator = op
-		qs.WhereIndex.FilterEnd.Value = map[string]types.DataType{
+		qd.WhereIndex.FilterEnd.Operator = op
+		qd.WhereIndex.FilterEnd.Value = map[string]types.DataType{
 			col: types.ParseJSONValue(valInt),
 		}
 	}
@@ -108,6 +108,6 @@ func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 	s.Scan()
 }
 
-func (qs *QueryDelete) parseWhere(s *scanner.Scanner) {
-	qs.Where = (*where)(parseWhere(s))
+func (qd *QueryDelete) parseWhere(s *scanner.Scanner) {
+	qd.Where = (*where)(parseWhere(s))
 }
