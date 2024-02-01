@@ -55,7 +55,7 @@ func main() {
 	// fmt.Println(qu.WhereIndex)
 	// fmt.Println(qu.Where)
 	// return
-	
+
 	// ParserService := parser.New()
 	// q, err := ParserService.ParseQuery([]byte(`
 	// 	INSERT_INTO testtable (firstname,lastname)
@@ -81,10 +81,28 @@ func main() {
 	// fmt.Println(qu.Columns)
 	// fmt.Println(qu.Values)
 	// return
-	
+
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	DELETE_FROM testtable
+	// 	WHERE_INDEX id_1 id >= 100 AND id < 800
+	// 	WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*dml.QueryDelete)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Table)
+	// fmt.Println(qu.WhereIndex)
+	// fmt.Println(qu.Where)
+	// return
+
 	ParserService := parser.New()
 	q, err := ParserService.ParseQuery([]byte(`
-		DELETE_FROM testtable
+		UPDATE testtable
+		SET firstname = "Vahag", lastname = "Zargaryan"
 		WHERE_INDEX id_1 id >= 100 AND id < 800
 		WHERE id > 10 AND (firstname = "Vahag" OR lastname = "Sargsyan");
 	`))
@@ -92,9 +110,10 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	qu := q.(*dml.QueryDelete)
+	qu := q.(*dml.QueryUpdate)
 	fmt.Println(qu.Type)
 	fmt.Println(qu.Table)
+	fmt.Println(qu.Values)
 	fmt.Println(qu.WhereIndex)
 	fmt.Println(qu.Where)
 	return

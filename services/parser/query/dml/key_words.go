@@ -14,6 +14,9 @@ var keyWords = map[string]struct{}{
 	"VALUES":      {},
 
 	"DELETE_FROM": {},
+
+	"UPDATE": {},
+	"SET":    {},
 }
 
 var indexOperators = map[string]struct{}{
