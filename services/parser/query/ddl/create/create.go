@@ -1,10 +1,10 @@
 package create
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"go-dbms/services/parser/query"
+	"text/scanner"
 )
 
 type QueryCreateTarget string
@@ -29,19 +29,18 @@ func (qc *QueryCreate) GetTarget() QueryCreateTarget {
 	return qc.Target
 }
 
-func Parse(data []byte) (Creater, error) {
+func Parse(s *scanner.Scanner) (Creater, error) {
 	var q Creater
-	createQuery := &QueryCreate{}
-	if err := json.Unmarshal(data, createQuery); err != nil {
-		return nil, err
+	
+	s.Scan()
+	target := QueryCreateTarget(s.TokenText())
+
+	switch target {
+		// case DATABASE: q = &QueryCreateDatabase{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
+		case TABLE:    q = &QueryCreateTable{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
+		// case INDEX:    q = &QueryCreateIndex{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
+		default:       return nil, errors.New(fmt.Sprintf("unsupported create target: '%s'", target))
 	}
 
-	switch createQuery.Target {
-		case DATABASE: q = &QueryCreateDatabase{}
-		case TABLE:    q = &QueryCreateTable{}
-		case INDEX:    q = &QueryCreateIndex{}
-		default:       return nil, errors.New(fmt.Sprintf("unsupported create target: '%s'", createQuery.Target))
-	}
-
-	return q, json.Unmarshal(data, &q)
+	return q, q.Parse(s)
 }

@@ -7,6 +7,7 @@ import (
 	"text/scanner"
 
 	"go-dbms/services/parser/query"
+	"go-dbms/services/parser/query/ddl"
 	"go-dbms/services/parser/query/dml"
 )
 
@@ -28,8 +29,8 @@ func (ps *ParserServiceT) ParseQuery(data []byte) (query.Querier, error) {
 	if tok := s.Scan(); tok != scanner.EOF {
 		qt = query.QueryType(s.TokenText())
 		switch qt {
-			// case query.CREATE, query.DROP:
-			// 	return ddl.Parse(data, qt)
+			case query.CREATE, query.DROP:
+				return ddl.Parse(s, qt)
 			case query.DELETE, query.INSERT, query.SELECT, query.UPDATE:
 				return dml.Parse(s, qt)
 		}

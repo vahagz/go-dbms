@@ -61,8 +61,9 @@ func main() {
 	}
 
 	client := &Client{conn}
+	var t time.Time
 	var rows *types.Rows
-	_ = rows
+	_, _ = rows, t
 
 	rows, err = client.Query([]byte("username:password"))
 	exitIfErr(errors.Wrap(err, "auth failed"))
@@ -72,85 +73,45 @@ func main() {
 		fmt.Printf("[auth] bytes received: %v\n", len(msg))
 	}
 
-	// t := time.Now()
-	// rows, err = client.Query([]byte(`{
-	// 	"type": "CREATE",
-	// 	"target": "TABLE",
-	// 	"name": "testtable",
-	// 	"columns": [
-	// 		{
-	// 			"name": "id",
-	// 			"type": 0,
-	// 			"meta": {
-	// 				"signed": false,
-	// 				"bit_size": 4,
-	// 				"auto_increment": {
-	// 					"enabled": true
-	// 				}
-	// 			}
-	// 		},
-	// 		{
-	// 			"name": "firstname",
-	// 			"type": 2,
-	// 			"meta": {
-	// 				"cap": 32
-	// 			}
-	// 		},
-	// 		{
-	// 			"name": "lastname",
-	// 			"type": 2,
-	// 			"meta": {
-	// 				"cap": 32
-	// 			}
-	// 		}
-	// 	],
-	// 	"indexes": [
-	// 		{
-	// 			"name": "id_1",
-	// 			"columns": [ "id" ],
-	// 			"primary": true,
-	// 			"auto_increment": true
-	// 		},
-	// 		{
-	// 			"name": "firstname_lastname_1",
-	// 			"columns": [ "firstname", "lastname" ]
-	// 		}
-	// 	]
-	// }`))
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`
+	// 	CREATE TABLE testtable (
+	// 		id        UInt32 AUTO INCREMENT,
+	// 		firstname VARCHAR(32),
+	// 		lastname  VARCHAR(32),
+	// 	)
+	// 	PRIMARY KEY(id) id,
+	// 	INDEX(firstname, lastname) firstname_lastname;
+	// `))
 	// exitIfErr(errors.Wrap(err, "query failed failed"))
-	// for rows.Next() {
-	// 	fmt.Printf("[create] %v\n", time.Since(t))
-	// }
+	// for rows.Next() {  }
+	// fmt.Printf("[create] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// for i := 0; i < 4000; i++ {
-	// 	rows, err = client.Query([]byte(`{
-	// 		"type": "INSERT",
-	// 		"table": "testtable",
-	// 		"columns": [ "firstname", "lastname" ],
-	// 		"values": [
-	// 			[ "Vahag", "Zargaryan" ],
-	// 			[ "Ruben", "Manandyan" ],
-	// 			[ "Sergey", "Zargaryan" ],
-	// 			[ "Arman", "Sargsyan" ],
-	// 			[ "Mery", "Voskanyan" ],
-	// 			[ "David", "Harutyunyan" ],
-	// 			[ "Alexader", "Bakunc" ],
-	// 			[ "Hayk", "Vardanyan" ],
-	// 			[ "Serob", "Gevorgyan" ],
-	// 			[ "Gevorg", "Aznauryan" ]
-	// 		]
-	// 	}`))
-	// 	exitIfErr(errors.Wrap(err, "query failed failed"))
+	// 	rows, err = client.Query([]byte(`
+	// 		INSERT INTO testtable (firstname, lastname) VALUES
+	// 			("Vahag", "Zargaryan"),
+	// 			("Ruben", "Manandyan"),
+	// 			("Sergey", "Zargaryan"),
+	// 			("Arman", "Sargsyan"),
+	// 			("Mery", "Voskanyan"),
+	// 			("David", "Harutyunyan"),
+	// 			("Alexader", "Bakunc"),
+	// 			("Hayk", "Vardanyan"),
+	// 			("Serob", "Gevorgyan"),
+	// 			("Gevorg", "Aznauryan");
+	// 	`))
+	// 	exitIfErr(errors.Wrap(err, "query failed"))
 	// 	for rows.Next() {  }
 	// }
 	// fmt.Printf("[insert] %v\n", time.Since(t))
 
-	t := time.Now()
+	t = time.Now()
 	rows, err = client.Query([]byte(`
 		SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id_1 id >= 100 AND id < 800;
+		WHERE_INDEX id id >= 100 AND id < 800;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 
