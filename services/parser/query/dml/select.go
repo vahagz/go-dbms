@@ -6,16 +6,9 @@ import (
 
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/errors"
+	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
-
-	"github.com/pkg/errors"
-)
-
-var (
-	ErrSyntax       = errors.New("syntax error")
-	ErrNoSelection  = errors.New("empty 'SELECT' list")
-	ErrNoFrom       = errors.New("empty 'FROM' clause")
-	ErrNoWhereIndex = errors.New("empty 'WHERE_INDEX' clause")
 )
 
 type QuerySelect struct {
@@ -44,7 +37,7 @@ func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
 
 	word := s.TokenText()
 	if word != "FROM" {
-		return ErrNoFrom
+		return errors.ErrNoFrom
 	}
 
 	qs.parseFrom(s)
@@ -65,29 +58,29 @@ func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
 func (qs *QuerySelect) parseSelection(s *scanner.Scanner) {
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
+	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	} else if isKW {
-		panic(ErrNoSelection)
+		panic(errors.ErrNoSelection)
 	}
 
 	qs.Columns = append(qs.Columns, word)
 
 	tok = s.Scan()
 	word = s.TokenText()
-	_, isKW = keyWords[word]
+	_, isKW = kwords.KeyWords[word]
 	if tok == scanner.EOF || (word != "," && !isKW) {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	} else if isKW {
 		return
 	}
 
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		word := s.TokenText()
-		_, isKW := keyWords[word]
+		_, isKW := kwords.KeyWords[word]
 		if word == "," {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		} else if isKW {
 			return
 		}
@@ -96,9 +89,9 @@ func (qs *QuerySelect) parseSelection(s *scanner.Scanner) {
 
 		tok := s.Scan()
 		word = s.TokenText()
-		_, isKW = keyWords[word]
+		_, isKW = kwords.KeyWords[word]
 		if tok == scanner.EOF || (word != "," && !isKW) {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		} else if isKW {
 			return
 		}
@@ -108,29 +101,29 @@ func (qs *QuerySelect) parseSelection(s *scanner.Scanner) {
 func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
+	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	} else if isKW {
-		panic(ErrNoFrom)
+		panic(errors.ErrNoFrom)
 	}
 
 	qs.Table = word
 
 	tok = s.Scan()
 	word = s.TokenText()
-	_, isKW = keyWords[word]
+	_, isKW = kwords.KeyWords[word]
 	if tok != scanner.EOF && !isKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 }
 
 func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
+	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	qs.WhereIndex = &whereIndex{}
@@ -148,9 +141,9 @@ func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
 
 	tok = s.Scan()
 	word = s.TokenText()
-	_, isKW = keyWords[word]
+	_, isKW = kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	if word == "AND" {
@@ -177,9 +170,9 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val strin
 	if !firstScanned {
 		tok = s.Scan()
 		word = s.TokenText()
-		_, isKW = keyWords[word]
+		_, isKW = kwords.KeyWords[word]
 		if tok == scanner.EOF || isKW {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		}
 		col = word
 	} else {
@@ -188,9 +181,9 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val strin
 	
 	tok = s.Scan()
 	word = s.TokenText()
-	_, isLO := indexOperators[word]
+	_, isLO := kwords.IndexOperators[word]
 	if tok == scanner.EOF || !isLO{
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 	op = word
 	
@@ -202,7 +195,7 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val strin
 	tok = s.Scan()
 	val = s.TokenText()
 	if tok == scanner.EOF{
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	return col, op, val
@@ -219,14 +212,14 @@ func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
 	for {
 		tok := s.Scan()
 		word := s.TokenText()
-		_, isKW := keyWords[word]
+		_, isKW := kwords.KeyWords[word]
 		if tok == scanner.EOF {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		} else if word == "(" {
 			sttmnts = append(sttmnts, parseWhere(s))
 		} else if word == ")" || word == ";" || isKW {
 			break
-		} else if _, ok := logicalOperators[word]; ok {
+		} else if _, ok := kwords.LogicalOperators[word]; ok {
 			logOp = word
 		} else {
 			col, op, val := parseWhereFilter(s, true)

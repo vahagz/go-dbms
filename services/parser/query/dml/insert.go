@@ -5,6 +5,8 @@ import (
 	"text/scanner"
 
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/errors"
+	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
 )
 
@@ -39,16 +41,14 @@ func (qi *QueryInsert) Parse(s *scanner.Scanner) (err error) {
 func (qi *QueryInsert) parseInto(s *scanner.Scanner) {
 	s.Scan()
 	if s.TokenText() != "INTO" {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
-	if tok == scanner.EOF {
-		panic(ErrSyntax)
-	} else if isKW {
-		panic(ErrNoFrom)
+	_, isKW := kwords.KeyWords[word]
+	if tok == scanner.EOF || isKW {
+		panic(errors.ErrSyntax)
 	}
 
 	qi.Table = word
@@ -56,25 +56,25 @@ func (qi *QueryInsert) parseInto(s *scanner.Scanner) {
 	tok = s.Scan()
 	word = s.TokenText()
 	if tok != scanner.EOF && word != "(" {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 }
 
 func (qi *QueryInsert) parseColumns(s *scanner.Scanner) {
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		word := s.TokenText()
-		_, isKW := keyWords[word]
+		_, isKW := kwords.KeyWords[word]
 		if tok == scanner.EOF || isKW {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		}
 
 		qi.Columns = append(qi.Columns, word)
 
 		tok = s.Scan()
 		word = s.TokenText()
-		_, isKW = keyWords[word]
+		_, isKW = kwords.KeyWords[word]
 		if tok == scanner.EOF || (word != "," && word != ")") || isKW {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		} else if word == ")" {
 			return
 		}
@@ -86,7 +86,7 @@ func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
 
 	s.Scan()
 	if s.TokenText() != "VALUES" {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
@@ -94,14 +94,14 @@ func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
 		row := dataRow{}
 
 		if word != "(" {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		}
 
 		for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 			word := s.TokenText()
-			_, isKW := keyWords[word]
+			_, isKW := kwords.KeyWords[word]
 			if tok == scanner.EOF || isKW {
-				panic(ErrSyntax)
+				panic(errors.ErrSyntax)
 			}
 
 			var val interface{}
@@ -112,9 +112,9 @@ func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
 
 			tok = s.Scan()
 			word = s.TokenText()
-			_, isKW = keyWords[word]
+			_, isKW = kwords.KeyWords[word]
 			if tok == scanner.EOF || (word != "," && word != ")") || isKW {
-				panic(ErrSyntax)
+				panic(errors.ErrSyntax)
 			} else if word == ")" {
 				break
 			}
@@ -125,7 +125,7 @@ func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
 		s.Scan()
 		word = s.TokenText()
 		if word != "," && word != ";" {
-			panic(ErrSyntax)
+			panic(errors.ErrSyntax)
 		}
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"text/scanner"
 
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/errors"
+	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
 )
 
@@ -47,34 +49,34 @@ func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
 func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
 	s.Scan()
 	if s.TokenText() != "FROM" {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
+	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	} else if isKW {
-		panic(ErrNoFrom)
+		panic(errors.ErrNoFrom)
 	}
 
 	qd.Table = word
 
 	tok = s.Scan()
 	word = s.TokenText()
-	_, idKW := keyWords[word]
+	_, idKW := kwords.KeyWords[word]
 	if tok != scanner.EOF && !idKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 }
 
 func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := keyWords[word]
+	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	qd.WhereIndex = &whereIndex{}
@@ -92,9 +94,9 @@ func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 
 	tok = s.Scan()
 	word = s.TokenText()
-	_, isKW = keyWords[word]
+	_, isKW = kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
-		panic(ErrSyntax)
+		panic(errors.ErrSyntax)
 	}
 
 	if word == "AND" {

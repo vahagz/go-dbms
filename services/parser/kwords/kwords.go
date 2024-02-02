@@ -1,6 +1,6 @@
-package dml
+package kwords
 
-var keyWords = map[string]struct{}{
+var KeyWords = map[string]struct{}{
 	"SELECT":      {},
 	"FROM":        {},
 	"WHERE_INDEX": {},
@@ -19,7 +19,7 @@ var keyWords = map[string]struct{}{
 	"SET":    {},
 }
 
-var indexOperators = map[string]struct{}{
+var IndexOperators = map[string]struct{}{
 	">":  {},
 	">=": {},
 	"=":  {},
@@ -27,7 +27,7 @@ var indexOperators = map[string]struct{}{
 	"<=": {},
 }
 
-var logicalOperators = map[string]struct{}{
+var LogicalOperators = map[string]struct{}{
 	"AND": {},
 	"OR":  {},
 }

@@ -18,7 +18,6 @@ import (
 	"go-dbms/services/auth"
 	"go-dbms/services/executor"
 	"go-dbms/services/parser"
-	"go-dbms/services/parser/query/dml"
 	"go-dbms/util/response"
 )
 
@@ -56,31 +55,31 @@ func main() {
 	// fmt.Println(qu.Where)
 	// return
 
-	ParserService := parser.New()
-	q, err := ParserService.ParseQuery([]byte(`
-		INSERT INTO testtable (firstname,lastname)
-		VALUES
-			("Vahag","Zargaryan"),
-			("Ruben", "Manandyan"),
-			("Sergey", "Zargaryan"),
-			("Arman", "Sargsyan"),
-			("Mery", "Voskanyan"),
-			("David", "Harutyunyan"),
-			("Alexader", "Bakunc"),
-			("Hayk", "Vardanyan"),
-			("Serob", "Gevorgyan"),
-			("Gevorg", "Aznauryan");
-	`))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	qu := q.(*dml.QueryInsert)
-	fmt.Println(qu.Type)
-	fmt.Println(qu.Table)
-	fmt.Println(qu.Columns)
-	fmt.Println(qu.Values)
-	return
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	INSERT INTO testtable (firstname,lastname)
+	// 	VALUES
+	// 		("Vahag","Zargaryan"),
+	// 		("Ruben", "Manandyan"),
+	// 		("Sergey", "Zargaryan"),
+	// 		("Arman", "Sargsyan"),
+	// 		("Mery", "Voskanyan"),
+	// 		("David", "Harutyunyan"),
+	// 		("Alexader", "Bakunc"),
+	// 		("Hayk", "Vardanyan"),
+	// 		("Serob", "Gevorgyan"),
+	// 		("Gevorg", "Aznauryan");
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*dml.QueryInsert)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Table)
+	// fmt.Println(qu.Columns)
+	// fmt.Println(qu.Values)
+	// return
 
 	// ParserService := parser.New()
 	// q, err := ParserService.ParseQuery([]byte(`
@@ -118,6 +117,27 @@ func main() {
 	// fmt.Println(qu.Where)
 	// return
 
+	// ParserService := parser.New()
+	// q, err := ParserService.ParseQuery([]byte(`
+	// 	CREATE TABLE testtable (
+	// 		id        UInt32 AUTO INCREMENT,
+	// 		firstname VARCHAR(32),
+	// 		lastname  VARCHAR(32),
+	// 	)
+	// 	PRIMARY KEY(id) id,
+	// 	INDEX(firstname, lastname) firstname_lastname;
+	// `))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// qu := q.(*create.QueryCreateTable)
+	// fmt.Println(qu.Type)
+	// fmt.Println(qu.Name)
+	// fmt.Println(qu.Columns)
+	// fmt.Println(qu.Indexes)
+	// return
+
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()
@@ -148,21 +168,6 @@ func main() {
 		fmt.Printf("\n%s signal received, stopping gracefully...\n", q.String())
 	}
 }
-
-
-// func main() {
-// 	pwd, _ := os.Getwd()
-// 	ps := parser.New()
-// 	es, err := executor.New(path.Join(pwd, "test/tables"))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	defer func() {
-// 		if err := es.Close(); err != nil {
-// 			fmt.Println(err)
-// 		}
-// 	}()
 
 // 	q, err := ps.ParseQuery([]byte(`{
 // 		"type": "CREATE",
@@ -208,138 +213,6 @@ func main() {
 // 			}
 // 		]
 // 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	res, err := es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-	
-
-// 	q, err = ps.ParseQuery([]byte(`{
-// 		"type": "INSERT",
-// 		"table": "testtable",
-// 		"columns": [ "firstname", "lastname" ],
-// 		"values": [
-// 			[ "Vahag", "Zargaryan" ],
-// 			[ "Ruben", "Manandyan" ],
-// 			[ "Sergey", "Zargaryan" ],
-// 			[ "Arman", "Sargsyan" ],
-// 			[ "Mery", "Voskanyan" ],
-// 			[ "David", "Harutyunyan" ],
-// 			[ "Alexader", "Bakunc" ]
-// 		]
-// 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	res, err = es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-
-
-// 	q, err = ps.ParseQuery([]byte(`{
-// 		"type": "SELECT",
-// 		"table": "testtable",
-// 		"columns": [ "id", "firstname", "lastname" ]
-// 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	res, err = es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-
-
-// 	q, err = ps.ParseQuery([]byte(`{
-// 		"type": "UPDATE",
-// 		"table": "testtable",
-// 		"values": {
-// 			"firstname": "dddddd"
-// 		},
-// 		"where_index": {
-// 			"name": "id_1",
-// 			"filter_start": {
-// 				"operator": ">=",
-// 				"value": {
-// 					"id": 4
-// 				}
-// 			},
-// 			"filter_end": {
-// 				"operator": "<=",
-// 				"value": {
-// 					"id": 6
-// 				}
-// 			}
-// 		},
-// 		"where": {
-// 			"or": [
-// 				{
-// 					"statement": {
-// 						"column": "firstname",
-// 						"operator": "=",
-// 						"value": "Arman"
-// 					}
-// 				},
-// 				{
-// 					"statement": {
-// 						"column": "lastname",
-// 						"operator": "=",
-// 						"value": "Harutyunyan"
-// 					}
-// 				}
-// 			]
-// 		}
-// 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	res, err = es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-
-
-// 	q, err = ps.ParseQuery([]byte(`{
-// 		"type": "SELECT",
-// 		"table": "testtable",
-// 		"columns": [ "id", "firstname", "lastname" ]
-// 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	res, err = es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-
-	
-// 	q, err = ps.ParseQuery([]byte(`{
-// 		"type": "DELETE",
-// 		"table": "testtable"
-// 	}`))
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-
-// 	res, err = es.Exec(q)
-// 	if err != nil {
-// 		fatal(err)
-// 	}
-// 	printResponse(res)
-// }
 
 func fatal(val interface{}) {
 	fmt.Println(val)
