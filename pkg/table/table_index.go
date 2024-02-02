@@ -24,11 +24,6 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	if opts.Primary && t.meta.PrimaryKey != nil {
 		return errors.New("primary index already created")
 	}
-	if opts.AutoIncrement {
-		if len(opts.Columns) != 1 {
-			return fmt.Errorf("auto increment supported only fofr single column indexes")
-		}
-	}
 	if name != nil {
 		if _, ok := t.indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
@@ -45,12 +40,6 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 		} else {
 			keySize += col.Meta.Size()
 			columnsList = append(columnsList, col)
-		}
-	}
-
-	if opts.AutoIncrement {
-		if !columnsList[0].Meta.IsNumeric() {
-			return fmt.Errorf("auto increment is supported for numeric types")
 		}
 	}
 

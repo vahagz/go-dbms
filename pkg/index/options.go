@@ -7,8 +7,7 @@ type ScanOptions struct {
 }
 
 type IndexOptions struct {
-	Columns       []string `json:"columns"`
-	Primary       bool     `json:"primary"`
-	Uniq          bool     `json:"uniq"`
-	AutoIncrement bool     `json:"auto_increment"`
+	Columns []string `json:"columns"`
+	Primary bool     `json:"primary"`
+	Uniq    bool     `json:"uniq"`
 }

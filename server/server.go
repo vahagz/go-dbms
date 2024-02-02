@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"go-dbms/config"
@@ -109,9 +110,13 @@ func (s *Server) handleConnection(c *connection.Connection) {
 	for {
 		buf, err := scanner.ReadLine()
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
 			_, err := c.Send([]byte(fmt.Sprintf("something went wrong: %v", err)))
 			if err != nil {
-				fmt.Println("unexpected error while responding:", err)
+				fmt.Println("[ReadQuery] unexpected error while responding:", err)
 				break
 			}
 		}
@@ -120,7 +125,7 @@ func (s *Server) handleConnection(c *connection.Connection) {
 		if err != nil {
 			err = c.SendSyntaxError(err)
 			if err != nil {
-				fmt.Println("unexpected error while responding:", err)
+				fmt.Println("[Parse] unexpected error while responding:", err)
 			}
 			break
 		}
@@ -129,14 +134,14 @@ func (s *Server) handleConnection(c *connection.Connection) {
 		if err != nil {
 			err = c.SendError(err)
 			if err != nil {
-				fmt.Println("unexpected error while responding:", err)
+				fmt.Println("[Exec] unexpected error while responding:", err)
 			}
 			break
 		}
 
 		totalBytes, err := c.Write(r)
 		if err != nil {
-			fmt.Println("unexpected error while responding:", err)
+			fmt.Println("[Write] unexpected error while responding:", err)
 			break
 		}
 

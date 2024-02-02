@@ -7,6 +7,8 @@ import (
 
 	"go-dbms/client/util/pipe"
 	"go-dbms/client/util/response"
+
+	"github.com/pkg/errors"
 )
 
 type Rows struct {
@@ -35,7 +37,7 @@ func (rs *Rows) Next() bool {
 	var err error
 	rs.msg, err = rs.Res.ReadLine()
 	if err != nil {
-		panic(err)
+		panic(errors.Wrap(err, string(rs.msg)))
 	}
 	return !bytes.Equal(pipe.EOS, rs.msg)
 }
