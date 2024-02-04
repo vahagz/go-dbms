@@ -73,7 +73,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 		SuffixCols:    suffixCols,
 		MaxKeySize:    keySize,
 		MaxValueSize:  allocator.PointerSize,
-		Degree:        10,
+		Degree:        500,
 		PageSize:      os.Getpagesize(),
 		Uniq:          opts.Uniq,
 		CacheSize:     10000,

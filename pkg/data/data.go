@@ -169,6 +169,13 @@ func (df *DataFile) Scan(scanFn func(ptr allocator.Pointable, row []types.DataTy
 	})
 }
 
+// PrepareSpace allocates size bytes on underlying bptree file.
+// This is usefull if big amount of data is going to be inserted.
+// It's increases performance of insertion.
+func (df *DataFile) PrepareSpace(size uint32) {
+	df.heap.PreAlloc(size)
+}
+
 // Close flushes any writes and closes the underlying pager.
 func (df *DataFile) Close() error {
 	df.mu.Lock()

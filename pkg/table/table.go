@@ -83,6 +83,13 @@ func (t* Table) Column(name string) *column.Column {
 	return t.meta.ColumnsMap[name]
 }
 
+func (t* Table) PrepareSpace(size uint32) {
+	t.df.PrepareSpace(size)
+	for _, i := range t.indexes {
+		i.PrepareSpace(size)
+	}
+}
+
 func (t *Table) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
