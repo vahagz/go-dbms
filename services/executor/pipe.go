@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"io"
@@ -14,24 +15,25 @@ var Bin = binary.BigEndian
 var EOS = []byte(`EOS`) // end of stream
 
 type Pipe struct {
-	m    *sync.Mutex
-	head []byte
-	r    *io.PipeReader
-	w    *io.PipeWriter
-	// br   *bufio.Reader
-	// bw   *bufio.Writer
+	m  *sync.Mutex
+	h  []byte
+	r  *io.PipeReader
+	w  *io.PipeWriter
+	rw *bufio.ReadWriter
 }
 
 func newPipe(buf []byte) *Pipe {
-	pr, pw := io.Pipe()
+	r, w := io.Pipe()
 
 	p := &Pipe{
-		m:    &sync.Mutex{},
-		head: make([]byte, HeaderSize),
-		r:    pr,
-		w:    pw,
-		// br:   bufio.NewReader(pr),
-		// bw:   bufio.NewWriter(pw),
+		m:  &sync.Mutex{},
+		h:  make([]byte, HeaderSize),
+		r:  r,
+		w:  w,
+		rw: bufio.NewReadWriter(
+			bufio.NewReader(r),
+			bufio.NewWriter(w),
+		),
 	}
 
 	if len(buf) > 0 {
@@ -46,12 +48,12 @@ func newPipe(buf []byte) *Pipe {
 	return p
 }
 
-func (p *Pipe) Read(data []byte) (n int, err error) {
-	return p.r.Read(data)
+func (p *Pipe) WriteTo(w io.Writer) (n int64, err error) {
+	return io.Copy(w, p.rw.Reader)
 }
 
 func (p *Pipe) Write(data []byte) (n int, err error) {
-	head := p.head
+	head := p.h
 	locked := p.m.TryLock()
 	if !locked {
 		head = make([]byte, HeaderSize)
@@ -59,7 +61,7 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 
 	Bin.PutUint32(head, uint32(len(data)))
 
-	pn, err := p.w.Write(head)
+	pn, err := p.rw.Write(head)
 	if err != nil {
 		return pn, err
 	}
@@ -68,7 +70,7 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 		p.m.Unlock()
 	}
 
-	n, err = p.w.Write(data)
+	n, err = p.rw.Write(data)
 	n += pn
 	if err != nil {
 		return n, err
@@ -78,11 +80,7 @@ func (p *Pipe) Write(data []byte) (n int, err error) {
 	return n, err
 }
 
-func (p *Pipe) CloseReader() error {
-	return p.r.Close()
-}
-
 func (p *Pipe) CloseWriter() error {
-	// p.bw.Flush()
+	p.rw.Flush()
 	return p.w.Close()
 }

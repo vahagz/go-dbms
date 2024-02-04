@@ -18,7 +18,7 @@ func (es *ExecutorServiceT) ddlCreateValidate(q create.Creater) error {
 	}
 }
 
-func (es *ExecutorServiceT) ddlCreate(q create.Creater) (io.Reader, error) {
+func (es *ExecutorServiceT) ddlCreate(q create.Creater) (io.WriterTo, error) {
 	if err := es.ddlCreateValidate(q); err != nil {
 		return nil, errors.Wrapf(err, "validation error")
 	}

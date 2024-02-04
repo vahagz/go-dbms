@@ -88,7 +88,7 @@ func (es *ExecutorServiceT) dmlUpdateValidate(q *dml.QueryUpdate) error {
 	return nil
 }
 
-func (es *ExecutorServiceT) dmlUpdate(q *dml.QueryUpdate) (io.Reader, error) {
+func (es *ExecutorServiceT) dmlUpdate(q *dml.QueryUpdate) (io.WriterTo, error) {
 	if err := es.dmlUpdateValidate(q); err != nil {
 		return nil, errors.Wrapf(err, "validation error")
 	}

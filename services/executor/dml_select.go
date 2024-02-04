@@ -81,7 +81,7 @@ func (es *ExecutorServiceT) dmlSelectValidate(q *dml.QuerySelect) error {
 	return nil
 }
 
-func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.Reader, error) {
+func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.WriterTo, error) {
 	if err := es.dmlSelectValidate(q); err != nil {
 		return nil, errors.Wrapf(err, "validation error")
 	}

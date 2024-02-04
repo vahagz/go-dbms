@@ -42,7 +42,7 @@ func (es *ExecutorServiceT) dmlInsertValidate(q *dml.QueryInsert) error {
 	return nil
 }
 
-func (es *ExecutorServiceT) dmlInsert(q *dml.QueryInsert) (io.Reader, error) {
+func (es *ExecutorServiceT) dmlInsert(q *dml.QueryInsert) (io.WriterTo, error) {
 	if err := es.dmlInsertValidate(q); err != nil {
 		return nil, errors.Wrapf(err, "validation error")
 	}

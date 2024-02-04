@@ -74,7 +74,7 @@ func (es *ExecutorServiceT) dmlDeleteValidate(q *dml.QueryDelete) error {
 	return nil
 }
 
-func (es *ExecutorServiceT) dmlDelete(q *dml.QueryDelete) (io.Reader, error) {
+func (es *ExecutorServiceT) dmlDelete(q *dml.QueryDelete) (io.WriterTo, error) {
 	if err := es.dmlDeleteValidate(q); err != nil {
 		return nil, errors.Wrapf(err, "validation error")
 	}

@@ -139,12 +139,13 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			break
 		}
 
-		totalBytes, err := c.Write(r)
+		totalBytes, err := r.WriteTo(c.Conn)
 		if err != nil {
 			fmt.Println("[Write] unexpected error while responding:", err)
 			break
 		}
 
-		fmt.Printf("total bytes sent: %v\n", totalBytes)
+		_ = totalBytes
+		// fmt.Printf("total bytes sent: %v\n", totalBytes)
 	}
 }

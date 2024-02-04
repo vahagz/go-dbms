@@ -46,7 +46,7 @@ func New(dataPath string) (*ExecutorServiceT, error) {
 	return es, nil
 }
 
-func (es *ExecutorServiceT) Exec(q query.Querier) (io.Reader, error) {
+func (es *ExecutorServiceT) Exec(q query.Querier) (io.WriterTo, error) {
 	switch q.GetType() {
 		case query.CREATE: return es.ddlCreate(q.(create.Creater))
 		case query.DELETE: return es.dmlDelete(q.(*dml.QueryDelete))

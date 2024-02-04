@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 	"time"
@@ -115,8 +114,4 @@ func (c *Connection) SendError(err error) error {
 		err = c.EOS()
 	}
 	return e
-}
-
-func (c *Connection) Write(r io.Reader) (int64, error) {
-	return io.Copy(c.Conn, r)
 }

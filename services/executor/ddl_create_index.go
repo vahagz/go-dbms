@@ -22,7 +22,7 @@ func (es *ExecutorServiceT) ddlCreateIndexValidate(q *create.QueryCreateIndex) e
 	return nil
 }
 
-func (es *ExecutorServiceT) ddlCreateIndex(q *create.QueryCreateIndex) (io.Reader, error) {
+func (es *ExecutorServiceT) ddlCreateIndex(q *create.QueryCreateIndex) (io.WriterTo, error) {
 	err := es.tables[q.Table].CreateIndex(&q.Name, q.IndexOptions)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create index: '%s'", q.Name)

@@ -10,6 +10,6 @@ func (es *ExecutorServiceT) ddlCreateDatabaseValidate(q *create.QueryCreateDatab
 	return nil
 }
 
-func (es *ExecutorServiceT) ddlCreateDatabase(q *create.QueryCreateDatabase) (io.Reader, error) {
+func (es *ExecutorServiceT) ddlCreateDatabase(q *create.QueryCreateDatabase) (io.WriterTo, error) {
 	return nil, nil
 }

@@ -16,7 +16,7 @@ func (es *ExecutorServiceT) ddlCreateTableValidate(q *create.QueryCreateTable) e
 	return nil
 }
 
-func (es *ExecutorServiceT) ddlCreateTable(q *create.QueryCreateTable) (io.Reader, error) {
+func (es *ExecutorServiceT) ddlCreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
 	t, err := table.Open(es.tablePath(q.Name), &table.Options{
 		Columns: q.Columns,
 	})
