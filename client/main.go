@@ -87,46 +87,44 @@ func main() {
 	// for rows.Next() {  }
 	// fmt.Printf("[create] %v\n", time.Since(t))
 
-	// t = time.Now()
-	// for i := 0; i < 4000; i++ {
-	// 	rows, err = client.Query([]byte(`
-	// 		INSERT INTO testtable (firstname, lastname) VALUES
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan");
-	// 	`))
-	// 	exitIfErr(errors.Wrap(err, "query failed"))
-	// 	for rows.Next() {  }
-	// }
-	// fmt.Printf("[insert] %v\n", time.Since(t))
-
 	t = time.Now()
-	rows, err = client.Query([]byte(`
-		SELECT id, firstname, lastname
-		FROM testtable
-		WHERE_INDEX id id >= 100 AND id < 800;
-	`))
-	exitIfErr(errors.Wrap(err, "query failed"))
-
-	for rows.Next() {
-		var (
-			id int
-			firstname, lastname string
-		)
-		if err := rows.Scan(&id, &firstname, &lastname); err != nil {
-			exitIfErr(errors.Wrap(err, "scan failed"))
-		}
-
-		fmt.Println(id, firstname, lastname)
+	for i := 0; i < 1; i++ {
+		rows, err = client.Query([]byte(`
+			INSERT INTO testtable (firstname, lastname) VALUES
+				("Vahag", "Zargaryan"),
+				("Ruben", "Manandyan"),
+				("Sergey", "Zargaryan"),
+				("Arman", "Sargsyan"),
+				("Mery", "Voskanyan"),
+				("David", "Harutyunyan"),
+				("Alexader", "Bakunc"),
+				("Hayk", "Vardanyan"),
+				("Serob", "Gevorgyan"),
+				("Gevorg", "Aznauryan");
+		`))
+		exitIfErr(errors.Wrap(err, "query failed"))
+		for rows.Next() {  }
 	}
-	fmt.Printf("[select] %v\n", time.Since(t))
+	fmt.Printf("[insert] %v\n", time.Since(t))
+
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`
+	// 	SELECT id, firstname, lastname
+	// 	FROM testtable
+	// 	WHERE_INDEX id id >= 100 AND id < 40000;
+	// `))
+	// exitIfErr(errors.Wrap(err, "query failed"))
+	// for rows.Next() {
+	// 	var (
+	// 		id int
+	// 		firstname, lastname string
+	// 	)
+	// 	if err := rows.Scan(&id, &firstname, &lastname); err != nil {
+	// 		exitIfErr(errors.Wrap(err, "scan failed"))
+	// 	}
+	// 	fmt.Println(id, firstname, lastname)
+	// }
+	// fmt.Printf("[select] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`{

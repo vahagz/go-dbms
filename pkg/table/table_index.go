@@ -18,10 +18,10 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if !opts.Primary && t.meta.PrimaryKey == nil {
+	if !opts.Primary && t.meta.PrimaryKey == "" {
 		return errors.New("first index must be primary")
 	}
-	if opts.Primary && t.meta.PrimaryKey != nil {
+	if opts.Primary && t.meta.PrimaryKey != "" {
 		return errors.New("primary index already created")
 	}
 	if name != nil {
@@ -62,7 +62,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	suffixSize := 0
 	suffixCols := 0
 	if !opts.Primary {
-		opts := t.indexes[*t.meta.PrimaryKey].Options()
+		opts := t.indexes[t.meta.PrimaryKey].Options()
 		suffixSize = opts.MaxKeySize
 		suffixCols = opts.KeyCols
 	}
@@ -103,9 +103,9 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	}
 
 	if opts.Primary {
-		t.meta.PrimaryKey = name
+		t.meta.PrimaryKey = *name
 	} else {
-		i.SetPK(t.indexes[*t.meta.PrimaryKey])
+		i.SetPK(t.indexes[t.meta.PrimaryKey])
 	}
 
 	t.meta.Indexes = append(t.meta.Indexes, meta)

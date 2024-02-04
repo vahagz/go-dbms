@@ -133,7 +133,7 @@ func (t *Table) getAffectedIndexes(
 	for _, i := range t.indexes {
 		for col := range row {
 			isPrimary := false
-			if t.meta.PrimaryKey != nil && targetIndex.Meta().Name == *t.meta.PrimaryKey {
+			if targetIndex.Meta().Name == t.meta.PrimaryKey {
 				isPrimary = true
 			}
 

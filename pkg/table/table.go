@@ -67,15 +67,12 @@ func (t *Table) Columns() []*column.Column {
 	return t.meta.Columns
 }
 
-func (t *Table) PrimaryKey() *string {
+func (t *Table) PrimaryKey() string {
 	return t.meta.PrimaryKey
 }
 
 func (t *Table) PrimaryColumns() []*column.Column {
-	if t.meta.PrimaryKey == nil {
-		return nil
-	}
-	return t.indexes[*t.meta.PrimaryKey].Columns()
+	return t.indexes[t.meta.PrimaryKey].Columns()
 }
 
 func (t *Table) ColumnsMap() map[string]*column.Column {
@@ -136,7 +133,6 @@ func (t *Table) readMeta(opts *Options) error {
   if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		t.meta = &metadata{
 			Indexes:    []*index.Meta{},
-			PrimaryKey: nil,
 			Columns:    opts.Columns,
 			ColumnsMap: map[string]*column.Column{},
 		}
@@ -181,8 +177,8 @@ func (t *Table) readIndexes() error {
 	}
 
 	for k, i := range t.indexes {
-		if k != *t.meta.PrimaryKey {
-			i.SetPK(t.indexes[*t.meta.PrimaryKey])
+		if k != t.meta.PrimaryKey {
+			i.SetPK(t.indexes[t.meta.PrimaryKey])
 		}
 	}
 
@@ -220,24 +216,12 @@ func (t *Table) row2map(row []types.DataType) map[string]types.DataType {
 }
 
 func (t *Table) row2pk(row map[string]types.DataType) map[string]types.DataType {
-	if t.meta.PrimaryKey == nil {
-		return nil
-	}
-
-	pkCols := t.indexes[*t.meta.PrimaryKey].Columns()
+	pkCols := t.indexes[t.meta.PrimaryKey].Columns()
 	pkRow := make(map[string]types.DataType, 1)
 	for _, col := range pkCols {
 		pkRow[col.Name] = row[col.Name]
 	}
 	return pkRow
-}
-
-func (t *Table) rows2pk(rows []map[string]types.DataType) []map[string]types.DataType {
-	pkRows := make([]map[string]types.DataType, 0, len(rows))
-	for _, row := range rows {
-		pkRows = append(pkRows, t.row2pk(row))
-	}
-	return pkRows
 }
 
 func (t *Table) validateMap(row map[string]types.DataType) error {
@@ -262,5 +246,5 @@ func (t *Table) setDefaults(row map[string]types.DataType) {
 }
 
 func (t *Table) isPK(i *index.Index) bool {
-	return t.meta.PrimaryKey != nil && *t.meta.PrimaryKey == i.Meta().Name
+	return t.meta.PrimaryKey == i.Meta().Name
 }

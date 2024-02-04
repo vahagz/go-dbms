@@ -128,19 +128,17 @@ func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.Reader, error) {
 			}
 
 			_, err = p.Write(blob)
-			return false, errors.Wrap(err, "failed to push marshaled record")
+			if err != nil {			
+				return true, errors.Wrap(err, "failed to push marshaled record")
+			}
+			return false, nil
 		}
 
 		var err error
 		if indexFilterStart != nil {
 			err = t.ScanByIndex(name, indexFilterStart, indexFilterEnd, filter, process)
 		} else {
-			pk := t.PrimaryKey()
-			if pk != nil {
-				err = t.FullScanByIndex(*pk, false, filter, process)
-			} else {
-				err = t.FullScan(filter, process)
-			}
+			err = t.FullScanByIndex(t.PrimaryKey(), false, filter, process)
 		}
 
 		if err != nil {

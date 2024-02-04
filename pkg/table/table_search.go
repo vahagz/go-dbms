@@ -16,33 +16,20 @@ func (t *Table) Find(filter *statement.WhereStatement) []index.Entry {
 	var err error
 	result := []index.Entry{}
 
-	if t.meta.PrimaryKey == nil {
-		err = t.df.Scan(func(ptr allocator.Pointable, r []types.DataType) (bool, error) {
-			row := t.row2map(r)
-			if filter == nil || filter.Compare(row) {
-				result = append(result, index.Entry{
-					Ptr: ptr,
-					Row: row,
-				})
-			}
-			return false, nil
-		})
-	} else {
-		err = t.indexes[*t.meta.PrimaryKey].Scan(index.ScanOptions{
-			ScanOptions: bptree.ScanOptions{
-				Strict:  true,
-			},
-		}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
-			row := t.get(ptr)
-			if filter == nil || filter.Compare(row) {
-				result = append(result, index.Entry{
-					Ptr: ptr,
-					Row: row,
-				})
-			}
-			return false, nil
-		})
-	}
+	err = t.indexes[t.meta.PrimaryKey].Scan(index.ScanOptions{
+		ScanOptions: bptree.ScanOptions{
+			Strict: true,
+		},
+	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
+		row := t.get(ptr)
+		if filter == nil || filter.Compare(row) {
+			result = append(result, index.Entry{
+				Ptr: ptr,
+				Row: row,
+			})
+		}
+		return false, nil
+	})
 
 	if err != nil {
 		panic(errors.Wrapf(err, "unexpected error while full scanning table"))
