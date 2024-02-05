@@ -121,6 +121,9 @@ func (df *DataFile) InsertMem(val []types.DataType) (allocator.Pointable, error)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert new record")
 	}
+
+	df.meta.dirty = true
+	df.meta.count++
 	return ptr, nil
 }
 
@@ -146,7 +149,10 @@ func (df *DataFile) Delete(ptr allocator.Pointable) error {
 func (df *DataFile) DeleteMem(ptr allocator.Pointable) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
+
 	df.free(ptr)
+	df.meta.dirty = true
+	df.meta.count--
 }
 
 // Scan performs pointers scan starting from first pointer (next pointer after meta)
@@ -169,12 +175,16 @@ func (df *DataFile) Scan(scanFn func(ptr allocator.Pointable, row []types.DataTy
 	})
 }
 
-// PrepareSpace allocates size bytes on underlying bptree file.
+// PrepareSpace allocates size bytes on underlying file.
 // This is usefull if big amount of data is going to be inserted.
 // It's increases performance of insertion.
-func (df *DataFile) PrepareSpace(size uint32) {
-	df.heap.PreAlloc(size)
-}
+func (df *DataFile) PrepareSpace(size uint32) { df.heap.PreAlloc(size) }
+
+// Count returns the number of entries in the entire tree.
+func (df *DataFile) Count() uint64 { return df.meta.count }
+
+// HeapSize returns size of the underlying file
+func (df *DataFile) HeapSize() uint64 { return df.heap.Size() }
 
 // Close flushes any writes and closes the underlying pager.
 func (df *DataFile) Close() error {
