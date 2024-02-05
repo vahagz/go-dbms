@@ -14,6 +14,7 @@ const (
 	DROP     QueryType = "DROP"
 	TRUNCATE QueryType = "TRUNCATE"
 	RENAME   QueryType = "RENAME"
+	PREPARE  QueryType = "PREPARE"
 )
 
 type Querier interface {

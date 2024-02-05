@@ -17,6 +17,10 @@ var KeyWords = map[string]struct{}{
 
 	"UPDATE": {},
 	"SET":    {},
+
+	"PREPARE": {},
+	"TABLE":   {},
+	"ROWS":    {},
 }
 
 var IndexOperators = map[string]struct{}{

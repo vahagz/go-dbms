@@ -53,8 +53,8 @@ func (i *Index) Options() bptree.Options {
 	return i.tree.Options()
 }
 
-func (i *Index) PrepareSpace(size uint32) {
-	i.tree.PrepareSpace(size)
+func (i *Index) PrepareSpace(rows int) {
+	i.tree.PrepareSpace(uint32(rows * int(i.tree.HeapSize() / i.tree.Count())))
 }
 
 func (i *Index) Close() error {

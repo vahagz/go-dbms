@@ -83,10 +83,10 @@ func (t* Table) Column(name string) *column.Column {
 	return t.meta.ColumnsMap[name]
 }
 
-func (t* Table) PrepareSpace(size uint32) {
-	t.df.PrepareSpace(size)
+func (t* Table) PrepareSpace(rows int) {
+	t.df.PrepareSpace(uint32(rows * int(t.df.HeapSize() / t.df.Count())))
 	for _, i := range t.indexes {
-		i.PrepareSpace(size)
+		i.PrepareSpace(rows)
 	}
 }
 

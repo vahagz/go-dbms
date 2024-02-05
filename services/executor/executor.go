@@ -48,12 +48,13 @@ func New(dataPath string) (*ExecutorServiceT, error) {
 
 func (es *ExecutorServiceT) Exec(q query.Querier) (io.WriterTo, error) {
 	switch q.GetType() {
-		case query.CREATE: return es.ddlCreate(q.(create.Creater))
-		case query.DELETE: return es.dmlDelete(q.(*dml.QueryDelete))
-		case query.INSERT: return es.dmlInsert(q.(*dml.QueryInsert))
-		case query.SELECT: return es.dmlSelect(q.(*dml.QuerySelect))
-		case query.UPDATE: return es.dmlUpdate(q.(*dml.QueryUpdate))
-		default:           panic(fmt.Errorf("invalid query type: '%s'", q.GetType()))
+		case query.CREATE:  return es.ddlCreate(q.(create.Creater))
+		case query.DELETE:  return es.dmlDelete(q.(*dml.QueryDelete))
+		case query.INSERT:  return es.dmlInsert(q.(*dml.QueryInsert))
+		case query.SELECT:  return es.dmlSelect(q.(*dml.QuerySelect))
+		case query.UPDATE:  return es.dmlUpdate(q.(*dml.QueryUpdate))
+		case query.PREPARE: return es.dmlPrepare(q.(*dml.QueryPrepare))
+		default:            panic(fmt.Errorf("invalid query type: '%s'", q.GetType()))
 	}
 }
 

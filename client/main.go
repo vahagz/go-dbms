@@ -96,6 +96,12 @@ func main() {
 	// fmt.Printf("[create] %v\n", time.Since(t))
 
 	// t = time.Now()
+	// rows, err = client.Query([]byte(`PREPARE TABLE testtable ROWS 1000000;`))
+	// exitIfErr(errors.Wrap(err, "query failed"))
+	// for rows.Next() {  }
+	// fmt.Printf("[prepare] %v\n", time.Since(t))
+
+	// t = time.Now()
 	// var insertId int
 	// setInterval(time.Second, func() {
 	// 	fmt.Println(insertId)
@@ -224,7 +230,7 @@ func main() {
 	rows, err = client.Query([]byte(`
 		SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 1000000;
+		WHERE_INDEX id id >= 450000 AND id <= 460000;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (

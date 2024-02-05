@@ -31,7 +31,7 @@ func (ps *ParserServiceT) ParseQuery(data []byte) (query.Querier, error) {
 		switch qt {
 			case query.CREATE, query.DROP:
 				return ddl.Parse(s, qt)
-			case query.DELETE, query.INSERT, query.SELECT, query.UPDATE:
+			case query.DELETE, query.INSERT, query.SELECT, query.UPDATE, query.PREPARE:
 				return dml.Parse(s, qt)
 		}
 	}
