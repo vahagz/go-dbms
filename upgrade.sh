@@ -13,7 +13,6 @@ for module in $(echo $json | jq -cr '.modules[]'); do
   dependencies=$(echo $module | jq -cr ".dependencies[]")
   moduleGoPath=$(echo $json | jq -cr ".list.\"$moduleName\".goPath")
   moduleRootPath=$(echo $json | jq -cr ".list.\"$moduleName\".rootPath")
-  moduleUrl=$(echo $json | jq -cr ".list.\"$moduleName\".url")
   moduleBranch=$(echo $json | jq -cr ".list.\"$moduleName\".branch")
 
   echo -e "${GREEN}cd $root/$moduleGoPath${RESET}"
@@ -40,8 +39,8 @@ for module in $(echo $json | jq -cr '.modules[]'); do
   git commit -m "'$depListStr' dependencies upgrade"
   echo -e "${GREEN}git push${RESET}"
   git push
-  echo -e "${GREEN}git checkout $branch${RESET}"
-  git checkout $branch
+  echo -e "${GREEN}git checkout $moduleBranch${RESET}"
+  git checkout $moduleBranch
   echo -e "${GREEN}git pull${RESET}"
   git pull
 done
