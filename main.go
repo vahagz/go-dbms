@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	r "math/rand"
 	"os"
 	"os/signal"
@@ -12,13 +10,10 @@ import (
 	"time"
 
 	"go-dbms/config"
-	"go-dbms/pkg/column"
-	"go-dbms/pkg/types"
 	"go-dbms/server"
 	"go-dbms/services/auth"
 	"go-dbms/services/executor"
 	"go-dbms/services/parser"
-	"go-dbms/util/response"
 )
 
 var seed = time.Now().UnixMilli()
@@ -64,44 +59,4 @@ func fatal(val interface{}) {
 func fatalf(format string, values ...interface{}) {
 	fmt.Printf(format, values...)
 	os.Exit(1)
-}
-
-func sprintData(columns []*column.Column, data []map[string]types.DataType) string {
-	buf := bytes.Buffer{}
-	for _, d := range data {
-		for _, col := range columns {
-			val := fmt.Sprintf("%v", d[col.Name].Value())
-			buf.WriteByte('\'')
-			buf.Write([]byte(col.Name))
-			buf.Write([]byte("' -> '"))
-			buf.Write([]byte(val))
-			buf.WriteString("', ")
-		}
-		buf.WriteString("\n")
-	}
-	return buf.String()
-}
-
-func printData(columns []*column.Column, data []map[string]types.DataType) {
-	fmt.Print(sprintData(columns, data))
-}
-
-func randomString(length int) string {
-	bytes := make([]byte, 0, length)
-	for i := 0; i < length; i++ {
-		bytes = append(bytes, byte('a' + rand.Intn(int('z') - int('a'))))
-	}
-	return string(bytes)
-}
-
-func printResponse(res io.Reader) {
-	rr := response.NewReader(res)
-	for {
-		msg, err := rr.ReadLine()
-		fmt.Printf("%v '%s'\n", len(msg), string(msg))
-		if err != nil {
-			fmt.Println("error =>", err)
-			break
-		}
-	}
 }
