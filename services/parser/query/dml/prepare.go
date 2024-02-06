@@ -9,6 +9,9 @@ import (
 	"go-dbms/services/parser/query"
 )
 
+/*
+PREPARE TABLE <tableName> ROWS <n>;
+*/
 type QueryPrepare struct {
 	query.Query
 	DB    string

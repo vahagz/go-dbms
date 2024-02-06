@@ -10,6 +10,15 @@ import (
 	"go-dbms/services/parser/query/ddl/create/types"
 )
 
+/*
+CREATE TABLE <tableName> (
+	<columnName> <type> [AUTO INCREMENT],
+	...
+)
+PRIMARY KEY (<...columns>) <primaryKeyName>
+[, INDEX(<...columns>) <indexName>]
+...;
+*/
 type QueryCreateTable struct {
 	*QueryCreate
 	Database string                   `json:"database"`

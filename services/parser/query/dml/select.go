@@ -11,6 +11,12 @@ import (
 	"go-dbms/services/parser/query"
 )
 
+/*
+SELECT <...columns>
+FROM <tableName>
+[WHERE_INDEX <indexName> <condition> [AND <condition>]]
+[WHERE <...condition>];
+*/
 type QuerySelect struct {
 	query.Query
 	Columns    []string    `json:"columns"`

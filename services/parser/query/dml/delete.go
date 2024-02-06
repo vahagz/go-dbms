@@ -10,6 +10,11 @@ import (
 	"go-dbms/services/parser/query"
 )
 
+/*
+DELETE FROM <tableName>
+[WHERE_INDEX <indexName> <condition> [AND <condition>]]
+[WHERE <...condition>];
+*/
 type QueryDelete struct {
 	query.Query
 	DB         string      `json:"db"`

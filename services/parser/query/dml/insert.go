@@ -10,6 +10,13 @@ import (
 	"go-dbms/services/parser/query"
 )
 
+/*
+INSERT INTO <tableName> (...columns)
+VALUES
+	(...values)
+	...
+	(...values);
+*/
 type QueryInsert struct {
 	query.Query
 	DB      string    `json:"db"`

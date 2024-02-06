@@ -10,6 +10,15 @@ import (
 	"go-dbms/services/parser/query"
 )
 
+/*
+UPDATE <tableName>
+SET
+	<columnName> = <value>,
+	...
+	<columnName> = <value>
+[WHERE_INDEX <indexName> <condition> [AND <condition>]]
+[WHERE <...condition>];
+*/
 type QueryUpdate struct {
 	query.Query
 	DB         string      `json:"db"`
