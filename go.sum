@@ -16,6 +16,8 @@ github.com/vahagz/pager v0.0.2-0.20240129094313-d2b541b095ee h1:EDUZbxLxCq9JaPmf
 github.com/vahagz/pager v0.0.2-0.20240129094313-d2b541b095ee/go.mod h1:vgo8Osl+QDlL5Ond4RzWHiKPHCo1QAWtj3/gLKMTNrI=
 github.com/vahagz/rbtree v0.0.2-0.20240205141227-c534914c07ca h1:/SvNdJfGTO1oxL7WjHdpuAtZXjnY1OZ0D3OcLxLpvVY=
 github.com/vahagz/rbtree v0.0.2-0.20240205141227-c534914c07ca/go.mod h1:SXwIaaQV0O5UYbnE0H3rH1HyRjSUO3Ncv40mJDdiJxI=
+golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3 h1:/RIbNt/Zr7rVhIkQhooTxCxFcdWLGIKnZA4IXNFSrvo=
+golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3/go.mod h1:idGWGoKP1toJGkd5/ig9ZLuPcZBC3ewk7SzmH0uou08=
 golang.org/x/sys v0.16.0 h1:xWw16ngr6ZMtmxDyKyIgsE93KNKz5HKmMa3b8ALHidU=
 golang.org/x/sys v0.16.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=

@@ -286,3 +286,12 @@ func setInterval(duration time.Duration, f func()) *time.Ticker {
 	}()
 	return t
 }
+
+func setTimeout(duration time.Duration, f func()) *time.Ticker {
+	var t *time.Ticker
+	t = setInterval(duration, func() {
+		f()
+		t.Stop()
+	})
+	return t
+}

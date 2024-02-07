@@ -19,6 +19,7 @@ type newable struct {
 }
 
 var typesMap = map[TypeCode]newable{}
+var numericTypes = map[TypeCode]struct{}{}
 
 type DataTypeMeta interface {
 	GetCode() TypeCode
@@ -34,7 +35,6 @@ type DataType interface {
 	DataTypeMeta
 
 	Bytes() []byte
-
 	Value() interface{}
 	Set(value interface{}) DataType
 	Fill() DataType
@@ -68,4 +68,9 @@ func ParseJSONValue(item interface{}) DataType {
 			panic(errors.New("invalid item type"))
 		}
 	}
+}
+
+func IsNumeric(code TypeCode) bool {
+	_, ok := numericTypes[code]
+	return ok
 }

@@ -1,0 +1,27 @@
+package aggregator
+
+import "go-dbms/pkg/types"
+
+var avgMeta = &types.DataTypeINTEGERMeta{Signed: true, ByteSize: 8}
+
+type AggregationAVG struct {
+	Sum   int64
+	Count uint64
+}
+
+func (as *AggregationAVG) Apply(value ...types.DataType) {
+	val, err := value[0].Cast(types.TYPE_INTEGER, avgMeta)
+	if err != nil {
+		panic(err)
+	}
+	as.Sum += val.Value().(int64)
+	as.Count++
+}
+
+func (as *AggregationAVG) Value() types.DataType {
+	var val float64
+	if as.Count != 0 {
+		val = float64(as.Sum) / float64(as.Count)
+	}
+	return types.Type(avgMeta).Set(val)
+}

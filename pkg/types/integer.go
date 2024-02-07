@@ -10,6 +10,8 @@ import (
 )
 
 func init() {
+	numericTypes[TYPE_INTEGER] = struct{}{}
+
 	typesMap[TYPE_INTEGER] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
 			m := meta.(*DataTypeINTEGERMeta)
