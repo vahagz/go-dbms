@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 )
@@ -38,4 +39,15 @@ func Copy(matrix [][]byte) [][]byte {
 		copy(cp[i], matrix[i])
 	}
 	return cp
+}
+
+func ParseJSONToken(word []byte) (emptyInterface interface{}, ok bool) {
+	if (word[0] == '"' && word[len(word)-1] == '"') ||
+		(word[0] >= '0' && word[0] <= '9') ||
+		bytes.Equal(word, []byte("true")) ||
+		bytes.Equal(word, []byte("false")) {
+			err := json.Unmarshal(word, &emptyInterface)
+			return emptyInterface, err == nil
+	}
+	return nil, false
 }

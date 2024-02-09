@@ -20,6 +20,20 @@ var seed = time.Now().UnixMilli()
 var rand = r.New(r.NewSource(seed))
 
 func main() {
+	p := parser.New()
+	q, err := p.ParseQuery([]byte(`
+		SELECT SUM(amount) AS bb, ADD(id, 1) AS cc, id
+		FROM testtable
+		WHERE_INDEX id id >= 450000 AND id <= 460000
+		GROUP BY cc, id;
+	`))
+	if err != nil {
+		fatal(err)
+	}
+	fmt.Println(q)
+
+	return
+
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()

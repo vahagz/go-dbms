@@ -3,12 +3,13 @@ package aggregator
 import "go-dbms/pkg/types"
 
 type AggregationSUM[T numeric] struct {
+	*AggregatorBase
 	Sum T
 	Meta types.DataTypeMeta
 }
 
-func (as *AggregationSUM[T]) Apply(value ...types.DataType) {
-	val, err := value[0].Cast(as.Meta.GetCode(), as.Meta)
+func (as *AggregationSUM[T]) Apply(row map[string]types.DataType) {
+	val, err := row[as.Arguments[0]].Cast(as.Meta.GetCode(), as.Meta)
 	if err != nil {
 		panic(err)
 	}

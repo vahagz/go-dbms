@@ -5,12 +5,13 @@ import "go-dbms/pkg/types"
 var avgMeta = &types.DataTypeINTEGERMeta{Signed: true, ByteSize: 8}
 
 type AggregationAVG struct {
+	*AggregatorBase
 	Sum   int64
 	Count uint64
 }
 
-func (as *AggregationAVG) Apply(value ...types.DataType) {
-	val, err := value[0].Cast(types.TYPE_INTEGER, avgMeta)
+func (as *AggregationAVG) Apply(row map[string]types.DataType) {
+	val, err := row[as.Arguments[0]].Cast(types.TYPE_INTEGER, avgMeta)
 	if err != nil {
 		panic(err)
 	}

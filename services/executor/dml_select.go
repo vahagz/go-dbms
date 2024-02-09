@@ -20,9 +20,9 @@ func (es *ExecutorServiceT) dmlSelectValidate(q *dml.QuerySelect) error {
 	}
 
 	columns := table.ColumnsMap()
-	for _, colName := range q.Columns {
-		if _, ok := columns[colName]; !ok {
-			return fmt.Errorf("column not found: '%s'", colName)
+	for _, pr := range q.Projections {
+		if _, ok := columns[pr.Name]; !ok {
+			return fmt.Errorf("column not found: '%s'", pr.Name)
 		}
 	}
 
@@ -117,9 +117,9 @@ func (es *ExecutorServiceT) dmlSelect(q *dml.QuerySelect) (io.WriterTo, error) {
 		}
 
 		process := func(row map[string]types.DataType) (bool, error) {
-			record := make([]interface{}, 0, len(q.Columns))
-			for _, col := range q.Columns {
-				record = append(record, row[col].Value())
+			record := make([]interface{}, 0, len(q.Projections))
+			for _, pr := range q.Projections {
+				record = append(record, row[pr.Name].Value())
 			}
 
 			blob, err := json.Marshal(record)

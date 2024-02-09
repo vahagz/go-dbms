@@ -3,10 +3,11 @@ package aggregator
 import "go-dbms/pkg/types"
 
 type AggregationCOUNT struct {
+	*AggregatorBase
 	Val uint64
 }
 
-func (as *AggregationCOUNT) Apply(value ...types.DataType) {
+func (as *AggregationCOUNT) Apply(row map[string]types.DataType) {
 	as.Val++
 }
 

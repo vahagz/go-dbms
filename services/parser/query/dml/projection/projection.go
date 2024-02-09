@@ -2,13 +2,20 @@ package projection
 
 import (
 	"go-dbms/pkg/types"
-	"go-dbms/services/parser/query/dml/aggregator"
+)
+
+type ProjectionType uint8
+
+const (
+	AGGREGATOR ProjectionType = iota
+	FUNCTION
+	IDENTIFIER
 )
 
 type Projection struct {
-	Name              *string
-	Column            *string
-	Arguments         []string
-	AggregateFunction aggregator.Aggregator
-	Value             types.DataType
+	Alias     string
+	Name      string
+	Type      ProjectionType
+	Arguments []*Projection
+	Literal   types.DataType
 }

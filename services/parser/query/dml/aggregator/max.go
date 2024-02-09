@@ -3,12 +3,13 @@ package aggregator
 import "go-dbms/pkg/types"
 
 type AggregationMAX struct {
+	*AggregatorBase
 	Val types.DataType
 }
 
-func (as *AggregationMAX) Apply(value ...types.DataType) {
-	if value[0].Compare(">", as.Val) {
-		as.Val = value[0]
+func (as *AggregationMAX) Apply(row map[string]types.DataType) {
+	if row[as.Arguments[0]].Compare(">", as.Val) {
+		as.Val = row[as.Arguments[0]]
 	}
 }
 

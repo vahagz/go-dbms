@@ -43,16 +43,8 @@ func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
 
 	qu.parseFrom(s)
 	qu.parseValues(s)
-
-	word := s.TokenText()
-	if word == "WHERE_INDEX" {
-		qu.parseWhereIndex(s)
-	}
-
-	word = s.TokenText()
-	if word == "WHERE" {
-		qu.parseWhere(s)
-	}
+	qu.parseWhereIndex(s)
+	qu.parseWhere(s)
 
 	return nil
 }
@@ -123,8 +115,13 @@ func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
-	tok := s.Scan()
 	word := s.TokenText()
+	if word == "WHERE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	word = s.TokenText()
 	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
 		panic(errors.ErrSyntax)
@@ -167,5 +164,10 @@ func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word == "WHERE" {
+		return
+	}
+
 	qu.Where = (*where)(parseWhere(s))
 }
