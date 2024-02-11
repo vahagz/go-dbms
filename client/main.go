@@ -87,6 +87,7 @@ func main() {
 	// 		id        UInt32 AUTO INCREMENT,
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
+	// 		amount    UInt32,
 	// 	)
 	// 	PRIMARY KEY(id) id,
 	// 	INDEX(firstname, lastname) firstname_lastname;
@@ -106,118 +107,118 @@ func main() {
 	// setInterval(time.Second, func() {
 	// 	fmt.Println(insertId)
 	// })
-	// for i := 0; i < 10000; i++ {
+	// for i := 0; i < 1; i++ {
 	// 	rows, err = client.Query([]byte(`
-	// 		INSERT INTO testtable (firstname, lastname) VALUES
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 		INSERT INTO testtable (firstname, lastname, amount) VALUES
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan"),
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20), 
 				
-	// 			("Vahag", "Zargaryan"),
-	// 			("Ruben", "Manandyan"),
-	// 			("Sergey", "Zargaryan"),
-	// 			("Arman", "Sargsyan"),
-	// 			("Mery", "Voskanyan"),
-	// 			("David", "Harutyunyan"),
-	// 			("Alexader", "Bakunc"),
-	// 			("Hayk", "Vardanyan"),
-	// 			("Serob", "Gevorgyan"),
-	// 			("Gevorg", "Aznauryan");
+	// 			("Vahag", "Zargaryan", 10),
+	// 			("Ruben", "Manandyan", 30),
+	// 			("Sergey", "Zargaryan", 50),
+	// 			("Arman", "Sargsyan", 20),
+	// 			("Mery", "Voskanyan", 40),
+	// 			("David", "Harutyunyan", 60),
+	// 			("Alexader", "Bakunc", 30),
+	// 			("Hayk", "Vardanyan", 80),
+	// 			("Serob", "Gevorgyan", 70),
+	// 			("Gevorg", "Aznauryan", 20);
 	// 	`))
 	// 	exitIfErr(errors.Wrap(err, "query failed"))
 	// 	for rows.Next() {
@@ -228,26 +229,27 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT id, firstname, lastname
+		SELECT id, COUNT() AS cnt, SUM(amount) AS sumAmount
 		FROM testtable
-		WHERE_INDEX id id >= 450000 AND id <= 460000;
+		WHERE_INDEX id id >= 1 AND id <= 11;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
-		id int
+		id, cnt, sumAmount int
 		firstname, lastname string
 	)
-	setInterval(time.Second, func() {
-		fmt.Println(id, firstname, lastname)
-	})
+	_, _, _, _, _ = id, cnt, sumAmount, firstname, lastname
+	// setInterval(time.Second, func() {
+	// 	fmt.Println(id, firstname, lastname)
+	// })
 	for rows.Next() {
-		if err := rows.Scan(&id, &firstname, &lastname); err != nil {
+		if err := rows.Scan(&id, &cnt, &sumAmount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		// fmt.Println(id, firstname, lastname)
+		fmt.Println(id, cnt, sumAmount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
-	fmt.Println(id, firstname, lastname)
+	// fmt.Println(id, firstname, lastname)
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
@@ -284,5 +286,14 @@ func setInterval(duration time.Duration, f func()) *time.Ticker {
 			f()
 		}
 	}()
+	return t
+}
+
+func setTimeout(duration time.Duration, f func()) *time.Ticker {
+	var t *time.Ticker
+	t = setInterval(duration, func() {
+		f()
+		t.Stop()
+	})
 	return t
 }

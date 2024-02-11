@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"text/scanner"
 
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
@@ -21,11 +22,11 @@ SET
 */
 type QueryUpdate struct {
 	query.Query
-	DB         string      `json:"db"`
-	Table      string      `json:"table"`
-	Values     dataMap     `json:"values"`
-	Where      *where      `json:"where"`
-	WhereIndex *whereIndex `json:"where_index"`
+	DB         string                    `json:"db"`
+	Table      string                    `json:"table"`
+	Values     dataMap                   `json:"values"`
+	Where      *statement.WhereStatement `json:"where"`
+	WhereIndex *whereIndex               `json:"where_index"`
 }
 
 func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
@@ -43,16 +44,8 @@ func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
 
 	qu.parseFrom(s)
 	qu.parseValues(s)
-
-	word := s.TokenText()
-	if word == "WHERE_INDEX" {
-		qu.parseWhereIndex(s)
-	}
-
-	word = s.TokenText()
-	if word == "WHERE" {
-		qu.parseWhere(s)
-	}
+	qu.parseWhereIndex(s)
+	qu.parseWhere(s)
 
 	return nil
 }
@@ -123,8 +116,13 @@ func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
-	tok := s.Scan()
 	word := s.TokenText()
+	if word == "WHERE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	word = s.TokenText()
 	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
 		panic(errors.ErrSyntax)
@@ -167,5 +165,10 @@ func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
-	qu.Where = (*where)(parseWhere(s))
+	word := s.TokenText()
+	if word == "WHERE" {
+		return
+	}
+
+	qu.Where = parseWhere(s)
 }

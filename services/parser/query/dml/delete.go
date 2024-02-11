@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"text/scanner"
 
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
@@ -17,10 +18,10 @@ DELETE FROM <tableName>
 */
 type QueryDelete struct {
 	query.Query
-	DB         string      `json:"db"`
-	Table      string      `json:"table"`
-	Where      *where      `json:"where"`
-	WhereIndex *whereIndex `json:"where_index"`
+	DB         string                    `json:"db"`
+	Table      string                    `json:"table"`
+	Where      *statement.WhereStatement `json:"where"`
+	WhereIndex *whereIndex               `json:"where_index"`
 }
 
 func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
@@ -37,16 +38,8 @@ func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
 	qd.Type = query.DELETE
 
 	qd.parseFrom(s)
-
-	word := s.TokenText()
-	if word == "WHERE_INDEX" {
-		qd.parseWhereIndex(s)
-	}
-
-	word = s.TokenText()
-	if word == "WHERE" {
-		qd.parseWhere(s)
-	}
+	qd.parseWhereIndex(s)
+	qd.parseWhere(s)
 
 	return nil
 }
@@ -77,8 +70,13 @@ func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
 }
 
 func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
-	tok := s.Scan()
 	word := s.TokenText()
+	if word != "WHERE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	word = s.TokenText()
 	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
 		panic(errors.ErrSyntax)
@@ -121,5 +119,10 @@ func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
 }
 
 func (qd *QueryDelete) parseWhere(s *scanner.Scanner) {
-	qd.Where = (*where)(parseWhere(s))
+	word := s.TokenText()
+	if word != "WHERE" {
+		return
+	}
+
+	qd.Where = parseWhere(s)
 }

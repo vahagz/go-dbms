@@ -1,29 +1,41 @@
 package dml
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	r "math/rand"
 	"text/scanner"
+	"time"
 
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/services/parser/query/dml/aggregator"
+	"go-dbms/services/parser/query/dml/function"
+	"go-dbms/services/parser/query/dml/projection"
+	"go-dbms/util/helpers"
 )
 
+var rand = r.NewSource(time.Now().UnixNano())
+
 /*
-SELECT <...columns>
+SELECT <...projection>
 FROM <tableName>
 [WHERE_INDEX <indexName> <condition> [AND <condition>]]
-[WHERE <...condition>];
+[WHERE <...condition>]
+[GROUP BY <...projection>];
 */
 type QuerySelect struct {
 	query.Query
-	Columns    []string    `json:"columns"`
-	DB         string      `json:"db"`
-	Table      string      `json:"table"`
-	Where      *where      `json:"where"`
-	WhereIndex *whereIndex `json:"where_index"`
+	Projections *projection.Projections
+	DB          string
+	Table       string
+	Where       *statement.WhereStatement
+	WhereIndex  *whereIndex
+	GroupBy     map[string]struct{}
 }
 
 func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
@@ -39,94 +51,137 @@ func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
 
 	qs.Type = query.SELECT
 
-	qs.parseSelection(s)
-
-	word := s.TokenText()
-	if word != "FROM" {
-		return errors.ErrNoFrom
-	}
-
+	qs.parseProjections(s)
 	qs.parseFrom(s)
-
-	word = s.TokenText()
-	if word == "WHERE_INDEX" {
-		qs.parseWhereIndex(s)
-	}
-
-	word = s.TokenText()
-	if word == "WHERE" {
-		qs.parseWhere(s)
-	}
+	qs.parseWhereIndex(s)
+	qs.parseWhere(s)
+	qs.parseGroupBy(s)
 
 	return nil
 }
 
-func (qs *QuerySelect) parseSelection(s *scanner.Scanner) {
-	tok := s.Scan()
+func (qs *QuerySelect) parseProjections(s *scanner.Scanner) {
+	qs.Projections = projection.New()
+	s.Scan()
+
+	p := qs.parseProjection(s)
+	qs.Projections.Add(p)
+
+	for s.TokenText() != "FROM" {
+		s.Scan()
+		p = qs.parseProjection(s)
+		qs.Projections.Add(p)
+	}
+}
+
+func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projection {
 	word := s.TokenText()
 	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF {
+	if isKW || word == "," || word == "(" || word == ")" {
 		panic(errors.ErrSyntax)
-	} else if isKW {
-		panic(errors.ErrNoSelection)
 	}
 
-	qs.Columns = append(qs.Columns, word)
+	p := &projection.Projection{}
+	p.Alias = word
+	p.Name = word
+	p.Type = projection.IDENTIFIER
 
-	tok = s.Scan()
+	s.Scan()
 	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok == scanner.EOF || (word != "," && !isKW) {
+	if word == "FROM" || word == "," || word == ")" || word == "AS" {
+		if word == "AS" {
+			s.Scan()
+			p.Alias = s.TokenText()
+			s.Scan()
+		}
+		return p
+	} else if word != "(" {
 		panic(errors.ErrSyntax)
-	} else if isKW {
-		return
 	}
 
+	buf := bytes.NewBuffer([]byte(p.Alias))
+	p.Arguments = []*projection.Projection{}
+
+	if aggregator.IsAggregator(p.Name) {
+		p.Type = projection.AGGREGATOR
+	} else if function.IsFunction(p.Name) {
+		p.Type = projection.FUNCTION
+	} else {
+		panic(fmt.Errorf("unknown aggregation/function: '%s'", p.Name))
+	}
+
+	buf.WriteByte('(')
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-		word := s.TokenText()
-		_, isKW := kwords.KeyWords[word]
+		word = s.TokenText()
 		if word == "," {
-			panic(errors.ErrSyntax)
-		} else if isKW {
-			return
+			continue
+		} else if word == ")" {
+			break
 		}
 
-		qs.Columns = append(qs.Columns, word)
+		jsonVal, ok := helpers.ParseJSONToken([]byte(word))
+		if ok {
+			p.Arguments = append(p.Arguments, &projection.Projection{
+				Type:    projection.LITERAL,
+				Literal: types.ParseJSONValue(jsonVal),
+			})
+			if p.Alias != "" {
+				p.Alias = fmt.Sprint(rand.Int63())
+			}
 
-		tok := s.Scan()
-		word = s.TokenText()
-		_, isKW = kwords.KeyWords[word]
-		if tok == scanner.EOF || (word != "," && !isKW) {
-			panic(errors.ErrSyntax)
-		} else if isKW {
-			return
+			s.Scan()
+		} else {
+			p.Arguments = append(p.Arguments, qs.parseProjection(s))
+		}
+
+		buf.Write([]byte(word))
+		buf.WriteByte(',')
+
+		word := s.TokenText()
+		if word == ")" {
+			break
 		}
 	}
+	
+	s.Scan()
+	word = s.TokenText()
+	if word == "AS" {
+		s.Scan()
+		p.Alias = s.TokenText()
+		s.Scan()
+	}
+
+	if p.Alias == "" {
+		buf.Truncate(buf.Len() - 1)
+		buf.WriteByte(')')
+		p.Alias = buf.String()
+	}
+	return p
 }
 
 func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
-	tok := s.Scan()
 	word := s.TokenText()
-	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF {
-		panic(errors.ErrSyntax)
-	} else if isKW {
+	if word != "FROM" {
 		panic(errors.ErrNoFrom)
 	}
 
-	qs.Table = word
-
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok != scanner.EOF && !isKW {
+	tok := s.Scan()
+	if tok == scanner.EOF {
 		panic(errors.ErrSyntax)
 	}
+
+	qs.Table = s.TokenText()
+	s.Scan()
 }
 
 func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
-	tok := s.Scan()
 	word := s.TokenText()
+	if word != "WHERE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	word = s.TokenText()
 	_, isKW := kwords.KeyWords[word]
 	if tok == scanner.EOF || isKW {
 		panic(errors.ErrSyntax)
@@ -208,7 +263,12 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val strin
 }
 
 func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
-	qs.Where = (*where)(parseWhere(s))
+	word := s.TokenText()
+	if word != "WHERE" {
+		return
+	}
+
+	qs.Where = parseWhere(s)
 }
 
 func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
@@ -223,7 +283,7 @@ func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
 			panic(errors.ErrSyntax)
 		} else if word == "(" {
 			sttmnts = append(sttmnts, parseWhere(s))
-		} else if word == ")" || word == ";" || isKW {
+		} else if word == ")" || word == ";" || word == "GROUP" || isKW {
 			break
 		} else if _, ok := kwords.LogicalOperators[word]; ok {
 			logOp = word
@@ -254,4 +314,30 @@ func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
 		}
 	}
 	return sttmnts[0]
+}
+
+func (qs *QuerySelect) parseGroupBy(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word != "GROUP" {
+		return
+	}
+
+	s.Scan()
+	word = s.TokenText()
+	if word != "BY" {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.GroupBy = map[string]struct{}{}
+	for s.Scan(); s.TokenText() != ","; s.Scan() {
+		qs.GroupBy[s.TokenText()] = struct{}{}
+
+		s.Scan()
+		word = s.TokenText()
+		if word == "," {
+			continue
+		} else if word == ";" {
+			break
+		}
+	}
 }
