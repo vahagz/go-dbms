@@ -11,7 +11,7 @@ type AggregationAVG struct {
 }
 
 func (as *AggregationAVG) Apply(row map[string]types.DataType) {
-	val, err := row[as.Arguments[0]].Cast(types.TYPE_INTEGER, avgMeta)
+	val, err := row[as.Arguments[0].Alias].Cast(types.TYPE_INTEGER, avgMeta)
 	if err != nil {
 		panic(err)
 	}

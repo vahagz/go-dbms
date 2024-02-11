@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	r "math/rand"
 	"text/scanner"
+	"time"
 
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
@@ -17,20 +19,23 @@ import (
 	"go-dbms/util/helpers"
 )
 
+var rand = r.NewSource(time.Now().UnixNano())
+
 /*
-SELECT <...columns>
+SELECT <...projection>
 FROM <tableName>
 [WHERE_INDEX <indexName> <condition> [AND <condition>]]
-[WHERE <...condition>];
+[WHERE <...condition>]
+[GROUP BY <...projection>];
 */
 type QuerySelect struct {
 	query.Query
-	Projections map[string]*projection.Projection
+	Projections *projection.Projections
 	DB          string
 	Table       string
-	Where       *where
+	Where       *statement.WhereStatement
 	WhereIndex  *whereIndex
-	GroupBy     []string
+	GroupBy     map[string]struct{}
 }
 
 func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
@@ -56,16 +61,16 @@ func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
 }
 
 func (qs *QuerySelect) parseProjections(s *scanner.Scanner) {
-	qs.Projections = map[string]*projection.Projection{}
+	qs.Projections = projection.New()
 	s.Scan()
 
 	p := qs.parseProjection(s)
-	qs.Projections[p.Alias] = p
+	qs.Projections.Add(p)
 
 	for s.TokenText() != "FROM" {
 		s.Scan()
 		p = qs.parseProjection(s)
-		qs.Projections[p.Alias] = p
+		qs.Projections.Add(p)
 	}
 }
 
@@ -117,8 +122,13 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 		jsonVal, ok := helpers.ParseJSONToken([]byte(word))
 		if ok {
 			p.Arguments = append(p.Arguments, &projection.Projection{
+				Type:    projection.LITERAL,
 				Literal: types.ParseJSONValue(jsonVal),
 			})
+			if p.Alias != "" {
+				p.Alias = fmt.Sprint(rand.Int63())
+			}
+
 			s.Scan()
 		} else {
 			p.Arguments = append(p.Arguments, qs.parseProjection(s))
@@ -129,30 +139,29 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 
 		word := s.TokenText()
 		if word == ")" {
-			s.Scan()
-			word = s.TokenText()
-			if word == "AS" {
-				s.Scan()
-				p.Alias = s.TokenText()
-				s.Scan()
-			}
-
 			break
 		}
 	}
-	buf.Truncate(buf.Len() - 1)
-	buf.WriteByte(')')
+	
+	s.Scan()
+	word = s.TokenText()
+	if word == "AS" {
+		s.Scan()
+		p.Alias = s.TokenText()
+		s.Scan()
+	}
 
 	if p.Alias == "" {
+		buf.Truncate(buf.Len() - 1)
+		buf.WriteByte(')')
 		p.Alias = buf.String()
 	}
 	return p
 }
 
 func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
-	word := s.TokenText()	
-	_, isKW := kwords.KeyWords[word]
-	if word != "FROM" || isKW {
+	word := s.TokenText()
+	if word != "FROM" {
 		panic(errors.ErrNoFrom)
 	}
 
@@ -161,19 +170,13 @@ func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
 		panic(errors.ErrSyntax)
 	}
 
-	qs.Table = word
-
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok != scanner.EOF && !isKW {
-		panic(errors.ErrSyntax)
-	}
+	qs.Table = s.TokenText()
+	s.Scan()
 }
 
 func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
 	word := s.TokenText()
-	if word == "WHERE_INDEX" {
+	if word != "WHERE_INDEX" {
 		return
 	}
 
@@ -261,11 +264,11 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val strin
 
 func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
 	word := s.TokenText()
-	if word == "WHERE" {
+	if word != "WHERE" {
 		return
 	}
 
-	qs.Where = (*where)(parseWhere(s))
+	qs.Where = parseWhere(s)
 }
 
 func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
@@ -314,5 +317,27 @@ func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
 }
 
 func (qs *QuerySelect) parseGroupBy(s *scanner.Scanner) {
-	
+	word := s.TokenText()
+	if word != "GROUP" {
+		return
+	}
+
+	s.Scan()
+	word = s.TokenText()
+	if word != "BY" {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.GroupBy = map[string]struct{}{}
+	for s.Scan(); s.TokenText() != ","; s.Scan() {
+		qs.GroupBy[s.TokenText()] = struct{}{}
+
+		s.Scan()
+		word = s.TokenText()
+		if word == "," {
+			continue
+		} else if word == ";" {
+			break
+		}
+	}
 }

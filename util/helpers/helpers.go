@@ -51,3 +51,17 @@ func ParseJSONToken(word []byte) (emptyInterface interface{}, ok bool) {
 	}
 	return nil, false
 }
+
+func RecoverOnError(errPtr *error) func() {
+	return func ()  {
+		if r := recover(); r != nil {
+			var ok bool
+			err, ok := r.(error)
+			if !ok {
+				panic(r)
+			}
+
+			*errPtr = err
+		}
+	}
+}

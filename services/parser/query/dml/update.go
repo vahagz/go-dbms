@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"text/scanner"
 
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
@@ -21,11 +22,11 @@ SET
 */
 type QueryUpdate struct {
 	query.Query
-	DB         string      `json:"db"`
-	Table      string      `json:"table"`
-	Values     dataMap     `json:"values"`
-	Where      *where      `json:"where"`
-	WhereIndex *whereIndex `json:"where_index"`
+	DB         string                    `json:"db"`
+	Table      string                    `json:"table"`
+	Values     dataMap                   `json:"values"`
+	Where      *statement.WhereStatement `json:"where"`
+	WhereIndex *whereIndex               `json:"where_index"`
 }
 
 func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
@@ -169,5 +170,5 @@ func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
 		return
 	}
 
-	qu.Where = (*where)(parseWhere(s))
+	qu.Where = parseWhere(s)
 }

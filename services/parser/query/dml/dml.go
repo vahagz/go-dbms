@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"text/scanner"
 
-	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query"
 )
@@ -64,8 +63,6 @@ type indexFilter struct {
 	Operator string  `json:"operator"`
 	Value    dataMap `json:"value"`
 }
-
-type where statement.WhereStatement
 
 type whereIndex struct {
 	Name        string       `json:"name"`

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/projection"
 
 	"golang.org/x/exp/constraints"
 )
@@ -35,7 +36,7 @@ var aggregators = map[AggregatorType]struct{}{
 }
 
 type AggregatorBase struct {
-	Arguments []string
+	Arguments []*projection.Projection
 }
 
 func (ab *AggregatorBase) Value() types.DataType {
@@ -56,7 +57,7 @@ func IsAggregator(fn string) bool {
 	return ok
 }
 
-func New(name AggregatorType, args []string) Aggregator {
+func New(name AggregatorType, args []*projection.Projection) Aggregator {
 	ab := &AggregatorBase{args}
 	switch name {
 		case AVG: {

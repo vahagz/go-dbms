@@ -8,8 +8,8 @@ type AggregationMAX struct {
 }
 
 func (as *AggregationMAX) Apply(row map[string]types.DataType) {
-	if row[as.Arguments[0]].Compare(">", as.Val) {
-		as.Val = row[as.Arguments[0]]
+	if row[as.Arguments[0].Alias].Compare(">", as.Val) {
+		as.Val = row[as.Arguments[0].Alias]
 	}
 }
 

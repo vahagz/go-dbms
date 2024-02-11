@@ -38,17 +38,12 @@ type FunctionBase struct {
 	Arguments []string
 }
 
-func (ab *FunctionBase) Apply(value ...types.DataType) {
+func (ab *FunctionBase) Apply(value ...types.DataType) types.DataType {
 	panic(errors.New("unimplemented"))
-}
-
-func (ab *FunctionBase) Args() []string {
-	return ab.Arguments
 }
 
 type Function interface {
 	Apply(value ...types.DataType) types.DataType
-	Args() []string
 }
 
 func IsFunction(fn string) bool {

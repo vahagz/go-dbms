@@ -20,27 +20,32 @@ var seed = time.Now().UnixMilli()
 var rand = r.New(r.NewSource(seed))
 
 func main() {
-	p := parser.New()
-	q, err := p.ParseQuery([]byte(`
-		SELECT SUM(amount) AS bb, ADD(id, 1) AS cc, id
-		FROM testtable
-		WHERE_INDEX id id >= 450000 AND id <= 460000
-		GROUP BY cc, id;
-	`))
-	if err != nil {
-		fatal(err)
-	}
-	fmt.Println(q)
+	// pw, _ := os.Getwd()
 
-	return
+	// p := parser.New()
+	// e, err := executor.New(path.Join(pw, "test/tables"))
+	// fatalIfErr(err)
+
+	// q, err := p.ParseQuery([]byte(`
+	// 	SELECT id, firstname, lastname, COUNT() AS cnt, SUM(amount) AS sumAmount
+	// 	FROM testtable
+	// 	WHERE_INDEX id id >= 0 AND id <= 11
+	// 	GROUP BY id, firstname, lastname;
+	// `))
+	// fatalIfErr(err)
+	// fmt.Println(q)
+
+	// r, err := e.Exec(q)
+	// fatalIfErr(err)
+	// fmt.Println(r.WriteTo(os.Stdout))
+
+	// return
 
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()
 	es, err := executor.New(path.Join(pwd, "test/tables"))
-	if err != nil {
-		fatal(err)
-	}
+	fatalIfErr(err)
 
 	defer func() {
 		if err := es.Close(); err != nil {
@@ -65,7 +70,10 @@ func main() {
 	}
 }
 
-func fatal(val interface{}) {
+func fatalIfErr(val interface{}) {
+	if val == nil {
+		return
+	}
 	fmt.Println(val)
 	os.Exit(1)
 }
