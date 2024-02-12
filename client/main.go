@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	r "math/rand"
 	"net"
 	"os"
 	"time"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 )
+
+var rand = r.New(r.NewSource(time.Now().UnixNano()))
 
 func New(host, port, user, pass string) (*Client, error) {
 	tcpServer, err := net.ResolveTCPAddr("tcp", host+":"+port)
@@ -104,122 +107,23 @@ func main() {
 
 	// t = time.Now()
 	// var insertId int
-	// setInterval(time.Second, func() {
-	// 	fmt.Println(insertId)
-	// })
-	// for i := 0; i < 1; i++ {
-	// 	rows, err = client.Query([]byte(`
-	// 		INSERT INTO testtable (firstname, lastname, amount) VALUES
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20), 
-				
-	// 			("Vahag", "Zargaryan", 10),
-	// 			("Ruben", "Manandyan", 30),
-	// 			("Sergey", "Zargaryan", 50),
-	// 			("Arman", "Sargsyan", 20),
-	// 			("Mery", "Voskanyan", 40),
-	// 			("David", "Harutyunyan", 60),
-	// 			("Alexader", "Bakunc", 30),
-	// 			("Hayk", "Vardanyan", 80),
-	// 			("Serob", "Gevorgyan", 70),
-	// 			("Gevorg", "Aznauryan", 20);
-	// 	`))
+	// firstnames := []string{"Vahag","Sergey","Bagrat","Mery"}
+	// lastnames := []string{"Zargaryan","Galstyan","Sargsyan","Voskanyan"}
+	// for i := 0; i < 999; i++ {
+	// 	query := &bytes.Buffer{}
+	// 	query.Grow(1024)
+	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
+	// 	for i := 0; i < 100; i++ {
+	// 		query.WriteString(fmt.Sprintf(
+	// 			"\n(\"%s\",\"%s\",%d),",
+	// 			firstnames[rand.Intn(len(firstnames))],
+	// 			lastnames[rand.Intn(len(lastnames))],
+	// 			rand.Intn(100),
+	// 		))
+	// 	}
+	// 	query.Truncate(query.Len() - 1)
+	// 	query.WriteByte(';')
+	// 	rows, err = client.Query(query.Bytes())
 	// 	exitIfErr(errors.Wrap(err, "query failed"))
 	// 	for rows.Next() {
 	// 		rows.Scan(&insertId)
@@ -229,27 +133,23 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT id, COUNT() AS cnt, SUM(amount) AS sumAmount
+		SELECT RES(id, 1), SUM(amount), AVG(amount)
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 11;
+		WHERE_INDEX id id >= 1 AND id <= 5;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
-		id, cnt, sumAmount int
+		id, cnt, sumAmount, avgId, avgAmount int
 		firstname, lastname string
 	)
-	_, _, _, _, _ = id, cnt, sumAmount, firstname, lastname
-	// setInterval(time.Second, func() {
-	// 	fmt.Println(id, firstname, lastname)
-	// })
+	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
 	for rows.Next() {
-		if err := rows.Scan(&id, &cnt, &sumAmount); err != nil {
+		if err := rows.Scan(&id, &sumAmount, &avgAmount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Println(id, cnt, sumAmount)
+		fmt.Println(id, sumAmount, avgAmount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
-	// fmt.Println(id, firstname, lastname)
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`

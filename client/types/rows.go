@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net"
 
 	"go-dbms/client/util/pipe"
@@ -49,6 +50,7 @@ func (rs *Rows) NextResultSet() bool {
 func (rs *Rows) Scan(dest ...any) error {
 	row := []json.RawMessage{}
 	if err := json.Unmarshal(rs.msg, &row); err != nil {
+		fmt.Println(string(rs.msg))
 		return err
 	}
 
