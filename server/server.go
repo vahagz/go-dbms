@@ -20,7 +20,7 @@ type Server struct {
 	configs         *config.ServerConfig
 	authService     *auth.AuthServiceT
 	parserService   *parser.ParserServiceT
-	executorService *executor.ExecutorServiceT
+	executorService *executor.ExecutorService
 
 	listen *net.TCPListener
 }
@@ -29,7 +29,7 @@ func New(
 	configs *config.ServerConfig,
 	authService *auth.AuthServiceT,
 	parserService *parser.ParserServiceT,
-	executorService *executor.ExecutorServiceT,
+	executorService *executor.ExecutorService,
 ) (*Server, error) {
 	var err error
 	s := &Server{

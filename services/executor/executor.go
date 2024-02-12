@@ -3,70 +3,46 @@ package executor
 import (
 	"fmt"
 	"io"
-	"os"
-	"path"
 
-	"go-dbms/pkg/table"
+	"go-dbms/services/executor/ddl"
+	"go-dbms/services/executor/dml"
+	"go-dbms/services/executor/parent"
 	"go-dbms/services/parser/query"
 	"go-dbms/services/parser/query/ddl/create"
-	"go-dbms/services/parser/query/dml"
-
-	"github.com/pkg/errors"
+	pdml "go-dbms/services/parser/query/dml"
 )
 
-type ExecutorService interface {
-	Exec(q query.Querier) (io.Reader, error)
+type ExecutorService struct {
+	es  *parent.ExecutorService
+	dml *dml.DML
+	ddl *ddl.DDL
 }
 
-type ExecutorServiceT struct {
-	dataPath string
-	tables   map[string]*table.Table
-}
-
-func New(dataPath string) (*ExecutorServiceT, error) {
-	dirEntries, err := os.ReadDir(dataPath)
+func New(dataPath string) (*ExecutorService, error) {
+	es, err := parent.New(dataPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read tables directory")
+		return nil, err
 	}
 
-	es := &ExecutorServiceT{
-		dataPath: dataPath,
-		tables:   make(map[string]*table.Table, len(dirEntries)),
-	}
-
-	for _, de := range dirEntries {
-		if de.IsDir() {
-			es.tables[de.Name()], err = table.Open(es.tablePath(de.Name()), nil)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to open table: '%s'", de.Name())
-			}
-		}
-	}
-
-	return es, nil
+	return &ExecutorService{
+		es:  es,
+		dml: dml.New(es),
+		ddl: ddl.New(es),
+	}, nil
 }
 
-func (es *ExecutorServiceT) Exec(q query.Querier) (io.WriterTo, error) {
+func (es *ExecutorService) Exec(q query.Querier) (io.WriterTo, error) {
 	switch q.GetType() {
-		case query.CREATE:  return es.ddlCreate(q.(create.Creater))
-		case query.DELETE:  return es.dmlDelete(q.(*dml.QueryDelete))
-		case query.INSERT:  return es.dmlInsert(q.(*dml.QueryInsert))
-		case query.SELECT:  return es.dmlSelect(q.(*dml.QuerySelect))
-		case query.UPDATE:  return es.dmlUpdate(q.(*dml.QueryUpdate))
-		case query.PREPARE: return es.dmlPrepare(q.(*dml.QueryPrepare))
+		case query.CREATE:  return es.ddl.Create(q.(create.Creater))
+		case query.DELETE:  return es.dml.Delete(q.(*pdml.QueryDelete))
+		case query.INSERT:  return es.dml.Insert(q.(*pdml.QueryInsert))
+		case query.SELECT:  return es.dml.Select(q.(*pdml.QuerySelect))
+		case query.UPDATE:  return es.dml.Update(q.(*pdml.QueryUpdate))
+		case query.PREPARE: return es.dml.Prepare(q.(*pdml.QueryPrepare))
 		default:            panic(fmt.Errorf("invalid query type: '%s'", q.GetType()))
 	}
 }
 
-func (es *ExecutorServiceT) Close() error {
-	for name, table := range es.tables {
-		if err := table.Close(); err != nil {
-			return errors.Wrapf(err, "failed to close table: '%s'", name)
-		}
-	}
-	return nil
-}
-
-func (es *ExecutorServiceT) tablePath(tableName string) string {
-	return path.Join(es.dataPath, tableName)
+func (es *ExecutorService) Close() error {
+	return es.es.Close()
 }

@@ -1,23 +1,17 @@
-package executor
+package create
 
 import (
 	"io"
 
+	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/table"
 	"go-dbms/services/parser/query/ddl/create"
 
 	"github.com/pkg/errors"
 )
 
-func (es *ExecutorServiceT) ddlCreateTableValidate(q *create.QueryCreateTable) error {
-	if _, ok := es.tables[q.Name]; ok {
-		return errors.New("table already exists")
-	}
-	return nil
-}
-
-func (es *ExecutorServiceT) ddlCreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
-	t, err := table.Open(es.tablePath(q.Name), &table.Options{
+func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
+	t, err := table.Open(ddl.TablePath(q.Name), &table.Options{
 		Columns: q.Columns,
 	})
 	if err != nil {
@@ -30,7 +24,7 @@ func (es *ExecutorServiceT) ddlCreateTable(q *create.QueryCreateTable) (io.Write
 		}
 	}
 
-	es.tables[q.Name] = t
+	ddl.Tables[q.Name] = t
 
-	return newPipe(EOS), nil
+	return pipe.NewPipe(pipe.EOS), nil
 }

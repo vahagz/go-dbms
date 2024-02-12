@@ -1,4 +1,4 @@
-package executor
+package pipe
 
 import (
 	"bufio"
@@ -22,7 +22,7 @@ type Pipe struct {
 	rw *bufio.ReadWriter
 }
 
-func newPipe(buf []byte) *Pipe {
+func NewPipe(buf []byte) *Pipe {
 	r, w := io.Pipe()
 
 	p := &Pipe{

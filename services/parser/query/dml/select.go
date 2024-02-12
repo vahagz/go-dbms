@@ -271,7 +271,7 @@ func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
 	qs.Where = parseWhere(s)
 }
 
-func parseWhere(s *scanner.Scanner) (*statement.WhereStatement) {
+func parseWhere(s *scanner.Scanner) *statement.WhereStatement {
 	var logOp string
 	sttmnts := []*statement.WhereStatement{}
 
