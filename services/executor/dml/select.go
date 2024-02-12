@@ -9,7 +9,9 @@ import (
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/services/parser/query/dml/function"
 	"go-dbms/services/parser/query/dml/group"
+	"go-dbms/services/parser/query/dml/projection"
 
 	"github.com/pkg/errors"
 )
@@ -55,17 +57,38 @@ func (dml *DML) Select(q *dml.QuerySelect) (io.WriterTo, error) {
 		}
 
 		prList := q.Projections.Iterator()
-		record := make([]interface{}, 0, len(prList))
+		record := make([]interface{}, len(prList))
+
+		var applyArgs func(row map[string]types.DataType, p *projection.Projection)
+		applyArgs = func(row map[string]types.DataType, p *projection.Projection) {
+			switch p.Type {
+				case projection.LITERAL:
+					row[p.Alias] = p.Literal
+				case projection.IDENTIFIER:
+					row[p.Alias] = row[p.Name]
+				case projection.FUNCTION, projection.AGGREGATOR:
+					for _, arg := range p.Arguments {
+						applyArgs(row, arg)
+					}
+					if p.Type == projection.FUNCTION {
+						row[p.Alias] = function.New(function.FunctionType(p.Name), p.Arguments).Apply(row)
+					}
+			}
+		}
 
 		process := func(row map[string]types.DataType) (bool, error) {
-			if gr != nil {			
+			for _, p := range q.Projections.Iterator() {
+				applyArgs(row, p)
+			}
+
+			if gr != nil {
 				gr.Add(row)
 				return false, nil
 			}
 
 			clear(record)
-			for _, pr := range prList {
-				record = append(record, row[pr.Name].Value())
+			for i, pr := range prList {
+				record[i] = row[pr.Name].Value()
 			}
 
 			blob, err := json.Marshal(record)

@@ -24,5 +24,5 @@ func (as *AggregationAVG) Value() types.DataType {
 	if as.Count != 0 {
 		val = float64(as.Sum) / float64(as.Count)
 	}
-	return types.Type(avgMeta).Set(val)
+	return types.Type(avgMeta).Set(int64(val))
 }

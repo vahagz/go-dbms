@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/projection"
 
 	"golang.org/x/exp/constraints"
 )
@@ -35,7 +36,7 @@ var functions = map[FunctionType]struct{}{
 }
 
 type FunctionBase struct {
-	Arguments []string
+	Arguments []*projection.Projection
 }
 
 func (ab *FunctionBase) Apply(value ...types.DataType) types.DataType {
@@ -43,7 +44,7 @@ func (ab *FunctionBase) Apply(value ...types.DataType) types.DataType {
 }
 
 type Function interface {
-	Apply(value ...types.DataType) types.DataType
+	Apply(row map[string]types.DataType) types.DataType
 }
 
 func IsFunction(fn string) bool {
@@ -51,7 +52,7 @@ func IsFunction(fn string) bool {
 	return ok
 }
 
-func New(name FunctionType, args []string) Function {
+func New(name FunctionType, args []*projection.Projection) Function {
 	ab := &FunctionBase{args}
 	switch name {
 		case ADD: return &FunctionADD{FunctionBase: ab}

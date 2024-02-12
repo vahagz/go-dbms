@@ -6,11 +6,11 @@ type FunctionADD struct {
 	*FunctionBase
 }
 
-func (f *FunctionADD) Apply(value ...types.DataType) types.DataType {
+func (f *FunctionADD) Apply(row map[string]types.DataType) types.DataType {
 	var val intType
 
-	for _, dt := range value {
-		v, err := dt.Cast(intCode, intMeta)
+	for _, p := range f.Arguments {
+		v, err := row[p.Alias].Cast(intCode, intMeta)
 		if err != nil {
 			panic(err)
 		}

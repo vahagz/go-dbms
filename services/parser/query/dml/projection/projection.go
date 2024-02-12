@@ -25,16 +25,18 @@ type Projection struct {
 
 func New() *Projections {
 	return &Projections{
-		mapping:     map[string]int{},
-		list:        []*Projection{},
-		aggregators: []int{},
+		mapping:        map[string]int{},
+		list:           []*Projection{},
+		aggregators:    []int{},
+		nonAggregators: []int{},
 	}
 }
 
 type Projections struct {
-	mapping     map[string]int
-	list        []*Projection
-	aggregators []int
+	mapping        map[string]int
+	list           []*Projection
+	aggregators    []int
+	nonAggregators []int
 }
 
 func (p *Projections) Add(pr *Projection) {
@@ -48,6 +50,8 @@ func (p *Projections) Add(pr *Projection) {
 
 	if pr.Type == AGGREGATOR {
 		p.aggregators = append(p.aggregators, index)
+	} else {
+		p.nonAggregators = append(p.nonAggregators, index)
 	}
 }
 
@@ -76,4 +80,8 @@ func (p *Projections) Iterator() []*Projection {
 
 func (p *Projections) Aggregators() []int {
 	return p.aggregators
+}
+
+func (p *Projections) NonAggregators() []int {
+	return p.nonAggregators
 }

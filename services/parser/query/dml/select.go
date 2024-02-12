@@ -86,76 +86,66 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 	p.Name = word
 	p.Type = projection.IDENTIFIER
 
+	jsonVal, isLiteral := helpers.ParseJSONToken([]byte(word))
+
 	s.Scan()
 	word = s.TokenText()
-	if word == "FROM" || word == "," || word == ")" || word == "AS" {
-		if word == "AS" {
-			s.Scan()
-			p.Alias = s.TokenText()
-			s.Scan()
-		}
+
+	if isLiteral {
+		p.Type = projection.LITERAL
+		p.Literal = types.ParseJSONValue(jsonVal)
+	} else if word == "FROM" || word == "," || word == ")" {
 		return p
-	} else if word != "(" {
+	} else if word == "(" {
+		buf := bytes.NewBuffer([]byte(p.Alias))
+		p.Arguments = []*projection.Projection{}
+
+		if aggregator.IsAggregator(p.Name) {
+			p.Type = projection.AGGREGATOR
+		} else if function.IsFunction(p.Name) {
+			p.Type = projection.FUNCTION
+		} else {
+			panic(fmt.Errorf("unknown aggregation/function: '%s'", p.Name))
+		}
+
+		buf.WriteByte('(')
+		for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+			word = s.TokenText()
+			if word == "," {
+				continue
+			} else if word == ")" {
+				break
+			}
+
+			p.Arguments = append(p.Arguments, qs.parseProjection(s))
+
+			buf.Write([]byte(word))
+			buf.WriteByte(',')
+
+			word := s.TokenText()
+			if word == ")" {
+				break
+			}
+		}
+
+		buf.Truncate(buf.Len() - 1)
+		buf.WriteByte(')')
+		p.Alias = buf.String()
+
+		s.Scan()
+		word = s.TokenText()
+	} else if word != "AS" {
 		panic(errors.ErrSyntax)
 	}
 
-	buf := bytes.NewBuffer([]byte(p.Alias))
-	p.Arguments = []*projection.Projection{}
-
-	if aggregator.IsAggregator(p.Name) {
-		p.Type = projection.AGGREGATOR
-	} else if function.IsFunction(p.Name) {
-		p.Type = projection.FUNCTION
-	} else {
-		panic(fmt.Errorf("unknown aggregation/function: '%s'", p.Name))
-	}
-
-	buf.WriteByte('(')
-	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-		word = s.TokenText()
-		if word == "," {
-			continue
-		} else if word == ")" {
-			break
-		}
-
-		jsonVal, ok := helpers.ParseJSONToken([]byte(word))
-		if ok {
-			p.Arguments = append(p.Arguments, &projection.Projection{
-				Type:    projection.LITERAL,
-				Literal: types.ParseJSONValue(jsonVal),
-			})
-			if p.Alias != "" {
-				p.Alias = fmt.Sprint(rand.Int63())
-			}
-
-			s.Scan()
-		} else {
-			p.Arguments = append(p.Arguments, qs.parseProjection(s))
-		}
-
-		buf.Write([]byte(word))
-		buf.WriteByte(',')
-
-		word := s.TokenText()
-		if word == ")" {
-			break
-		}
-	}
-	
-	s.Scan()
-	word = s.TokenText()
 	if word == "AS" {
 		s.Scan()
 		p.Alias = s.TokenText()
 		s.Scan()
+	} else if p.Type == projection.LITERAL {
+		p.Alias = fmt.Sprint(rand.Int63())
 	}
 
-	if p.Alias == "" {
-		buf.Truncate(buf.Len() - 1)
-		buf.WriteByte(')')
-		p.Alias = buf.String()
-	}
 	return p
 }
 
