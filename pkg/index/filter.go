@@ -1,15 +1,15 @@
 package index
 
 import (
-	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/projection"
 	"go-dbms/util/helpers"
 
 	"github.com/vahagz/bptree"
 )
 
 type Filter struct {
-	Operator  string
-	Value     map[string]types.DataType
+	Operator string
+	Left, Right *projection.Projection
 }
 
 type operator struct {

@@ -1,6 +1,9 @@
 package aggregator
 
-import "go-dbms/pkg/types"
+import (
+	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/eval"
+)
 
 type AggregationMIN struct {
 	*AggregatorBase
@@ -8,8 +11,9 @@ type AggregationMIN struct {
 }
 
 func (as *AggregationMIN) Apply(row map[string]types.DataType) {
-	if row[as.Arguments[0].Alias].Compare("<", as.Val) {
-		as.Val = row[as.Arguments[0].Alias]
+	val := eval.Eval(row, as.Arguments[0])
+	if val.Compare("<", as.Val) {
+		as.Val = val
 	}
 }
 

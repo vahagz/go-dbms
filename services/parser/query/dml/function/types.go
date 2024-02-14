@@ -4,7 +4,6 @@ import "go-dbms/pkg/types"
 
 type intType = int64
 var (
-	intCode = types.TYPE_INTEGER
 	intMeta = &types.DataTypeINTEGERMeta{Signed: true, ByteSize: 8}
 )
 

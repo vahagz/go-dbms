@@ -7,6 +7,7 @@ import (
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 )
 
 /*
@@ -21,15 +22,7 @@ type QueryPrepare struct {
 
 
 func (qp *QueryPrepare) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+	defer helpers.RecoverOnError(&err)()
 
 	qp.Type = query.PREPARE
 

@@ -133,9 +133,11 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT RES(id, 1), SUM(amount), AVG(amount)
+		// SELECT COUNT(), SUM(amount), AVG(amount)
+		SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 5;
+		WHERE_INDEX id id >= 1 AND id <= 1000
+		WHERE (RES(id, 2) = 1 AND (firstname = "Vahag" OR lastname = "Zargaryan"));
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
@@ -144,10 +146,10 @@ func main() {
 	)
 	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
 	for rows.Next() {
-		if err := rows.Scan(&id, &sumAmount, &avgAmount); err != nil {
+		if err := rows.Scan(&id, &firstname, &lastname); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Println(id, sumAmount, avgAmount)
+		fmt.Println(id, firstname, lastname)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

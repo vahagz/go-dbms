@@ -27,10 +27,10 @@ func main() {
 	// fatalIfErr(err)
 
 	// q, err := p.ParseQuery([]byte(`
-	// 	SELECT id, firstname, lastname, COUNT() AS cnt, SUM(amount) AS sumAmount
+	// 	SELECT RES(id, 2) AS res, SUM(amount), AVG(amount)
 	// 	FROM testtable
-	// 	WHERE_INDEX id id >= 0 AND id <= 11
-	// 	GROUP BY id, firstname, lastname;
+	// 	WHERE_INDEX id id >= 1 AND id <= 5
+	// 	WHERE res = 0;
 	// `))
 	// fatalIfErr(err)
 	// fmt.Println(q)

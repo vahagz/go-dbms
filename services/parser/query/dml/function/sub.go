@@ -1,21 +1,23 @@
 package function
 
-import "go-dbms/pkg/types"
+import (
+	"go-dbms/pkg/types"
+)
 
-type FunctionSUB struct {
-	*FunctionBase
-}
+const SUB FunctionType = "SUB"
 
-func (f *FunctionSUB) Apply(row map[string]types.DataType) types.DataType {
-	v1, err := row[f.Arguments[0].Alias].Cast(intCode, intMeta)
-	if err != nil {
-		panic(err)
+func init() {
+	functions[SUB] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+		v1, err := args[0].Cast(intMeta)
+		if err != nil {
+			panic(err)
+		}
+	
+		v2, err := args[1].Cast(intMeta)
+		if err != nil {
+			panic(err)
+		}
+	
+		return types.Type(intMeta).Set(v1.Value().(intType) - v2.Value().(intType))
 	}
-
-	v2, err := row[f.Arguments[1].Alias].Cast(intCode, intMeta)
-	if err != nil {
-		panic(err)
-	}
-
-	return types.Type(intMeta).Set(v1.Value().(intType) - v2.Value().(intType))
 }

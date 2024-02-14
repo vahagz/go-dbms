@@ -1,10 +1,7 @@
 package function
 
 import (
-	"errors"
-
 	"go-dbms/pkg/types"
-	"go-dbms/services/parser/query/dml/projection"
 
 	"golang.org/x/exp/constraints"
 )
@@ -19,47 +16,15 @@ type comparable interface {
 
 type FunctionType string
 
-const (
-	ADD FunctionType = "ADD"
-	SUB FunctionType = "SUB"
-	MUL FunctionType = "MUL"
-	DIV FunctionType = "DIV"
-	RES FunctionType = "RES"
-)
+type Function func(row map[string]types.DataType, args []types.DataType) types.DataType
 
-var functions = map[FunctionType]struct{}{
-	ADD: {},
-	SUB: {},
-	MUL: {},
-	DIV: {},
-	RES: {},
-}
-
-type FunctionBase struct {
-	Arguments []*projection.Projection
-}
-
-func (ab *FunctionBase) Apply(value ...types.DataType) types.DataType {
-	panic(errors.New("unimplemented"))
-}
-
-type Function interface {
-	Apply(row map[string]types.DataType) types.DataType
-}
+var functions = map[FunctionType]Function{}
 
 func IsFunction(fn string) bool {
 	_, ok := functions[FunctionType(fn)]
 	return ok
 }
 
-func New(name FunctionType, args []*projection.Projection) Function {
-	ab := &FunctionBase{args}
-	switch name {
-		case ADD: return &FunctionADD{FunctionBase: ab}
-		case SUB: return &FunctionSUB{FunctionBase: ab}
-		case MUL: return &FunctionMUL{FunctionBase: ab}
-		case DIV: return &FunctionDIV{FunctionBase: ab}
-		case RES: return &FunctionRES{FunctionBase: ab}
-		default: panic(errors.New("unknown aggregate function"))
-	}
+func Eval(name FunctionType, row map[string]types.DataType, args []types.DataType) types.DataType {
+	return functions[name](row, args)
 }

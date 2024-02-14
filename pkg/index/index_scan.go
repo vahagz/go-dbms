@@ -3,6 +3,7 @@ package index
 import (
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/eval"
 
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
@@ -20,28 +21,35 @@ func (i *Index) Scan(
 }
 
 func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
-	op := operatorMapping[start.Operator]
-	opts := op.scanOption
-	prefixColsCount := len(start.Value)
+	opts := operatorMapping[start.Operator].scanOption
+	// prefixColsCount := len(start.Value)
+	prefixColsCount := 1
 	postfixColsCount := 0
 
+	startVal := map[string]types.DataType{
+		start.Left.Alias: eval.Eval(nil, start.Right),
+	}
+	endVal := map[string]types.DataType{
+		end.Left.Alias: eval.Eval(nil, end.Right),
+	}
+
 	for _, col := range i.columns {
-		if _, ok := start.Value[col.Name]; !ok {
+		if _, ok := startVal[col.Name]; !ok {
 			postfixColsCount++
 			if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
-				start.Value[col.Name] = types.Type(col.Meta).Fill()
+				startVal[col.Name] = types.Type(col.Meta).Fill()
 			} else {
-				start.Value[col.Name] = types.Type(col.Meta).Zero()
+				startVal[col.Name] = types.Type(col.Meta).Zero()
 			}
 		}
 	}
 
 	var endKey [][]byte
 	if end != nil {
-		endKey = i.key(end.Value)
+		endKey = i.key(endVal)
 	}
 
-	opts.Key = i.key(start.Value)
+	opts.Key = i.key(startVal)
 	searchingKey := opts.Key
 	if postfixColsCount > 0 {
 		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCount, postfixColsCount)

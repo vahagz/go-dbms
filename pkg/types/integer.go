@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -87,6 +88,10 @@ func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeINTEGER) MetaCopy() DataTypeMeta {
+	return t.Meta
+}
+
 func (t *DataTypeINTEGER) Bytes() []byte {
 	cp := append(make([]byte, 0, 8), t.value...)
 	if len(cp) < 8 {
@@ -100,7 +105,7 @@ func (t *DataTypeINTEGER) Bytes() []byte {
 	return b[len(b)-len(t.value):]
 }
 
-func (t *DataTypeINTEGER) Value() interface{} {
+func (t *DataTypeINTEGER) Value() json.Token {
 	switch t.Meta.ByteSize {
 	case 1:
 		if t.Meta.Signed {
@@ -198,7 +203,8 @@ func (t *DataTypeINTEGER) Compare(operator string, val DataType) bool {
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeINTEGER) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeINTEGER) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {

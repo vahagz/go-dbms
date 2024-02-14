@@ -2,12 +2,12 @@ package dml
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	r "math/rand"
 	"text/scanner"
 	"time"
 
+	"go-dbms/pkg/index"
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
@@ -34,20 +34,12 @@ type QuerySelect struct {
 	DB          string
 	Table       string
 	Where       *statement.WhereStatement
-	WhereIndex  *whereIndex
+	WhereIndex  *WhereIndex
 	GroupBy     map[string]struct{}
 }
 
 func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+	defer helpers.RecoverOnError(&err)()
 
 	qs.Type = query.SELECT
 
@@ -64,17 +56,17 @@ func (qs *QuerySelect) parseProjections(s *scanner.Scanner) {
 	qs.Projections = projection.New()
 	s.Scan()
 
-	p := qs.parseProjection(s)
+	p := parseProjection(s)
 	qs.Projections.Add(p)
 
 	for s.TokenText() != "FROM" {
 		s.Scan()
-		p = qs.parseProjection(s)
+		p = parseProjection(s)
 		qs.Projections.Add(p)
 	}
 }
 
-func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projection {
+func parseProjection(s *scanner.Scanner) *projection.Projection {
 	word := s.TokenText()
 	_, isKW := kwords.KeyWords[word]
 	if isKW || word == "," || word == "(" || word == ")" {
@@ -90,11 +82,14 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 
 	s.Scan()
 	word = s.TokenText()
+	_, isOP := kwords.IndexOperators[word]
 
 	if isLiteral {
 		p.Type = projection.LITERAL
 		p.Literal = types.ParseJSONValue(jsonVal)
-	} else if word == "FROM" || word == "," || word == ")" {
+		p.Alias = fmt.Sprint(rand.Int63())
+		p.Name = p.Alias
+	} else if word == "FROM" || word == "," || word == ")" || isOP {
 		return p
 	} else if word == "(" {
 		buf := bytes.NewBuffer([]byte(p.Alias))
@@ -117,7 +112,7 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 				break
 			}
 
-			p.Arguments = append(p.Arguments, qs.parseProjection(s))
+			p.Arguments = append(p.Arguments, parseProjection(s))
 
 			buf.Write([]byte(word))
 			buf.WriteByte(',')
@@ -142,8 +137,6 @@ func (qs *QuerySelect) parseProjection(s *scanner.Scanner) *projection.Projectio
 		s.Scan()
 		p.Alias = s.TokenText()
 		s.Scan()
-	} else if p.Type == projection.LITERAL {
-		p.Alias = fmt.Sprint(rand.Int63())
 	}
 
 	return p
@@ -165,9 +158,13 @@ func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
 }
 
 func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
+	qs.WhereIndex = parseWhereIndex(s)
+}
+
+func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 	word := s.TokenText()
 	if word != "WHERE_INDEX" {
-		return
+		return nil
 	}
 
 	tok := s.Scan()
@@ -177,79 +174,56 @@ func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
 		panic(errors.ErrSyntax)
 	}
 
-	qs.WhereIndex = &whereIndex{}
-	qs.WhereIndex.Name = word
-	qs.WhereIndex.FilterStart = &indexFilter{}
-	col, op, val := parseWhereFilter(s, false)
-	var valInt interface{}
-	if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-		panic(err)
-	}
-	qs.WhereIndex.FilterStart.Operator = op
-	qs.WhereIndex.FilterStart.Value = map[string]types.DataType{
-		col: types.ParseJSONValue(valInt),
+	left, op, right := parseWhereFilter(s, false)
+	wi := &WhereIndex{
+		Name: word,
+		FilterStart: &index.Filter{
+			Operator: op,
+			Left:     left,
+			Right:    right,
+		},
 	}
 
-	tok = s.Scan()
 	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
 	if word == "AND" {
-		qs.WhereIndex.FilterEnd = &indexFilter{}
-		col, op, val := parseWhereFilter(s, false)
-		var valInt interface{}
-		if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-			panic(err)
+		left, op, right := parseWhereFilter(s, false)
+		wi.FilterEnd = &index.Filter{
+			Operator: op,
+			Left:     left,
+			Right:    right,
 		}
-		qs.WhereIndex.FilterEnd.Operator = op
-		qs.WhereIndex.FilterEnd.Value = map[string]types.DataType{
-			col: types.ParseJSONValue(valInt),
-		}
+	} else {
+		s.Scan()
 	}
 
-	s.Scan()
+	return wi
 }
 
-func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (col, op, val string) {
-	var tok rune
-	var word string
-	var isKW bool
-
+func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
+	left *projection.Projection,
+	op string,
+	right *projection.Projection,
+) {
 	if !firstScanned {
-		tok = s.Scan()
-		word = s.TokenText()
-		_, isKW = kwords.KeyWords[word]
-		if tok == scanner.EOF || isKW {
-			panic(errors.ErrSyntax)
-		}
-		col = word
-	} else {
-		col = s.TokenText()
+		s.Scan()
 	}
-	
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isLO := kwords.IndexOperators[word]
-	if tok == scanner.EOF || !isLO{
+	left = parseProjection(s)
+
+	op = s.TokenText()
+	_, isOP := kwords.IndexOperators[op]
+	if !isOP {
 		panic(errors.ErrSyntax)
 	}
-	op = word
-	
+
 	if s.Peek() == '=' {
 		op += "="
 		s.Next()
 	}
 
-	tok = s.Scan()
-	val = s.TokenText()
-	if tok == scanner.EOF{
-		panic(errors.ErrSyntax)
-	}
+	s.Scan()
+	right = parseProjection(s)
 
-	return col, op, val
+	return left, op, right
 }
 
 func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
@@ -263,32 +237,30 @@ func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
 
 func parseWhere(s *scanner.Scanner) *statement.WhereStatement {
 	var logOp string
+	var tok rune
 	sttmnts := []*statement.WhereStatement{}
 
+	tok = s.Scan()
 	for {
-		tok := s.Scan()
 		word := s.TokenText()
 		_, isKW := kwords.KeyWords[word]
 		if tok == scanner.EOF {
 			panic(errors.ErrSyntax)
 		} else if word == "(" {
 			sttmnts = append(sttmnts, parseWhere(s))
+			tok = s.Scan()
 		} else if word == ")" || word == ";" || word == "GROUP" || isKW {
 			break
 		} else if _, ok := kwords.LogicalOperators[word]; ok {
 			logOp = word
+			tok = s.Scan()
 		} else {
-			col, op, val := parseWhereFilter(s, true)
-			var valInt interface{}
-			if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-				panic(err)
-			}
-
+			left, op, right := parseWhereFilter(s, true)
 			sttmnts = append(sttmnts, &statement.WhereStatement{
 				Statement: &statement.Statement{
-					Col: col,
-					Op:  op,
-					Val: types.ParseJSONValue(valInt),
+					Left:  left,
+					Op:    op,
+					Right: right,
 				},
 			})
 		}

@@ -1,6 +1,9 @@
 package aggregator
 
-import "go-dbms/pkg/types"
+import (
+	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/eval"
+)
 
 type AggregationSUM[T numeric] struct {
 	*AggregatorBase
@@ -9,7 +12,7 @@ type AggregationSUM[T numeric] struct {
 }
 
 func (as *AggregationSUM[T]) Apply(row map[string]types.DataType) {
-	val, err := row[as.Arguments[0].Alias].Cast(as.Meta.GetCode(), as.Meta)
+	val, err := eval.Eval(row, as.Arguments[0]).Cast(as.Meta)
 	if err != nil {
 		panic(err)
 	}

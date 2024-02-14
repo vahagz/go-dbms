@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -64,11 +65,15 @@ func (t *DataTypeSTRING) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeSTRING) MetaCopy() DataTypeMeta {
+	return t.Meta
+}
+
 func (t *DataTypeSTRING) Bytes() []byte {
 	return []byte(t.value)
 }
 
-func (t *DataTypeSTRING) Value() interface{} {
+func (t *DataTypeSTRING) Value() json.Token {
 	return t.value
 }
 
@@ -122,7 +127,8 @@ func (t *DataTypeSTRING) Compare(operator string, val DataType) bool {
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeSTRING) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeSTRING) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {

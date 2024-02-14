@@ -8,6 +8,7 @@ import (
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 )
 
 /*
@@ -19,22 +20,14 @@ VALUES
 */
 type QueryInsert struct {
 	query.Query
-	DB      string    `json:"db"`
-	Table   string    `json:"table"`
-	Columns []string  `json:"columns"`
-	Values  []dataRow `json:"values"`
+	DB      string
+	Table   string
+	Columns []string
+	Values  [][]types.DataType
 }
 
 func (qi *QueryInsert) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+	defer helpers.RecoverOnError(&err)()
 
 	qi.Type = query.INSERT
 
@@ -89,7 +82,7 @@ func (qi *QueryInsert) parseColumns(s *scanner.Scanner) {
 }
 
 func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
-	qi.Values = []dataRow{}
+	qi.Values = [][]types.DataType{}
 
 	s.Scan()
 	if s.TokenText() != "VALUES" {
@@ -98,7 +91,7 @@ func (qi *QueryInsert) parseValues(s *scanner.Scanner) {
 
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		word := s.TokenText()
-		row := dataRow{}
+		row := []types.DataType{}
 
 		if word != "(" {
 			panic(errors.ErrSyntax)

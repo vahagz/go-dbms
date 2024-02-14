@@ -1,14 +1,13 @@
 package dml
 
 import (
-	"encoding/json"
 	"text/scanner"
 
 	"go-dbms/pkg/statement"
-	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 )
 
 /*
@@ -21,19 +20,11 @@ type QueryDelete struct {
 	DB         string                    `json:"db"`
 	Table      string                    `json:"table"`
 	Where      *statement.WhereStatement `json:"where"`
-	WhereIndex *whereIndex               `json:"where_index"`
+	WhereIndex *WhereIndex               `json:"where_index"`
 }
 
 func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+	defer helpers.RecoverOnError(&err)()
 
 	qd.Type = query.DELETE
 
@@ -69,53 +60,8 @@ func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
 	}
 }
 
-func (qd *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
-	word := s.TokenText()
-	if word != "WHERE_INDEX" {
-		return
-	}
-
-	tok := s.Scan()
-	word = s.TokenText()
-	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	qd.WhereIndex = &whereIndex{}
-	qd.WhereIndex.Name = word
-	qd.WhereIndex.FilterStart = &indexFilter{}
-	col, op, val := parseWhereFilter(s, false)
-	var valInt interface{}
-	if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-		panic(err)
-	}
-	qd.WhereIndex.FilterStart.Operator = op
-	qd.WhereIndex.FilterStart.Value = map[string]types.DataType{
-		col: types.ParseJSONValue(valInt),
-	}
-
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	if word == "AND" {
-		qd.WhereIndex.FilterEnd = &indexFilter{}
-		col, op, val := parseWhereFilter(s, false)
-		var valInt interface{}
-		if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-			panic(err)
-		}
-		qd.WhereIndex.FilterEnd.Operator = op
-		qd.WhereIndex.FilterEnd.Value = map[string]types.DataType{
-			col: types.ParseJSONValue(valInt),
-		}
-	}
-
-	s.Scan()
+func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
+	qs.WhereIndex = parseWhereIndex(s)
 }
 
 func (qd *QueryDelete) parseWhere(s *scanner.Scanner) {

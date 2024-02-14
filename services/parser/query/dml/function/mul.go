@@ -1,22 +1,24 @@
 package function
 
-import "go-dbms/pkg/types"
+import (
+	"go-dbms/pkg/types"
+)
 
-type FunctionMUL struct {
-	*FunctionBase
-}
+const MUL FunctionType = "MUL"
 
-func (f *FunctionMUL) Apply(row map[string]types.DataType) types.DataType {
-	var val intType
-
-	for _, p := range f.Arguments {
-		v, err := row[p.Alias].Cast(intCode, intMeta)
-		if err != nil {
-			panic(err)
+func init() {
+	functions[MUL] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+		var val intType
+	
+		for _, arg := range args {
+			v, err := arg.Cast(intMeta)
+			if err != nil {
+				panic(err)
+			}
+	
+			val *= v.Value().(intType)
 		}
-
-		val *= v.Value().(intType)
+	
+		return types.Type(intMeta).Set(val)
 	}
-
-	return types.Type(intMeta).Set(val)
 }

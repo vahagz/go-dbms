@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"go-dbms/pkg/statement"
-	"go-dbms/pkg/types"
+	"go-dbms/pkg/table"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/services/parser/query/dml/eval"
 	"go-dbms/services/parser/query/dml/projection"
 	"go-dbms/util/helpers"
 
@@ -17,8 +18,8 @@ func (dml *DML) dmlSelectValidate(q *dml.QuerySelect) (err error) {
 
 	dml.validateFrom(q)
 	dml.validateProjections(q)
-	dml.validateWhereIndex(q)
-	dml.validateWhere(q, q.Where)
+	dml.validateWhereIndex(dml.Tables[q.Table], q.WhereIndex)
+	dml.validateWhere(q.Where)
 	dml.validateGroupBy(q)
 	return nil
 }
@@ -65,60 +66,62 @@ func (dml *DML) validateProjection(
 	}
 }
 
-func (dml *DML) validateWhereIndex(q *dml.QuerySelect) {
-	t := dml.Tables[q.Table]
-
-	if q.WhereIndex != nil {
-		if !t.HasIndex(q.WhereIndex.Name) {
-			panic(fmt.Errorf("index not found: '%s'", q.WhereIndex.Name))
-		}
-
-		fs := q.WhereIndex.FilterStart
-		if fs != nil {
-			for k, v := range fs.Value {
-				casted, err := v.Cast(t.Column(k).Typ, t.Column(k).Meta)
-				if err != nil {
-					panic(errors.Wrapf(err, "failed to cast %v to %v", v.GetCode(), t.Column(k).Typ))
-				}
-
-				fs.Value[k] = casted
-			}
-		}
-		
-		fe := q.WhereIndex.FilterEnd
-		if fe != nil {
-			for k, v := range fe.Value {
-				casted, err := v.Cast(t.Column(k).Typ, t.Column(k).Meta)
-				if err != nil {
-					panic(errors.Wrapf(err, "failed to cast %v to %v", v.GetCode(), t.Column(k).Typ))
-				}
-
-				fe.Value[k] = casted
-			}
-		}
-	}
-}
-
-func (dml *DML) validateWhere(q *dml.QuerySelect, w *statement.WhereStatement) {
-	if w == nil {
+func (dml *DML) validateWhereIndex(t *table.Table, wi *dml.WhereIndex) {
+	if wi == nil {
 		return
 	}
 
-	t := dml.Tables[q.Table]
+	if !t.HasIndex(wi.Name) {
+		panic(fmt.Errorf("index not found: '%s'", wi.Name))
+	}
 
-	if w.And != nil {
-		for _, ws := range w.And {
-			dml.validateWhere(q, ws)
+	fs := wi.FilterStart
+	if fs != nil {
+		col := t.Column(fs.Left.Alias)
+		casted, err := eval.Eval(nil, fs.Right).Cast(col.Meta)
+		if err != nil {
+			panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
 		}
+
+		fs.Right.Type = projection.LITERAL
+		fs.Right.Literal = casted
 	}
-	if w.Or != nil {
-		for _, ws := range w.Or {
-			dml.validateWhere(q, ws)
+
+	fe := wi.FilterEnd
+	if fe != nil {
+		col := t.Column(fe.Left.Alias)
+		casted, err := eval.Eval(nil, fe.Right).Cast(col.Meta)
+		if err != nil {
+			panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
 		}
+
+		fe.Right.Type = projection.LITERAL
+		fe.Right.Literal = casted
 	}
-	if w.Statement != nil {
-		w.Statement.Val = types.Type(t.Column(w.Statement.Col).Meta).Set(w.Statement.Val.Value())
-	}
+}
+
+func (dml *DML) validateWhere(w *statement.WhereStatement) {
+	// if w == nil {
+	// 	return
+	// }
+
+	// if w.And != nil {
+	// 	for _, ws := range w.And {
+	// 		dml.validateWhere(ws)
+	// 	}
+	// }
+	// if w.Or != nil {
+	// 	for _, ws := range w.Or {
+	// 		dml.validateWhere(ws)
+	// 	}
+	// }
+	// if w.Statement != nil {
+	// 	var err error
+	// 	w.Statement.Right.Literal, err = w.Statement.Right.Literal.Cast(w.Statement.Left.Meta)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 }
 
 func (dml *DML) validateGroupBy(q *dml.QuerySelect) {

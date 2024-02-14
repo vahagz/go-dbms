@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"go-dbms/util/helpers"
 	"math"
@@ -76,11 +77,15 @@ func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeVARCHAR) MetaCopy() DataTypeMeta {
+	return t.Meta
+}
+
 func (t *DataTypeVARCHAR) Bytes() []byte {
 	return t.value[:t.Len]
 }
 
-func (t *DataTypeVARCHAR) Value() interface{} {
+func (t *DataTypeVARCHAR) Value() json.Token {
 	return string(t.value[:t.Len])
 }
 
@@ -147,7 +152,8 @@ func (t *DataTypeVARCHAR) Compare(operator string, val DataType) bool {
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeVARCHAR) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeVARCHAR) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {

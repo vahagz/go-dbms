@@ -27,7 +27,7 @@ func (dml *DML) dmlInsertValidate(q *dml.QueryInsert) error {
 					)
 				}
 
-				casted, err := q.Values[j][i].Cast(col.Typ, col.Meta)
+				casted, err := q.Values[j][i].Cast(col.Meta)
 				if err != nil {
 					return errors.Wrapf(err, "failed to cast '%v' to type '%v'", q.Values[j][i].Value(), col.Typ)
 				}

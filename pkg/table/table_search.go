@@ -40,7 +40,6 @@ func (t *Table) Find(filter *statement.WhereStatement) []index.Entry {
 func (t *Table) ScanByIndex(
 	name string,
 	start, end *index.Filter,
-	filter *statement.WhereStatement,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
 	t.mu.RLock()
@@ -52,11 +51,7 @@ func (t *Table) ScanByIndex(
 	}
 
 	return index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
-		row := t.get(ptr)
-		if filter == nil || filter.Compare(row) {
-			return scanFn(row)
-		}
-		return false, nil
+		return scanFn(t.get(ptr))
 	})
 }
 
@@ -69,31 +64,27 @@ func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *state
 		name,
 		start,
 		end,
-		filter,
 		func(row map[string]types.DataType) (stop bool, err error) {
-			result = append(result, row)
+			if filter == nil || filter.Compare(row) {
+				result = append(result, row)
+			}
 			return false, nil
 		},
 	)
 }
 
-func (t *Table) FullScan(filter *statement.WhereStatement, scanFn func(row map[string]types.DataType) (bool, error)) error {
+func (t *Table) FullScan(scanFn func(row map[string]types.DataType) (bool, error)) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
-		r := t.row2map(row)
-		if filter == nil || filter.Compare(r) {
-			return scanFn(r)
-		}
-		return scanFn(r)
+		return scanFn(t.row2map(row))
 	})
 }
 
 func (t *Table) FullScanByIndex(
 	indexName string,
 	reverse bool,
-	filter *statement.WhereStatement,
 	scanFn func(row map[string]types.DataType) (bool, error),
 ) error {
 	idx, ok := t.indexes[indexName]
@@ -110,11 +101,7 @@ func (t *Table) FullScanByIndex(
 			Strict:  true,
 		},
 	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
-		row := t.get(ptr)
-		if filter == nil || filter.Compare(row) {
-			return scanFn(row)
-		}
-		return false, nil
+		return scanFn(t.get(ptr))
 	})
 }
 

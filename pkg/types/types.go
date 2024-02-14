@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding"
+	"encoding/json"
 	"errors"
 )
 
@@ -34,13 +35,14 @@ type DataType interface {
 	encoding.BinaryUnmarshaler
 	DataTypeMeta
 
+	MetaCopy() DataTypeMeta
 	Bytes() []byte
-	Value() interface{}
+	Value() json.Token
 	Set(value interface{}) DataType
 	Fill() DataType
 	Zero() DataType
 	Compare(operator string, val DataType) bool
-	Cast(code TypeCode, meta DataTypeMeta) (DataType, error)
+	Cast(meta DataTypeMeta) (DataType, error)
 }
 
 func Type(meta DataTypeMeta) DataType {

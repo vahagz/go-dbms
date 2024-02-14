@@ -9,6 +9,7 @@ import (
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 )
 
 /*
@@ -22,23 +23,15 @@ SET
 */
 type QueryUpdate struct {
 	query.Query
-	DB         string                    `json:"db"`
-	Table      string                    `json:"table"`
-	Values     dataMap                   `json:"values"`
-	Where      *statement.WhereStatement `json:"where"`
-	WhereIndex *whereIndex               `json:"where_index"`
+	DB         string
+	Table      string
+	Values     map[string]types.DataType
+	Where      *statement.WhereStatement
+	WhereIndex *WhereIndex
 }
 
 func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+	defer helpers.RecoverOnError(&err)()
 
 	qu.Type = query.INSERT
 
@@ -71,7 +64,7 @@ func (qu *QueryUpdate) parseFrom(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
-	qu.Values = dataMap{}
+	qu.Values = map[string]types.DataType{}
 
 	if s.TokenText() != "SET" {
 		panic(errors.ErrSyntax)
@@ -115,53 +108,8 @@ func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
 	}
 }
 
-func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
-	word := s.TokenText()
-	if word == "WHERE_INDEX" {
-		return
-	}
-
-	tok := s.Scan()
-	word = s.TokenText()
-	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	qu.WhereIndex = &whereIndex{}
-	qu.WhereIndex.Name = word
-	qu.WhereIndex.FilterStart = &indexFilter{}
-	col, op, val := parseWhereFilter(s, false)
-	var valInt interface{}
-	if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-		panic(err)
-	}
-	qu.WhereIndex.FilterStart.Operator = op
-	qu.WhereIndex.FilterStart.Value = map[string]types.DataType{
-		col: types.ParseJSONValue(valInt),
-	}
-
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	if word == "AND" {
-		qu.WhereIndex.FilterEnd = &indexFilter{}
-		col, op, val := parseWhereFilter(s, false)
-		var valInt interface{}
-		if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-			panic(err)
-		}
-		qu.WhereIndex.FilterEnd.Operator = op
-		qu.WhereIndex.FilterEnd.Value = map[string]types.DataType{
-			col: types.ParseJSONValue(valInt),
-		}
-	}
-
-	s.Scan()
+func (qs *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
+	qs.WhereIndex = parseWhereIndex(s)
 }
 
 func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {

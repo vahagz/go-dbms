@@ -90,6 +90,10 @@ func (g *Group) flush(gr *subGroup) (n int, err error) {
 		return n, err
 	}
 
+	if len(gr.val) == 0 {
+		return 0, nil
+	}
+
 	prList := g.projections.Iterator()
 	record := make([]interface{}, 0, len(prList))
 
