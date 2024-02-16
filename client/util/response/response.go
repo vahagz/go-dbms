@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+const msgSizeBytes = 4
+
 type Reader struct {
 	source *bufio.Reader
 	buf    []byte
@@ -17,12 +19,12 @@ func NewReader(r io.Reader) *Reader {
 }
 
 func (rr *Reader) ReadLine() (buf []byte, err error) {
-	err = rr.read(4)
+	err = rr.read(msgSizeBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	messageSize := binary.BigEndian.Uint32(rr.buf)
+	messageSize := binary.BigEndian.Uint32(rr.buf[:msgSizeBytes])
 	err = rr.read(int(messageSize))
 	if err != nil {
 		return nil, err

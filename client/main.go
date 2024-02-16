@@ -109,11 +109,14 @@ func main() {
 	// var insertId int
 	// firstnames := []string{"Vahag","Sergey","Bagrat","Mery"}
 	// lastnames := []string{"Zargaryan","Galstyan","Sargsyan","Voskanyan"}
-	// for i := 0; i < 999; i++ {
-	// 	query := &bytes.Buffer{}
-	// 	query.Grow(1024)
+	// query := &bytes.Buffer{}
+	// // setInterval(time.Second, func() {
+	// // 	fmt.Println("[interval]", insertId)
+	// // })
+	// for i := 0; i < 100; i++ {
+	// 	query.Reset()
 	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
-	// 	for i := 0; i < 100; i++ {
+	// 	for i := 0; i < 10000; i++ {
 	// 		query.WriteString(fmt.Sprintf(
 	// 			"\n(\"%s\",\"%s\",%d),",
 	// 			firstnames[rand.Intn(len(firstnames))],
@@ -127,17 +130,19 @@ func main() {
 	// 	exitIfErr(errors.Wrap(err, "query failed"))
 	// 	for rows.Next() {
 	// 		rows.Scan(&insertId)
+	// 		// fmt.Println(insertId)
 	// 	}
 	// }
 	// fmt.Printf("[insert] %v\n", time.Since(t))
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		// SELECT COUNT(), SUM(amount), AVG(amount)
-		SELECT id, firstname, lastname
+		SELECT COUNT(), SUM(amount), AVG(amount)
+		// SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 1000
-		WHERE (RES(id, 2) = 1 AND (firstname = "Vahag" OR lastname = "Zargaryan"));
+		WHERE_INDEX id id >= 2000000 AND id < 3000000
+		WHERE RES(id, 2) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
+		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
@@ -146,10 +151,10 @@ func main() {
 	)
 	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
 	for rows.Next() {
-		if err := rows.Scan(&id, &firstname, &lastname); err != nil {
+		if err := rows.Scan(&cnt, &sumAmount, &avgAmount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Println(id, firstname, lastname)
+		fmt.Println(cnt, sumAmount, avgAmount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

@@ -35,6 +35,7 @@ type DataType interface {
 	encoding.BinaryUnmarshaler
 	DataTypeMeta
 
+	Copy() DataType
 	MetaCopy() DataTypeMeta
 	Bytes() []byte
 	Value() json.Token

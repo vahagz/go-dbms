@@ -121,6 +121,9 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			}
 		}
 
+		// var p time.Time
+
+		// p = time.Now()
 		q, err := s.parserService.ParseQuery(buf)
 		if err != nil {
 			err = c.SendSyntaxError(err)
@@ -129,7 +132,9 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			}
 			break
 		}
+		// fmt.Printf("%v parse %v\n", q.GetType(), time.Since(p))
 
+		// p = time.Now()
 		r, err := s.executorService.Exec(q)
 		if err != nil {
 			err = c.SendError(err)
@@ -138,12 +143,15 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			}
 			break
 		}
+		// fmt.Printf("%v exec %v\n", q.GetType(), time.Since(p))
 
+		// p = time.Now()
 		totalBytes, err := r.WriteTo(c.Conn)
 		if err != nil {
 			fmt.Println("[Write] unexpected error while responding:", err)
 			break
 		}
+		// fmt.Printf("%v write %v\n", q.GetType(), time.Since(p))
 
 		_ = totalBytes
 		// fmt.Printf("total bytes sent: %v\n", totalBytes)

@@ -65,8 +65,16 @@ func (t *DataTypeSTRING) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeSTRING) Copy() DataType {
+	return &DataTypeSTRING{
+		value: t.value,
+		Code:  t.Code,
+		Meta:  t.MetaCopy().(*DataTypeSTRINGMeta),
+	}
+}
+
 func (t *DataTypeSTRING) MetaCopy() DataTypeMeta {
-	return t.Meta
+	return &DataTypeSTRINGMeta{}
 }
 
 func (t *DataTypeSTRING) Bytes() []byte {

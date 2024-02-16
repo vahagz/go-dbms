@@ -28,7 +28,7 @@ func (t *Table) Insert(values map[string]types.DataType) (map[string]types.DataT
 }
 
 func (t *Table) insert(row map[string]types.DataType) map[string]types.DataType {
-	ptr, err := t.df.Insert(t.map2row(row))
+	ptr, err := t.df.InsertMem(t.map2row(row))
 	if err != nil {
 		panic(errors.Wrap(err, "failed to insert into datafile"))
 	}

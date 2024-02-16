@@ -77,8 +77,19 @@ func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeVARCHAR) Copy() DataType {
+	return &DataTypeVARCHAR{
+		value: t.value,
+		Code:  t.Code,
+		Len:   t.Len,
+		Meta:  t.MetaCopy().(*DataTypeVARCHARMeta),
+	}
+}
+
 func (t *DataTypeVARCHAR) MetaCopy() DataTypeMeta {
-	return t.Meta
+	return &DataTypeVARCHARMeta{
+		Cap: t.Meta.Cap,
+	}
 }
 
 func (t *DataTypeVARCHAR) Bytes() []byte {

@@ -88,8 +88,20 @@ func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeINTEGER) Copy() DataType {
+	return &DataTypeINTEGER{
+		value: t.value,
+		Code:  t.Code,
+		Meta:  t.MetaCopy().(*DataTypeINTEGERMeta),
+	}
+}
+
 func (t *DataTypeINTEGER) MetaCopy() DataTypeMeta {
-	return t.Meta
+	return &DataTypeINTEGERMeta{
+		Signed:   t.Meta.Signed,
+		ByteSize: t.Meta.ByteSize,
+		AI:       t.Meta.AI,
+	}
 }
 
 func (t *DataTypeINTEGER) Bytes() []byte {
