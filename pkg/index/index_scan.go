@@ -25,12 +25,15 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 	// prefixColsCount := len(start.Value)
 	prefixColsCount := 1
 	postfixColsCount := 0
+	var endKey [][]byte
 
 	startVal := map[string]types.DataType{
 		start.Left.Alias: eval.Eval(nil, start.Right),
 	}
-	endVal := map[string]types.DataType{
-		end.Left.Alias: eval.Eval(nil, end.Right),
+	if end != nil {
+		endKey = i.key(map[string]types.DataType{
+			end.Left.Alias: eval.Eval(nil, end.Right),
+		})
 	}
 
 	for _, col := range i.columns {
@@ -42,11 +45,6 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 				startVal[col.Name] = types.Type(col.Meta).Zero()
 			}
 		}
-	}
-
-	var endKey [][]byte
-	if end != nil {
-		endKey = i.key(endVal)
 	}
 
 	opts.Key = i.key(startVal)

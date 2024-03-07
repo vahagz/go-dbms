@@ -1,9 +1,12 @@
 package statement
 
-import "go-dbms/services/parser/query/dml/projection"
+import (
+	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/projection"
+)
 
 type Statement struct {
 	Left  *projection.Projection
-	Op    string
+	Op    types.Operator
 	Right *projection.Projection
 }

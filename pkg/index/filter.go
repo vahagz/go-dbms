@@ -1,6 +1,7 @@
 package index
 
 import (
+	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml/projection"
 	"go-dbms/util/helpers"
 
@@ -8,7 +9,7 @@ import (
 )
 
 type Filter struct {
-	Operator string
+	Operator types.Operator
 	Left, Right *projection.Projection
 }
 
@@ -17,7 +18,7 @@ type operator struct {
 	scanOption bptree.ScanOptions
 }
 
-var operatorMapping = map[string]operator {
+var operatorMapping = map[types.Operator]operator {
 	"<":  {
 		cmpOption:  map[int]struct{}{ 1: {} },
 		scanOption: bptree.ScanOptions{Reverse: true, Strict: false},
@@ -42,7 +43,7 @@ var operatorMapping = map[string]operator {
 
 func shouldStop(
 	currentKey [][]byte,
-	operator string,
+	operator types.Operator,
 	searchingKey [][]byte,
 ) bool {
 	cmp := helpers.CompareMatrix(searchingKey, currentKey)

@@ -88,7 +88,7 @@ func (t *Table) updateRow(
 	for name, i := range t.indexes {
 		_, indexShouldUpdate := indexesToUpdate[name]
 		if ptrUpdated || indexShouldUpdate {
-			if updateErr = t.updateIndex(i, oldPtr, newPtr, oldRow, newRow); updateErr != nil {
+			if updateErr = t.updateIndex(i, newPtr, oldRow, newRow); updateErr != nil {
 				break
 			}
 			updatedIndexes = append(updatedIndexes, i)
@@ -99,7 +99,7 @@ func (t *Table) updateRow(
 	if updateErr != nil {
 		newPtr = t.df.UpdateMem(newPtr, t.map2row(oldRow))
 		for _, i := range updatedIndexes {
-			if err := t.updateIndex(i, newPtr, newPtr, newRow, oldRow); err != nil {
+			if err := t.updateIndex(i, newPtr, newRow, oldRow); err != nil {
 				panic(errors.Wrapf(err, "unexpected error while rollbacking index '%s'", i.Meta().Name))
 			}
 		}
@@ -110,10 +110,10 @@ func (t *Table) updateRow(
 
 func (t *Table) updateIndex(
 	i *index.Index,
-	oldPtr, newPtr allocator.Pointable,
+	newPtr allocator.Pointable,
 	oldRow, newRow map[string]types.DataType,
 ) error {
-	t.deleteIndex(i, oldPtr, oldRow)
+	t.deleteIndex(i, oldRow)
 
 	if !t.canInsertIndex(i, newRow) {
 		t.insertIndex(i, newPtr, oldRow)

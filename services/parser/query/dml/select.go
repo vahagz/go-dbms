@@ -82,7 +82,7 @@ func parseProjection(s *scanner.Scanner) *projection.Projection {
 
 	s.Scan()
 	word = s.TokenText()
-	_, isOP := kwords.IndexOperators[word]
+	_, isOP := kwords.IndexOperators[types.Operator(word)]
 
 	if isLiteral {
 		p.Type = projection.LITERAL
@@ -201,7 +201,7 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 
 func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
 	left *projection.Projection,
-	op string,
+	op types.Operator,
 	right *projection.Projection,
 ) {
 	if !firstScanned {
@@ -209,7 +209,7 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
 	}
 	left = parseProjection(s)
 
-	op = s.TokenText()
+	op = types.Operator(s.TokenText())
 	_, isOP := kwords.IndexOperators[op]
 	if !isOP {
 		panic(errors.ErrSyntax)

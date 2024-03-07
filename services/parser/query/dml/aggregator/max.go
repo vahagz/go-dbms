@@ -12,7 +12,7 @@ type AggregationMAX struct {
 
 func (as *AggregationMAX) Apply(row map[string]types.DataType) {
 	val := eval.Eval(row, as.Arguments[0])
-	if val.Compare(">", as.Val) {
+	if as.Val == nil || val.Compare(types.Greater, as.Val) {
 		as.Val = val
 	}
 }

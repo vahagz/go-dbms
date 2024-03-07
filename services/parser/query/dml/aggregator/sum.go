@@ -3,22 +3,23 @@ package aggregator
 import (
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml/eval"
+	"go-dbms/services/parser/query/dml/function"
 )
 
-type AggregationSUM[T numeric] struct {
+type AggregationSUM struct {
 	*AggregatorBase
-	Sum T
-	Meta types.DataTypeMeta
+	Sum  types.DataType
 }
 
-func (as *AggregationSUM[T]) Apply(row map[string]types.DataType) {
-	val, err := eval.Eval(row, as.Arguments[0]).Cast(as.Meta)
-	if err != nil {
-		panic(err)
+func (as *AggregationSUM) Apply(row map[string]types.DataType) {
+	val := eval.Eval(row, as.Arguments[0])
+	if as.Sum == nil {
+		as.Sum = val
+	} else {
+		as.Sum = function.Eval(function.ADD, row, []types.DataType{as.Sum, val})
 	}
-	as.Sum += val.Value().(T)
 }
 
-func (as *AggregationSUM[T]) Value() types.DataType {
-	return types.Type(as.Meta).Set(as.Sum)
+func (as *AggregationSUM) Value() types.DataType {
+	return as.Sum
 }

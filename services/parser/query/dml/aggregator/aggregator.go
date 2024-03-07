@@ -60,26 +60,11 @@ func IsAggregator(fn string) bool {
 func New(name AggregatorType, args []*projection.Projection) Aggregator {
 	ab := &AggregatorBase{args}
 	switch name {
-		case AVG: {
-			return &AggregationAVG{AggregatorBase: ab}
-		}
-		case COUNT: {
-			return &AggregationCOUNT{AggregatorBase: ab}
-		}
-		case MAX: {
-			return &AggregationMAX{AggregatorBase: ab}
-		}
-		case MIN: {
-			return &AggregationMIN{AggregatorBase: ab}
-		}
-		case SUM: {
-			return &AggregationSUM[int64]{
-				AggregatorBase: ab,
-				Meta: &types.DataTypeINTEGERMeta{Signed: true, ByteSize: 8},
-			}
-		}
-		default: {
-			panic(errors.New("unknown aggregate function"))
-		}
+		case AVG:   return &AggregationAVG{AggregatorBase: ab}
+		case COUNT: return &AggregationCOUNT{AggregatorBase: ab}
+		case MAX:   return &AggregationMAX{AggregatorBase: ab}
+		case MIN:   return &AggregationMIN{AggregatorBase: ab}
+		case SUM:   return &AggregationSUM{AggregatorBase: ab}
+		default:    panic(errors.New("unknown aggregate function"))
 	}
 }

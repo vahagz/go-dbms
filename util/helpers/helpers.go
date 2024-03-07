@@ -3,9 +3,12 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"strings"
 )
+
+const float64EqualityThreshold = 1e-9
 
 func TrimSuffix(s, suffix string) string {
 	if strings.HasSuffix(s, suffix) {
@@ -64,4 +67,14 @@ func RecoverOnError(errPtr *error) func() {
 			*errPtr = err
 		}
 	}
+}
+
+func CompareFloat(a, b float64) int {
+	eq := math.Abs(a - b) <= float64EqualityThreshold
+	if eq {
+		return 0
+	} else if a < b {
+		return -1
+	}
+	return 1
 }

@@ -12,7 +12,7 @@ type AggregationMIN struct {
 
 func (as *AggregationMIN) Apply(row map[string]types.DataType) {
 	val := eval.Eval(row, as.Arguments[0])
-	if val.Compare("<", as.Val) {
+	if as.Val == nil || val.Compare(types.Less, as.Val) {
 		as.Val = val
 	}
 }

@@ -63,12 +63,12 @@ func (t *Table) deleteRow(
 	indexesToUpdate map[string]*index.Index,
 ) {
 	for _, i := range indexesToUpdate {
-		t.deleteIndex(i, ptr, row)
+		t.deleteIndex(i, row)
 	}
 	t.df.DeleteMem(ptr)
 }
 
-func (t *Table) deleteIndex(i *index.Index, ptr allocator.Pointable, row map[string]types.DataType) {
+func (t *Table) deleteIndex(i *index.Index, row map[string]types.DataType) {
 	if _, err := i.Delete(row, !t.isPK(i)); err != nil {
 		panic(errors.Wrapf(err, "error while deleting from index '%s'", i.Meta().Name))
 	}

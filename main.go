@@ -20,6 +20,13 @@ var seed = time.Now().UnixMilli()
 var rand = r.New(r.NewSource(seed))
 
 func main() {
+	// f1 := types.Type(types.Meta(types.TYPE_FLOAT, 4)).Set(float64(-1.11))
+	// f2 := types.Type(types.Meta(types.TYPE_FLOAT, 8)).Set(float32(-1.11))
+	// fmt.Println(f1.Bytes(), f2.Bytes())
+	// fmt.Println(f1.Value(), f2.Value())
+	// fmt.Println(f2.Compare(types.Equal, f1))
+	// return
+
 	// pw, _ := os.Getwd()
 
 	// p := parser.New()

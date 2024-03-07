@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"go-dbms/util/helpers"
 	"math"
+	"slices"
 	"strconv"
+
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -26,7 +28,7 @@ func init() {
 			}
 
 			return &DataTypeVARCHARMeta{
-				Cap: helpers.Convert(args[0], new(uint16)),
+				Cap: helpers.Convert[uint16](args[0]),
 			}
 		},
 	}
@@ -79,7 +81,7 @@ func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
 
 func (t *DataTypeVARCHAR) Copy() DataType {
 	return &DataTypeVARCHAR{
-		value: t.value,
+		value: slices.Clone(t.value),
 		Code:  t.Code,
 		Len:   t.Len,
 		Meta:  t.MetaCopy().(*DataTypeVARCHARMeta),
@@ -151,14 +153,14 @@ func (t *DataTypeVARCHAR) Size() int {
 	return 2 + int(t.Meta.Cap) // 2 for length size
 }
 
-func (t *DataTypeVARCHAR) Compare(operator string, val DataType) bool {
+func (t *DataTypeVARCHAR) Compare(operator Operator, val DataType) bool {
 	switch operator {
-		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return bytes.Compare(t.Bytes(), val.Bytes()) == 0
+		case GreaterOrEqual: return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
+		case LessOrEqual:    return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
+		case Greater:        return bytes.Compare(t.Bytes(), val.Bytes()) > 0
+		case Less:           return bytes.Compare(t.Bytes(), val.Bytes()) < 0
+		case NotEqual:       return bytes.Compare(t.Bytes(), val.Bytes()) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
