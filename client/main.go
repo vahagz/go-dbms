@@ -30,7 +30,7 @@ func New(host, port, user, pass string) (*Client, error) {
 
 	err = conn.SetKeepAlive(true)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to set keepalive")	
+		return nil, errors.Wrap(err, "Unable to set keepalive")
 	}
 
 	c := &Client{conn}
@@ -90,7 +90,7 @@ func main() {
 	// 		id        UInt32 AUTO INCREMENT,
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
-	// 		amount    UInt32,
+	// 		amount    Float64,
 	// 	)
 	// 	PRIMARY KEY(id) id,
 	// 	INDEX(firstname, lastname) firstname_lastname;
@@ -116,12 +116,12 @@ func main() {
 	// for i := 0; i < 100; i++ {
 	// 	query.Reset()
 	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
-	// 	for i := 0; i < 10000; i++ {
+	// 	for i := 0; i < 1000; i++ {
 	// 		query.WriteString(fmt.Sprintf(
-	// 			"\n(\"%s\",\"%s\",%d),",
+	// 			"\n(%q,%q,%f),",
 	// 			firstnames[rand.Intn(len(firstnames))],
 	// 			lastnames[rand.Intn(len(lastnames))],
-	// 			rand.Intn(100),
+	// 			100 * rand.Float64(),
 	// 		))
 	// 	}
 	// 	query.Truncate(query.Len() - 1)
@@ -137,24 +137,25 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT COUNT(), SUM(amount), AVG(amount)
+		SELECT firstname, COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount)
 		// SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id id >= 2000000 AND id < 3000000
-		WHERE RES(id, 2) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
+		WHERE_INDEX id id >= 1 AND id <= 10000
+		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
-		id, cnt, sumAmount, avgId, avgAmount int
+		id, cnt, avgId int
+		avgAmount, sumAmount, maxAmount, minAmount float64
 		firstname, lastname string
 	)
 	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
 	for rows.Next() {
-		if err := rows.Scan(&cnt, &sumAmount, &avgAmount); err != nil {
+		if err := rows.Scan(&firstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Println(cnt, sumAmount, avgAmount)
+		fmt.Printf("%s %v %f %f %f %f\n", firstname, cnt, sumAmount, avgAmount, maxAmount, minAmount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 
