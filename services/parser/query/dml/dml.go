@@ -10,7 +10,7 @@ import (
 )
 
 func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error) {
-	var q query.Querier
+	var q query.QueryParser
 
 	switch queryType {
 		case query.DELETE:  q = &QueryDelete{}

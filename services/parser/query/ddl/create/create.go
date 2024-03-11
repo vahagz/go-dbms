@@ -16,7 +16,7 @@ const (
 )
 
 type Creater interface {
-	query.Querier
+	query.QueryParser
 	GetTarget() QueryCreateTarget
 }
 
