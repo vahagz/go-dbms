@@ -10,6 +10,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/data"
 	"go-dbms/pkg/index"
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
 
@@ -17,25 +18,58 @@ import (
 )
 
 const (
-	metadataFileName = "metadata.json"
+	MetadataFileName = "metadata.json"
 	dataFileName     = "data"
 	indexPath        = "./indexes"
 )
+type ITable interface {
+	Insert(values map[string]types.DataType) (map[string]types.DataType, error)
 
-type Table struct {
-	path    string
-	mu      *sync.RWMutex
-	df      *data.DataFile
-	meta    *metadata
-	indexes map[string]*index.Index
+	Find(filter *statement.WhereStatement) []index.Entry
+	FullScan(scanFn func(row map[string]types.DataType) (bool, error)) error
+	FindByIndex(name string, start *index.Filter, end *index.Filter, filter *statement.WhereStatement) ([]map[string]types.DataType, error)
+	FullScanByIndex(indexName string, reverse bool, scanFn func(row map[string]types.DataType) (bool, error)) error
+	ScanByIndex(name string, start *index.Filter, end *index.Filter, scanFn func(row map[string]types.DataType) (bool, error)) error
+
+	Update(filter *statement.WhereStatement, updateValuesMap map[string]types.DataType, scanFn func(row map[string]types.DataType) error) error
+	UpdateByIndex(name string, start *index.Filter, end *index.Filter, filter *statement.WhereStatement, updateValuesMap map[string]types.DataType, scanFn func(row map[string]types.DataType) error) error
+
+	Delete(filter *statement.WhereStatement, scanFn func(row map[string]types.DataType) error) error
+	DeleteByIndex(name string, start *index.Filter, end *index.Filter, filter *statement.WhereStatement, scanFn func(row map[string]types.DataType) error) error
+
+	PrepareSpace(rows int)
+
+	Column(name string) *column.Column
+	Columns() []*column.Column
+	ColumnsMap() map[string]*column.Column
+
+	CreateIndex(name *string, opts *index.IndexOptions) error
+	HasIndex(name string) bool
+
+	PrimaryColumns() []*column.Column
+	PrimaryKey() string
+
+	Engine() Engine
+	Close() error
 }
 
-func Open(tablePath string, opts *Options) (*Table, error) {
+type Table struct {
+	dataPath, metaFilePath string
+
+	mu, metaMu *sync.RWMutex
+	df         *data.DataFile
+	meta       *Metadata
+	indexes    map[string]*index.Index
+}
+
+func Open(opts *Options) (ITable, error) {
 	table := &Table{
-		mu:      &sync.RWMutex{},
-		path:    tablePath,
-		indexes: map[string]*index.Index{},
-		df:      &data.DataFile{},
+		mu:           &sync.RWMutex{},
+		metaMu:       &sync.RWMutex{},
+		dataPath:     opts.DataPath,
+		metaFilePath: opts.MetaFilePath,
+		indexes:      map[string]*index.Index{},
+		df:           &data.DataFile{},
 	}
 
 	err := table.init(opts)
@@ -47,7 +81,7 @@ func Open(tablePath string, opts *Options) (*Table, error) {
 	dataOptions.Columns = table.meta.Columns
 
 	df, err := data.Open(
-		path.Join(tablePath, dataFileName),
+		path.Join(table.dataPath, dataFileName),
 		&dataOptions,
 	)
 	if err != nil {
@@ -79,15 +113,19 @@ func (t *Table) ColumnsMap() map[string]*column.Column {
 	return t.meta.ColumnsMap
 }
 
-func (t* Table) Column(name string) *column.Column {
+func (t *Table) Column(name string) *column.Column {
 	return t.meta.ColumnsMap[name]
 }
 
-func (t* Table) PrepareSpace(rows int) {
+func (t *Table) PrepareSpace(rows int) {
 	t.df.PrepareSpace(uint32(rows * int(t.df.HeapSize() / t.df.Count())))
 	for _, i := range t.indexes {
 		i.PrepareSpace(rows)
 	}
+}
+
+func (t *Table) Engine() Engine {
+	return t.meta.Engine
 }
 
 func (t *Table) Close() error {
@@ -120,12 +158,8 @@ func (t *Table) init(opts *Options) error {
 	return t.readIndexes()
 }
 
-func (t *Table) metaPath() string {
-	return path.Join(t.path, metadataFileName)
-}
-
 func (t *Table) indexPath(name string) string {
-	return path.Join(t.path, indexPath, name)
+	return path.Join(t.dataPath, indexPath, name)
 }
 
 func (t *Table) readMeta(opts *Options) error {
@@ -135,10 +169,11 @@ func (t *Table) readMeta(opts *Options) error {
 		}
 	}()
 
-	metaPath := t.metaPath()
-
-  if _, err := os.Stat(metaPath); os.IsNotExist(err) {
-		t.meta = &metadata{
+	if opts.Meta != nil {
+		t.meta = opts.Meta
+	} else if _, err := os.Stat(t.metaFilePath); os.IsNotExist(err) {
+		t.meta = &Metadata{
+			Engine:     opts.Engine,
 			Indexes:    []*index.Meta{},
 			Columns:    opts.Columns,
 			ColumnsMap: map[string]*column.Column{},
@@ -147,12 +182,12 @@ func (t *Table) readMeta(opts *Options) error {
 		return t.writeMeta()
   }
 
-	metadataBytes, err := os.ReadFile(metaPath)
+	metadataBytes, err := os.ReadFile(t.metaFilePath)
 	if err != nil {
 		return err
 	}
 
-	t.meta = &metadata{
+	t.meta = &Metadata{
 		ColumnsMap: map[string]*column.Column{},
 	}
 
@@ -193,15 +228,19 @@ func (t *Table) readIndexes() error {
 }
 
 func (t *Table) writeMeta() error {
+	if t.metaFilePath == "" {
+		return nil
+	}
+
 	metadataBytes, _ := json.Marshal(t.meta)
-	return os.WriteFile(t.metaPath(), metadataBytes, 0644)
+	return os.WriteFile(t.metaFilePath, metadataBytes, 0644)
 }
 
 func (t *Table) createDirs() error {
-	if err := helpers.CreateDir(t.path); err != nil {
+	if err := helpers.CreateDir(t.dataPath); err != nil {
 		return err
 	}
-	return helpers.CreateDir(path.Join(t.path, indexPath))
+	return helpers.CreateDir(path.Join(t.dataPath, indexPath))
 }
 
 func (t *Table) map2row(rowMap map[string]types.DataType) []types.DataType {
@@ -245,6 +284,9 @@ func (t *Table) validateMap(row map[string]types.DataType) error {
 }
 
 func (t *Table) setDefaults(row map[string]types.DataType) {
+	t.metaMu.Lock()
+	defer t.metaMu.Unlock()
+
 	for _, column := range t.meta.Columns {
 		if _, ok := row[column.Name]; !ok {
 			row[column.Name] = column.Meta.Default()

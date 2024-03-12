@@ -5,6 +5,7 @@ import (
 
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
+	"go-dbms/pkg/table"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query/ddl/create/types"
@@ -21,10 +22,11 @@ PRIMARY KEY (<...columns>) <primaryKeyName>
 */
 type QueryCreateTable struct {
 	*QueryCreate
-	Database string                   `json:"database"`
-	Name     string                   `json:"name"`
-	Columns  []*column.Column         `json:"columns"`
-	Indexes  []*QueryCreateTableIndex `json:"indexes"`
+	Database string
+	Name     string
+	Columns  []*column.Column
+	Indexes  []*QueryCreateTableIndex
+	Engine   table.Engine
 }
 
 func (qct *QueryCreateTable) Parse(s *scanner.Scanner) (err error) {

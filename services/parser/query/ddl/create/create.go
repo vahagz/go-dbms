@@ -3,6 +3,7 @@ package create
 import (
 	"errors"
 	"fmt"
+	"go-dbms/pkg/table"
 	"go-dbms/services/parser/query"
 	"text/scanner"
 )
@@ -10,7 +11,6 @@ import (
 type QueryCreateTarget string
 
 const (
-	DATABASE QueryCreateTarget = "DATABASE"
 	TABLE    QueryCreateTarget = "TABLE"
 	INDEX    QueryCreateTarget = "INDEX"
 )
@@ -37,7 +37,10 @@ func Parse(s *scanner.Scanner) (Creater, error) {
 
 	switch target {
 		// case DATABASE: q = &QueryCreateDatabase{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
-		case TABLE:    q = &QueryCreateTable{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
+		case TABLE:    q = &QueryCreateTable{
+			Engine:      table.InnoDB,
+			QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}},
+		}
 		// case INDEX:    q = &QueryCreateIndex{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
 		default:       return nil, errors.New(fmt.Sprintf("unsupported create target: '%s'", target))
 	}

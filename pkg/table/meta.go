@@ -6,7 +6,8 @@ import (
 )
 
 // metadata represents the metadata for the table stored in a json file.
-type metadata struct {
+type Metadata struct {
+	Engine     Engine                    `json:"engine"`
 	Indexes    []*index.Meta             `json:"indexes"`
 	PrimaryKey string                    `json:"primary_key"`
 	Columns    []*column.Column          `json:"columns"`

@@ -66,7 +66,7 @@ func (dml *DML) validateProjection(
 	}
 }
 
-func (dml *DML) validateWhereIndex(t *table.Table, wi *dml.WhereIndex) {
+func (dml *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
 	if wi == nil {
 		return
 	}

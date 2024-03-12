@@ -2,6 +2,7 @@ package create
 
 import (
 	"io"
+	"path/filepath"
 
 	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/table"
@@ -11,8 +12,12 @@ import (
 )
 
 func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
-	t, err := table.Open(ddl.TablePath(q.Name), &table.Options{
-		Columns: q.Columns,
+	tablePath := ddl.TablePath(q.Name)
+	t, err := table.Open(&table.Options{
+		Engine:       q.Engine,
+		Columns:      q.Columns,
+		DataPath:     tablePath,
+		MetaFilePath: filepath.Join(tablePath, table.MetadataFileName),
 	})
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create table: '%s'", q.Name)

@@ -24,7 +24,6 @@ func (ddl *DDLCreate) Create(q create.Creater) (io.WriterTo, error) {
 	}
 
 	switch q.GetTarget() {
-		case create.DATABASE: return ddl.CreateDatabase(q.(*create.QueryCreateDatabase))
 		case create.TABLE:    return ddl.CreateTable(q.(*create.QueryCreateTable))
 		case create.INDEX:    return ddl.CreateIndex(q.(*create.QueryCreateIndex))
 		default:              panic(fmt.Errorf("invalid create target: '%s'", q.GetTarget()))
