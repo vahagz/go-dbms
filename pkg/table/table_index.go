@@ -15,17 +15,17 @@ import (
 )
 
 func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
 
-	if !opts.Primary && t.meta.PrimaryKey == "" {
+	if !opts.Primary && t.Meta.PrimaryKey == "" {
 		return errors.New("first index must be primary")
 	}
-	if opts.Primary && t.meta.PrimaryKey != "" {
+	if opts.Primary && t.Meta.PrimaryKey != "" {
 		return errors.New("primary index already created")
 	}
 	if name != nil {
-		if _, ok := t.indexes[*name]; ok {
+		if _, ok := t.Indexes[*name]; ok {
 			return fmt.Errorf("index with name:'%s' already exists", *name)
 		}
 	}
@@ -33,7 +33,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	keySize := 0
 	columnsList := make([]*column.Column, 0, len(opts.Columns))
 	for _, columnName := range opts.Columns {
-		if col, ok := t.meta.ColumnsMap[columnName]; !ok {
+		if col, ok := t.Meta.ColumnsMap[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
 		} else if !col.Meta.IsFixedSize() {
 			return fmt.Errorf("column must be of fixed size")
@@ -48,7 +48,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 		*name = strings.Join(opts.Columns, "_")
 		for i := 1; i < 100; i++ {
 			postfix := fmt.Sprintf("_%d", i)
-			if _, ok := t.indexes[*name + postfix]; !ok {
+			if _, ok := t.Indexes[*name + postfix]; !ok {
 				*name += postfix
 				break
 			}
@@ -62,7 +62,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	suffixSize := 0
 	suffixCols := 0
 	if !opts.Primary {
-		opts := t.indexes[t.meta.PrimaryKey].Options()
+		opts := t.Indexes[t.Meta.PrimaryKey].Options()
 		suffixSize = opts.MaxKeySize
 		suffixCols = opts.KeyCols
 	}
@@ -84,18 +84,18 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 		return err
 	}
 
-	meta := &index.Meta{
+	Meta := &index.Meta{
 		Name:    *name,
 		Columns: opts.Columns,
 		Uniq:    opts.Uniq,
 		Options: indexOpts,
 	}
 
-	i := index.New(meta, t.df, tree, columnsList, opts.Uniq)
-	t.indexes[*name] = i
+	i := index.New(Meta, t.DF, tree, columnsList, opts.Uniq)
+	t.Indexes[*name] = i
 
-	err = t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
-		return false, i.Insert(ptr, t.row2map(row))
+	err = t.DF.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+		return false, i.Insert(ptr, t.Row2map(row))
 	})
 	if err != nil {
 		i.Remove()
@@ -103,11 +103,12 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	}
 
 	if opts.Primary {
-		t.meta.PrimaryKey = *name
+		t.Meta.PrimaryKey = *name
 	} else {
-		i.SetPK(t.indexes[t.meta.PrimaryKey])
+		i.SetPK(t.Indexes[t.Meta.PrimaryKey])
 	}
 
-	t.meta.Indexes = append(t.meta.Indexes, meta)
-	return t.writeMeta()
+	t.Meta.Indexes = append(t.Meta.Indexes, Meta)
+	t.writeMeta()
+	return nil
 }

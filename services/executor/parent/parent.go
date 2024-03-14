@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/table"
 	"go-dbms/util/helpers"
 
@@ -12,6 +13,8 @@ import (
 )
 
 const enginesFile = "engines.json"
+
+var ErrInvalidEngine = errors.New("invalid engine")
 
 type ExecutorService struct {
 	dataPath string
@@ -29,7 +32,7 @@ func New(dataPath string) (*ExecutorService, error) {
 	if _, err := os.Stat(enginesFilePath); err != nil && !os.IsNotExist(err) {
 		panic(err)
   } else if err == nil {
-		if err := json.Unmarshal(helpers.Must(os.ReadFile(enginesFilePath)), &enginesMap); err != nil {
+		if err := json.Unmarshal(helpers.MustVal(os.ReadFile(enginesFilePath)), &enginesMap); err != nil {
 			panic(err)
 		}
 	}
@@ -55,10 +58,9 @@ func New(dataPath string) (*ExecutorService, error) {
 		}
 
 		switch engine {
-			case table.InnoDB: es.Tables[tableName], err = table.Open(opts)
-			// case table.MergeTree:
-			// case table.SummingMergeTree:
-			// case table.AggregatingMergeTree:
+			case table.InnoDB:    es.Tables[tableName], err = table.Open(opts)
+			case table.MergeTree: es.Tables[tableName], err = mergetree.Open(opts)
+			default:              panic(ErrInvalidEngine)
 		}
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to open table: '%s'", tableName)
@@ -72,14 +74,12 @@ func (es *ExecutorService) Close() error {
 	enginesMap := map[string]table.Engine{}
 	for name, table := range es.Tables {
 		enginesMap[name] = table.Engine()
-		if err := table.Close(); err != nil {
-			return errors.Wrapf(err, "failed to close table: '%s'", name)
-		}
+		table.Close()
 	}
 
 	return os.WriteFile(
 		filepath.Join(es.dataPath, enginesFile),
-		helpers.Must(json.Marshal(enginesMap)),
+		helpers.MustVal(json.Marshal(enginesMap)),
 		0644,
 	)
 }

@@ -33,7 +33,7 @@ type QueryUpdate struct {
 func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
-	qu.Type = query.INSERT
+	qu.Type = query.UPDATE
 
 	qu.parseFrom(s)
 	qu.parseValues(s)
@@ -114,7 +114,7 @@ func (qs *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
 
 func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
 	word := s.TokenText()
-	if word == "WHERE" {
+	if word != "WHERE" {
 		return
 	}
 

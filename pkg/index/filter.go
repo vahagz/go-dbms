@@ -9,7 +9,7 @@ import (
 )
 
 type Filter struct {
-	Operator types.Operator
+	Operator    types.Operator
 	Left, Right *projection.Projection
 }
 

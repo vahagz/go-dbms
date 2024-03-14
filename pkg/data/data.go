@@ -10,6 +10,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/customerrors"
 	"go-dbms/pkg/types"
+	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
@@ -53,7 +54,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	df.cache = cache.NewCache[*record](10000, df.newEmptyRecord)
 
 	if err := df.open(opts); err != nil {
-		_ = df.Close()
+		df.Close()
 		return nil, err
 	}
 
@@ -183,18 +184,17 @@ func (df *DataFile) Count() uint64 { return df.meta.count }
 func (df *DataFile) HeapSize() uint64 { return df.heap.Size() }
 
 // Close flushes any writes and closes the underlying pager.
-func (df *DataFile) Close() error {
+func (df *DataFile) Close() {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
 	if df.heap == nil {
-		return nil
+		return
 	}
 
 	_ = df.writeAll() // write if any nodes are pending
-	err := df.heap.Close()
+	helpers.Must(df.heap.Close())
 	df.heap = nil
-	return err
 }
 
 // Pointer returns ptr with zero value attached to underlying pager

@@ -5,10 +5,14 @@ import (
 	"io"
 
 	"go-dbms/pkg/pipe"
+	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/util/helpers"
+	"go-dbms/util/stream"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 func (dml *DML) Insert(q *dml.QueryInsert) (io.WriterTo, error) {
@@ -20,36 +24,44 @@ func (dml *DML) Insert(q *dml.QueryInsert) (io.WriterTo, error) {
 
 	p := pipe.NewPipe(nil)
 	go func ()  {
-		columns := t.PrimaryColumns()
+		pCols := t.PrimaryColumns()
+		record := make([]interface{}, len(pCols))
+		in, out := stream.New[table.DataRow](0), stream.New[table.DataRow](0)
+		eg := &errgroup.Group{}
 
-		record := make([]interface{}, len(columns))
-		for i, v := range q.Values {
-			row := make(map[string]types.DataType, len(v))
-			for j, col := range q.Columns {
-				row[col] = v[j]
+		eg.Go(func() error {
+			return t.Insert(in, out)
+		})
+
+		eg.Go(func() error {
+			for _, v := range q.Values {
+				row := map[string]types.DataType{}
+				for j, col := range q.Columns {
+					row[col] = v[j]
+				}
+
+				in.Push(row)
+				pk, ok := out.Pop()
+				if !ok {
+					return errors.New("unexpected error while reading insertion result")
+				}
+
+				for i, col := range pCols {
+					record[i] = pk[col.Name].Value()
+				}
+
+				if _, err := p.Write(helpers.MustVal(json.Marshal(record))); err != nil {
+					return errors.Wrap(err, "failed to push marshaled record")
+				}
 			}
 
-			pk, err := t.Insert(row)
-			if err != nil {
-				panic(errors.Wrapf(err, "failed to insert into table, row: '%v'", i))
-			}
+			in.Close()
+			return nil
+		})
 
-			for i, col := range columns {
-				record[i] = pk[col.Name].Value()
-			}
-
-			blob, err := json.Marshal(record)
-			if err != nil {
-				panic(errors.Wrap(err, "failed to marshal record"))
-			}
-
-			_, err = p.Write(blob)
-			if err != nil {
-				panic(errors.Wrap(err, "failed to push marshaled record"))
-			}
-		}
-
-		if _, err := p.Write(pipe.EOS); err != nil {
+		if err := eg.Wait(); err != nil {
+			panic(err)
+		} else if _, err := p.Write(pipe.EOS); err != nil {
 			panic(err)
 		}
 	}()

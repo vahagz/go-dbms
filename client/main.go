@@ -84,6 +84,12 @@ func main() {
 	var rows *types.Rows
 	_, _ = rows, t
 
+	// // t = time.Now()
+	// // rows, err = client.Query([]byte(`PREPARE TABLE testtable ROWS 1000000;`))
+	// // exitIfErr(errors.Wrap(err, "query failed"))
+	// // for rows.Next() {  }
+	// // fmt.Printf("[prepare] %v\n", time.Since(t))
+
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	CREATE TABLE testtable (
@@ -100,12 +106,6 @@ func main() {
 	// fmt.Printf("[create] %v\n", time.Since(t))
 
 	// t = time.Now()
-	// rows, err = client.Query([]byte(`PREPARE TABLE testtable ROWS 1000000;`))
-	// exitIfErr(errors.Wrap(err, "query failed"))
-	// for rows.Next() {  }
-	// fmt.Printf("[prepare] %v\n", time.Since(t))
-
-	// t = time.Now()
 	// var insertId int
 	// firstnames := []string{"Vahag","Sergey","Bagrat","Mery"}
 	// lastnames := []string{"Zargaryan","Galstyan","Sargsyan","Voskanyan"}
@@ -113,7 +113,7 @@ func main() {
 	// // setInterval(time.Second, func() {
 	// // 	fmt.Println("[interval]", insertId)
 	// // })
-	// for i := 0; i < 100; i++ {
+	// for i := 0; i < 10; i++ {
 	// 	query.Reset()
 	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
 	// 	for i := 0; i < 1000; i++ {
@@ -140,7 +140,7 @@ func main() {
 		SELECT firstname, COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount)
 		// SELECT id, firstname, lastname
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 10000
+		WHERE_INDEX id id >= 1 AND id <= 1000
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
@@ -159,21 +159,22 @@ func main() {
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 
-	// t = time.Now()
-	// rows, err = client.Query([]byte(`
-	// 	UPDATE testtable
-	// 	SET firstname = "dddddd"
-	// 	WHERE_INDEX id id >= 4 AND id <= 6
-	// 	WHERE firstname = "Arman" OR lastname = "Harutyunyan";
-	// `))
-	// exitIfErr(errors.Wrap(err, "query failed"))
-	// for rows.Next() {  }
-	// fmt.Printf("[update] %v\n", time.Since(t))
+	t = time.Now()
+	rows, err = client.Query([]byte(`
+		UPDATE testtable
+		SET firstname = "Bagrat"
+		WHERE_INDEX id id >= 1 AND id <= 1000
+		WHERE firstname = "Mery";
+	`))
+	exitIfErr(errors.Wrap(err, "query failed"))
+	for rows.Next() {  }
+	fmt.Printf("[update] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	DELETE FROM testtable
-	// 	WHERE_INDEX id id > 100000;
+	// 	WHERE_INDEX id id >= 1 AND id <= 1000
+	// 	WHERE firstname = "Vahag";
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
