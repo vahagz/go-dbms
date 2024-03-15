@@ -14,7 +14,7 @@ import (
 type subGroup struct {
 	next       map[string]*subGroup
 	val        map[string]aggregator.Aggregator
-	groupItems map[string]types.DataType
+	groupItems types.DataRow
 }
 
 type Group struct {
@@ -33,7 +33,7 @@ func New(projections *projection.Projections, groupList map[string]struct{}, dst
 	}
 }
 
-func (g *Group) Add(row map[string]types.DataType) {
+func (g *Group) Add(row types.DataRow) {
 	gr := g.groups
 	groupItems := gr.groupItems
 	for gi := range g.groupList {
@@ -44,7 +44,7 @@ func (g *Group) Add(row map[string]types.DataType) {
 		key := string(row[gi].Bytes())
 		if next, ok := gr.next[key]; !ok {
 			if groupItems == nil {
-				groupItems = map[string]types.DataType{gi: row[gi]}
+				groupItems = types.DataRow{gi: row[gi]}
 			} else {
 				groupItems[gi] = row[gi]
 			}

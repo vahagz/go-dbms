@@ -58,6 +58,8 @@ type DataType interface {
 	Cast(meta DataTypeMeta) (DataType, error)
 }
 
+type DataRow map[string]DataType
+
 func Type(meta DataTypeMeta) DataType {
 	return typesMap[meta.GetCode()].newInstance(meta)
 }

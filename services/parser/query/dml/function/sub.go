@@ -7,7 +7,7 @@ import (
 const SUB FunctionType = "SUB"
 
 func init() {
-	functions[SUB] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+	functions[SUB] = func(row types.DataRow, args []types.DataType) types.DataType {
 		var err error
 		var v1, v2 types.DataType
 		if args[0].GetCode() == types.TYPE_FLOAT || args[1].GetCode() == types.TYPE_FLOAT {

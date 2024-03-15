@@ -13,7 +13,7 @@ type WhereStatement struct {
 	Statement *Statement        `json:"statement,omitempty"`
 }
 
-func (ws *WhereStatement) Compare(row map[string]types.DataType) bool {
+func (ws *WhereStatement) Compare(row types.DataRow) bool {
 	if ws.Statement != nil {
 		l := eval.Eval(row, ws.Statement.Left)
 		r := eval.Eval(row, ws.Statement.Right)

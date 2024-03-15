@@ -159,16 +159,16 @@ func main() {
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 
-	t = time.Now()
-	rows, err = client.Query([]byte(`
-		UPDATE testtable
-		SET firstname = "Bagrat"
-		WHERE_INDEX id id >= 1 AND id <= 1000
-		WHERE firstname = "Mery";
-	`))
-	exitIfErr(errors.Wrap(err, "query failed"))
-	for rows.Next() {  }
-	fmt.Printf("[update] %v\n", time.Since(t))
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`
+	// 	UPDATE testtable
+	// 	SET firstname = "Bagrat"
+	// 	WHERE_INDEX id id >= 1 AND id <= 1000
+	// 	WHERE firstname = "Mery";
+	// `))
+	// exitIfErr(errors.Wrap(err, "query failed"))
+	// for rows.Next() {  }
+	// fmt.Printf("[update] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`

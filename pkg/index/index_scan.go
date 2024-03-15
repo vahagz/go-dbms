@@ -27,11 +27,11 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 	postfixColsCount := 0
 	var endKey [][]byte
 
-	startVal := map[string]types.DataType{
+	startVal := types.DataRow{
 		start.Left.Alias: eval.Eval(nil, start.Right),
 	}
 	if end != nil {
-		endKey = i.key(map[string]types.DataType{
+		endKey = i.key(types.DataRow{
 			end.Left.Alias: eval.Eval(nil, end.Right),
 		})
 	}

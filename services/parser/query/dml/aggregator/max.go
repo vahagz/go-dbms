@@ -10,7 +10,7 @@ type AggregationMAX struct {
 	Val types.DataType
 }
 
-func (as *AggregationMAX) Apply(row map[string]types.DataType) {
+func (as *AggregationMAX) Apply(row types.DataRow) {
 	val := eval.Eval(row, as.Arguments[0])
 	if as.Val == nil || val.Compare(types.Greater, as.Val) {
 		as.Val = val

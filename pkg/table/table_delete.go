@@ -5,6 +5,7 @@ import (
 
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/statement"
+	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
 	"go-dbms/util/stream"
 
@@ -12,14 +13,14 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) Delete(filter *statement.WhereStatement) stream.Reader[DataRow] {
+func (t *Table) Delete(filter *statement.WhereStatement) stream.Reader[types.DataRow] {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
-		helpers.Must(t.delete(t.Find(filter).Slice(), t.Indexes, func(row DataRow) error {
+		helpers.Must(t.delete(t.Find(filter).Slice(), t.Indexes, func(row types.DataRow) error {
 			s.Push(row)
 			return nil
 		}))
@@ -31,7 +32,7 @@ func (t *Table) DeleteByIndex(
 	name string,
 	start, end *index.Filter,
 	filter *statement.WhereStatement,
-) (stream.Reader[DataRow], error) {
+) (stream.Reader[types.DataRow], error) {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 
@@ -40,13 +41,13 @@ func (t *Table) DeleteByIndex(
 		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
 		helpers.Must(t.delete(
 			delIndex.ScanEntries(start, end, filter),
 			t.Indexes,
-			func(row DataRow) error {
+			func(row types.DataRow) error {
 				s.Push(row)
 				return nil
 			},
@@ -58,7 +59,7 @@ func (t *Table) DeleteByIndex(
 func (t *Table) delete(
 	entries []index.Entry,
 	indexesToUpdate map[string]*index.Index,
-	scanFn func(row DataRow) error,
+	scanFn func(row types.DataRow) error,
 ) error {
 	for _, e := range entries {
 		t.deleteRow(e.Ptr, e.Row, indexesToUpdate)
@@ -72,7 +73,7 @@ func (t *Table) delete(
 
 func (t *Table) deleteRow(
 	ptr allocator.Pointable,
-	row DataRow,
+	row types.DataRow,
 	indexesToUpdate map[string]*index.Index,
 ) {
 	for _, i := range indexesToUpdate {
@@ -81,7 +82,7 @@ func (t *Table) deleteRow(
 	t.DF.DeleteMem(ptr)
 }
 
-func (t *Table) deleteIndex(i *index.Index, row DataRow) {
+func (t *Table) deleteIndex(i *index.Index, row types.DataRow) {
 	if _, err := i.Delete(row, !t.isPK(i)); err != nil {
 		panic(errors.Wrapf(err, "error while deleting from index '%s'", i.Meta().Name))
 	}

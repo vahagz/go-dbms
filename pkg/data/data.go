@@ -89,12 +89,12 @@ func (df *DataFile) Get(ptr allocator.Pointable) []types.DataType {
 }
 
 // Get fetches the record map from the given pointer. Returns error if record not found.
-func (df *DataFile) GetMap(ptr allocator.Pointable) map[string]types.DataType {
+func (df *DataFile) GetMap(ptr allocator.Pointable) types.DataRow {
 	df.mu.RLock()
 	defer df.mu.RUnlock()
 
 	r := df.fetchN(ptr).Get()
-	dataCopy := make(map[string]types.DataType, len(r.data))
+	dataCopy := make(types.DataRow, len(r.data))
 	for i, data := range r.data {
 		dataCopy[df.columns[i].Name] = data.Copy()
 	}

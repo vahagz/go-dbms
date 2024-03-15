@@ -43,13 +43,13 @@ func (ab *AggregatorBase) Value() types.DataType {
 	panic(errors.New("unimplemented"))
 }
 
-func (ab *AggregatorBase) Apply(row map[string]types.DataType) {
+func (ab *AggregatorBase) Apply(row types.DataRow) {
 	panic(errors.New("unimplemented"))
 }
 
 type Aggregator interface {
 	Value() types.DataType
-	Apply(row map[string]types.DataType)
+	Apply(row types.DataRow)
 }
 
 func IsAggregator(fn string) bool {

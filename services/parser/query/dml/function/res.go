@@ -8,7 +8,7 @@ import (
 const RES FunctionType = "RES"
 
 func init() {
-	functions[RES] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+	functions[RES] = func(row types.DataRow, args []types.DataType) types.DataType {
 		if args[0].GetCode() != types.TYPE_INTEGER || args[1].GetCode() != types.TYPE_INTEGER {
 			panic(errors.New("'RES' operation is defined only for integer types"))
 		}

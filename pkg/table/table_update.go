@@ -7,6 +7,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/statement"
+	"go-dbms/pkg/types"
 	"go-dbms/util/helpers"
 	"go-dbms/util/stream"
 
@@ -14,14 +15,14 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) Update(filter *statement.WhereStatement, updateValuesMap DataRow) stream.Reader[DataRow] {
+func (t *Table) Update(filter *statement.WhereStatement, updateValuesMap types.DataRow) stream.Reader[types.DataRow] {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
-		helpers.Must(t.update(t.Find(filter).Slice(), updateValuesMap, t.Indexes, func(row DataRow) error {
+		helpers.Must(t.update(t.Find(filter).Slice(), updateValuesMap, t.Indexes, func(row types.DataRow) error {
 			s.Push(row)
 			return nil
 		}))
@@ -33,8 +34,8 @@ func (t *Table) UpdateByIndex(
 	name string,
 	start, end *index.Filter,
 	filter *statement.WhereStatement,
-	updateValuesMap DataRow,
-) (stream.Reader[DataRow], error) {
+	updateValuesMap types.DataRow,
+) (stream.Reader[types.DataRow], error) {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 
@@ -43,14 +44,14 @@ func (t *Table) UpdateByIndex(
 		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
 		helpers.Must(t.update(
 			updIndex.ScanEntries(start, end, filter),
 			updateValuesMap,
 			t.getAffectedIndexes(updIndex, updateValuesMap),
-			func(row DataRow) error {
+			func(row types.DataRow) error {
 				s.Push(row)
 				return nil
 			},
@@ -61,12 +62,12 @@ func (t *Table) UpdateByIndex(
 
 func (t *Table) update(
 	entries []index.Entry,
-	updateValuesMap DataRow,
+	updateValuesMap types.DataRow,
 	indexesToUpdate map[string]*index.Index,
-	scanFn func(row DataRow) error,
+	scanFn func(row types.DataRow) error,
 ) error {
 	for _, e := range entries {
-		updated := make(DataRow, len(e.Row))
+		updated := make(types.DataRow, len(e.Row))
 		for col, oldVal := range e.Row {
 			if newVal, ok := updateValuesMap[col]; ok {
 				updated[col] = newVal
@@ -89,7 +90,7 @@ func (t *Table) update(
 
 func (t *Table) updateRow(
 	oldPtr allocator.Pointable,
-	oldRow, newRow DataRow,
+	oldRow, newRow types.DataRow,
 	indexesToUpdate map[string]*index.Index,
 ) error {
 	newPtr := t.DF.UpdateMem(oldPtr, t.map2row(newRow))
@@ -123,7 +124,7 @@ func (t *Table) updateRow(
 func (t *Table) updateIndex(
 	i *index.Index,
 	newPtr allocator.Pointable,
-	oldRow, newRow DataRow,
+	oldRow, newRow types.DataRow,
 ) error {
 	t.deleteIndex(i, oldRow)
 
@@ -138,7 +139,7 @@ func (t *Table) updateIndex(
 
 func (t *Table) getAffectedIndexes(
 	targetIndex *index.Index,
-	row DataRow,
+	row types.DataRow,
 ) map[string]*index.Index {
 	indexesToUpdate := make(map[string]*index.Index, len(t.Indexes))
 

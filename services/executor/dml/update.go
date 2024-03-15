@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"go-dbms/pkg/pipe"
-	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml"
 	"go-dbms/util/helpers"
 	"go-dbms/util/stream"
@@ -23,7 +23,7 @@ func (dml *DML) Update(q *dml.QueryUpdate) (io.WriterTo, error) {
 
 	go func() {
 		columns := t.PrimaryColumns()
-		process := func(s stream.Reader[table.DataRow]) error {
+		process := func(s stream.Reader[types.DataRow]) error {
 			for row, ok := s.Pop(); ok; row, ok = s.Pop() {
 				record := make([]interface{}, 0, len(columns))
 				for _, col := range columns {
@@ -37,7 +37,7 @@ func (dml *DML) Update(q *dml.QueryUpdate) (io.WriterTo, error) {
 			return nil
 		}
 
-		var s stream.Reader[table.DataRow]
+		var s stream.Reader[types.DataRow]
 		if q.WhereIndex != nil {
 			s = helpers.MustVal(t.UpdateByIndex(
 				q.WhereIndex.Name,

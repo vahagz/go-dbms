@@ -25,7 +25,7 @@ type QueryUpdate struct {
 	query.Query
 	DB         string
 	Table      string
-	Values     map[string]types.DataType
+	Values     types.DataRow
 	Where      *statement.WhereStatement
 	WhereIndex *WhereIndex
 }
@@ -64,7 +64,7 @@ func (qu *QueryUpdate) parseFrom(s *scanner.Scanner) {
 }
 
 func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
-	qu.Values = map[string]types.DataType{}
+	qu.Values = types.DataRow{}
 
 	if s.TokenText() != "SET" {
 		panic(errors.ErrSyntax)

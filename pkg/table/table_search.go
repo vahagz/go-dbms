@@ -38,7 +38,7 @@ func (t *Table) Find(filter *statement.WhereStatement) stream.Reader[index.Entry
 func (t *Table) ScanByIndex(
 	name string,
 	start, end *index.Filter,
-) (stream.ReaderContinue[DataRow], error) {
+) (stream.ReaderContinue[types.DataRow], error) {
 	t.Mu.RLock()
 	defer t.Mu.RUnlock()
 
@@ -47,7 +47,7 @@ func (t *Table) ScanByIndex(
 		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func() {
 		defer s.Close()
 		helpers.Must(index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
@@ -58,11 +58,11 @@ func (t *Table) ScanByIndex(
 	return s, nil
 }
 
-func (t *Table) FullScan() stream.ReaderContinue[DataRow] {
+func (t *Table) FullScan() stream.ReaderContinue[types.DataRow] {
 	t.Mu.RLock()
 	defer t.Mu.RUnlock()
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
 		helpers.Must(t.DF.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
@@ -76,7 +76,7 @@ func (t *Table) FullScan() stream.ReaderContinue[DataRow] {
 func (t *Table) FullScanByIndex(
 	indexName string,
 	reverse bool,
-) (stream.ReaderContinue[DataRow], error) {
+) (stream.ReaderContinue[types.DataRow], error) {
 	idx, ok := t.Indexes[indexName]
 	if !ok {
 		return nil, fmt.Errorf("index not found => %v", indexName)
@@ -85,7 +85,7 @@ func (t *Table) FullScanByIndex(
 	t.Mu.RLock()
 	defer t.Mu.RUnlock()
 
-	s := stream.New[DataRow](0)
+	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
 		helpers.Must(idx.Scan(index.ScanOptions{
@@ -101,6 +101,6 @@ func (t *Table) FullScanByIndex(
 	return s, nil
 }
 
-func (t *Table) get(ptr allocator.Pointable) DataRow {
+func (t *Table) get(ptr allocator.Pointable) types.DataRow {
 	return t.DF.GetMap(ptr)
 }

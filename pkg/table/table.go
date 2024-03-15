@@ -16,6 +16,7 @@ import (
 	"go-dbms/util/stream"
 
 	"github.com/vahagz/bptree"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -24,26 +25,24 @@ const (
 	indexPath        = "./indexes"
 )
 
-type DataRow map[string]types.DataType
-
 type ITable interface {
-	Insert(in stream.Reader[DataRow], out stream.Writer[DataRow]) error
+	Insert(in stream.Reader[types.DataRow]) (stream.Reader[types.DataRow], *errgroup.Group)
 
 	Find(filter *statement.WhereStatement) stream.Reader[index.Entry]
-	ScanByIndex(name string, start, end *index.Filter) (stream.ReaderContinue[DataRow], error)
-	FullScan() stream.ReaderContinue[DataRow]
-	FullScanByIndex(indexName string, reverse bool) (stream.ReaderContinue[DataRow], error)
+	ScanByIndex(name string, start, end *index.Filter) (stream.ReaderContinue[types.DataRow], error)
+	FullScan() stream.ReaderContinue[types.DataRow]
+	FullScanByIndex(indexName string, reverse bool) (stream.ReaderContinue[types.DataRow], error)
 
-	Update(filter *statement.WhereStatement, updateValuesMap DataRow) stream.Reader[DataRow]
+	Update(filter *statement.WhereStatement, updateValuesMap types.DataRow) stream.Reader[types.DataRow]
 	UpdateByIndex(
 		name string,
 		start, end *index.Filter,
 		filter *statement.WhereStatement,
-		updateValuesMap DataRow,
-	) (stream.Reader[DataRow], error)
+		updateValuesMap types.DataRow,
+	) (stream.Reader[types.DataRow], error)
 
-	Delete(filter *statement.WhereStatement) stream.Reader[DataRow]
-	DeleteByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (stream.Reader[DataRow], error)
+	Delete(filter *statement.WhereStatement) stream.Reader[types.DataRow]
+	DeleteByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (stream.Reader[types.DataRow], error)
 
 	PrepareSpace(rows int)
 
@@ -260,7 +259,7 @@ func (t *Table) CreateDirs() error {
 	return helpers.CreateDir(filepath.Join(t.DataPath, indexPath))
 }
 
-func (t *Table) map2row(rowMap DataRow) []types.DataType {
+func (t *Table) map2row(rowMap types.DataRow) []types.DataType {
 	row := make([]types.DataType, 0, len(rowMap))
 	for _, c := range t.Meta.Columns {
 		if val, ok := rowMap[c.Name]; ok {
@@ -270,24 +269,24 @@ func (t *Table) map2row(rowMap DataRow) []types.DataType {
 	return row
 }
 
-func (t *Table) Row2map(row []types.DataType) DataRow {
-	rowMap := DataRow{}
+func (t *Table) Row2map(row []types.DataType) types.DataRow {
+	rowMap := types.DataRow{}
 	for i, data := range row {
 		rowMap[t.Meta.Columns[i].Name] = data
 	}
 	return rowMap
 }
 
-func (t *Table) row2pk(row DataRow) DataRow {
+func (t *Table) row2pk(row types.DataRow) types.DataRow {
 	pkCols := t.Indexes[t.Meta.PrimaryKey].Columns()
-	pkRow := make(DataRow, 1)
+	pkRow := make(types.DataRow, 1)
 	for _, col := range pkCols {
 		pkRow[col.Name] = row[col.Name]
 	}
 	return pkRow
 }
 
-func (t *Table) validateMap(row DataRow) error {
+func (t *Table) validateMap(row types.DataRow) error {
 	if len(row) > len(t.Meta.Columns) {
 		return fmt.Errorf("invalid columns count")
 	}
@@ -300,7 +299,7 @@ func (t *Table) validateMap(row DataRow) error {
 	return nil
 }
 
-func (t *Table) setDefaults(row DataRow) {
+func (t *Table) setDefaults(row types.DataRow) {
 	t.MetaMu.Lock()
 	defer t.MetaMu.Unlock()
 

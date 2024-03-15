@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"go-dbms/pkg/pipe"
-	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml"
 	"go-dbms/services/parser/query/dml/eval"
 	"go-dbms/services/parser/query/dml/group"
@@ -33,7 +33,7 @@ func (dml *DML) Select(q *dml.QuerySelect) (io.WriterTo, error) {
 		prList := q.Projections.Iterator()
 		record := make([]interface{}, len(prList))
 
-		process := func(s stream.ReaderContinue[table.DataRow]) error {
+		process := func(s stream.ReaderContinue[types.DataRow]) error {
 			for row, ok := s.Pop(); ok; row, ok = s.Pop() {
 				s.Continue(true)
 				if gr == nil {
@@ -63,7 +63,7 @@ func (dml *DML) Select(q *dml.QuerySelect) (io.WriterTo, error) {
 			return nil
 		}
 
-		var s stream.ReaderContinue[table.DataRow]
+		var s stream.ReaderContinue[types.DataRow]
 		if q.WhereIndex != nil {
 			s = helpers.MustVal(t.ScanByIndex(
 				q.WhereIndex.Name,

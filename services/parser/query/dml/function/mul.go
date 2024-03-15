@@ -7,7 +7,7 @@ import (
 const MUL FunctionType = "MUL"
 
 func init() {
-	functions[MUL] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+	functions[MUL] = func(row types.DataRow, args []types.DataType) types.DataType {
 		var valInt intType
 		var valFloat floatType
 		isInt := true

@@ -11,7 +11,7 @@ type AggregationSUM struct {
 	Sum  types.DataType
 }
 
-func (as *AggregationSUM) Apply(row map[string]types.DataType) {
+func (as *AggregationSUM) Apply(row types.DataRow) {
 	val := eval.Eval(row, as.Arguments[0])
 	if as.Sum == nil {
 		as.Sum = val

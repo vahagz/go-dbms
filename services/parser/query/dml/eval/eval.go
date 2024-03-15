@@ -7,7 +7,7 @@ import (
 	"go-dbms/services/parser/query/dml/projection"
 )
 
-func Eval(row map[string]types.DataType, p *projection.Projection) types.DataType {
+func Eval(row types.DataRow, p *projection.Projection) types.DataType {
 	switch p.Type {
 		case projection.LITERAL:
 			return p.Literal
