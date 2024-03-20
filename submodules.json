@@ -4,7 +4,7 @@
       "rootPath": "",
       "goPath": "",
       "url": "github.com/vahagz/go-dbms",
-      "branch": "master"
+      "branch": "mergetree"
     },
     "bptree": {
       "rootPath": "pkg/bptree",
