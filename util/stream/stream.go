@@ -15,6 +15,7 @@ type Reader[T any] interface {
 type ReaderContinue[T any] interface {
 	Reader[T]
 	Continue(bool)
+	AutoContinue(bool)
 }
 
 type Writer[T any] interface {
@@ -35,6 +36,8 @@ type Stream[T any] interface {
 type stream[T any] struct {
 	ch   chan T
 	next chan bool
+
+	autoContinue bool
 }
 
 func (s *stream[T]) Pop() (T, bool) {
@@ -54,12 +57,16 @@ func (s *stream[T]) Continue(v bool) {
 	s.next<-v
 }
 
+func (s *stream[T]) AutoContinue(v bool) {
+	s.autoContinue = v
+}
+
 func (s *stream[T]) Push(val T) {
 	s.ch<-val
 }
 
 func (s *stream[T]) ShouldContinue() bool {
-	return <-s.next
+	return s.autoContinue || <-s.next
 }
 
 func (s *stream[T]) Close() {

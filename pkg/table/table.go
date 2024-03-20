@@ -64,15 +64,14 @@ type ITable interface {
 type Table struct {
 	DataPath, MetaFilePath string
 
-	Mu, MetaMu *sync.RWMutex
-	DF         *data.DataFile
-	Meta       *Metadata
-	Indexes    map[string]*index.Index
+	MetaMu  *sync.RWMutex
+	DF      *data.DataFile
+	Meta    *Metadata
+	Indexes map[string]*index.Index
 }
 
 func Open(opts *Options) (ITable, error) {
 	table := &Table{
-		Mu:           &sync.RWMutex{},
 		MetaMu:       &sync.RWMutex{},
 		DataPath:     opts.DataPath,
 		MetaFilePath: opts.MetaFilePath,
@@ -138,14 +137,10 @@ func (t *Table) Engine() Engine {
 
 func (t *Table) Drop() {
 	t.Close()
-	panic(filepath.Join(t.DataPath, ".."))
-	// helpers.Must(os.RemoveAll(filepath.Join(t.DataPath, "..")))
+	helpers.Must(os.RemoveAll(t.DataPath))
 }
 
 func (t *Table) Close() {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	t.writeMeta()
 	for _, index := range t.Indexes {
 		index.Close()

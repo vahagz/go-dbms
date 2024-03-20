@@ -13,9 +13,6 @@ import (
 )
 
 func (t *Table) Insert(in stream.Reader[types.DataRow]) (stream.Reader[types.DataRow], *errgroup.Group) {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	eg := &errgroup.Group{}
 	out := stream.New[types.DataRow](0)
 

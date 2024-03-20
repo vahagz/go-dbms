@@ -43,6 +43,6 @@ func (es *ExecutorService) Exec(q query.Querier) (io.WriterTo, error) {
 	}
 }
 
-func (es *ExecutorService) Close() error {
-	return es.es.Close()
+func (es *ExecutorService) Close() {
+	es.es.Close()
 }

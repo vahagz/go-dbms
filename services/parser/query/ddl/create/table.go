@@ -47,6 +47,7 @@ func (qct *QueryCreateTable) Parse(s *scanner.Scanner) (err error) {
 	
 	qct.Indexes = []*QueryCreateTableIndex{}
 
+	qct.parseEngine(s)
 	qct.parsePrimaryKey(s)
 	qct.parseIndexes(s)
 
@@ -106,6 +107,27 @@ func (qct *QueryCreateTable) parseColumn(s *scanner.Scanner) {
 	col.Typ = col.Meta.GetCode()
 
 	qct.Columns = append(qct.Columns, col)
+}
+
+func (qct *QueryCreateTable) parseEngine(s *scanner.Scanner) {
+	if s.TokenText() != "ENGINE" {
+		panic(errors.ErrSyntax)
+	}
+
+	s.Scan()
+	if s.TokenText() != "=" {
+		panic(errors.ErrSyntax)
+	}
+
+	s.Scan()
+	eng := table.Engine(s.TokenText())
+	switch eng {
+		case table.InnoDB, table.MergeTree, table.SummingMergeTree, table.AggregatingMergeTree:
+		default: panic(errors.ErrInvalidEngine)
+	}
+	qct.Engine = eng
+
+	s.Scan()
 }
 
 func (qct *QueryCreateTable) parsePrimaryKey(s *scanner.Scanner) {

@@ -2,19 +2,23 @@ package parent
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/table"
-	"go-dbms/util/helpers"
+	"go-dbms/util/timer"
 
 	"github.com/pkg/errors"
 )
 
-const enginesFile = "engines.json"
-
 var ErrInvalidEngine = errors.New("invalid engine")
+
+type tableMetaEngine struct {
+	Engine table.Engine `json:"engine"`
+}
 
 type ExecutorService struct {
 	dataPath string
@@ -25,16 +29,6 @@ func New(dataPath string) (*ExecutorService, error) {
 	dirEntries, err := os.ReadDir(dataPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read tables directory")
-	}
-
-	enginesMap := map[string]table.Engine{}
-	enginesFilePath := filepath.Join(dataPath, enginesFile)
-	if _, err := os.Stat(enginesFilePath); err != nil && !os.IsNotExist(err) {
-		panic(err)
-  } else if err == nil {
-		if err := json.Unmarshal(helpers.MustVal(os.ReadFile(enginesFilePath)), &enginesMap); err != nil {
-			panic(err)
-		}
 	}
 
 	es := &ExecutorService{
@@ -50,14 +44,27 @@ func New(dataPath string) (*ExecutorService, error) {
 		tableName := de.Name()
 		dataPath := es.TablePath(tableName)
 		metaFilePath := filepath.Join(dataPath, table.MetadataFileName)
-		engine := enginesMap[tableName]
+
+		mf, err := os.Open(metaFilePath)
+		if err != nil {
+			fmt.Printf("[error] => %v\n", err)
+			continue
+		}
+
+		engineMeta := &tableMetaEngine{}
+		err = json.NewDecoder(mf).Decode(engineMeta)
+		if err != nil {
+			fmt.Printf("[error] => %v\n", err)
+			continue
+		}
+
 		opts := &table.Options{
-			Engine:       engine,
+			Engine:       engineMeta.Engine,
 			DataPath:     dataPath,
 			MetaFilePath: metaFilePath,
 		}
 
-		switch engine {
+		switch engineMeta.Engine {
 			case table.InnoDB:    es.Tables[tableName], err = table.Open(opts)
 			case table.MergeTree: es.Tables[tableName], err = mergetree.Open(opts)
 			default:              panic(ErrInvalidEngine)
@@ -67,21 +74,24 @@ func New(dataPath string) (*ExecutorService, error) {
 		}
 	}
 
+	es.StartMerger()
 	return es, nil
 }
 
-func (es *ExecutorService) Close() error {
-	enginesMap := map[string]table.Engine{}
-	for name, table := range es.Tables {
-		enginesMap[name] = table.Engine()
+func (es *ExecutorService) StartMerger() {
+	timer.SetInterval(time.Minute, func() {
+		for _, t := range es.Tables {
+			if t, ok := t.(mergetree.IMergeTree); ok {
+				t.Merge()
+			}
+		}
+	})
+}
+
+func (es *ExecutorService) Close() {
+	for _, table := range es.Tables {
 		table.Close()
 	}
-
-	return os.WriteFile(
-		filepath.Join(es.dataPath, enginesFile),
-		helpers.MustVal(json.Marshal(enginesMap)),
-		0644,
-	)
 }
 
 func (es *ExecutorService) TablePath(tableName string) string {

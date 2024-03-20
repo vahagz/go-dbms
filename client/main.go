@@ -97,7 +97,7 @@ func main() {
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
 	// 		amount    Float64,
-	// 	)
+	// 	) ENGINE = MergeTree
 	// 	PRIMARY KEY(id) id,
 	// 	INDEX(firstname, lastname) firstname_lastname;
 	// `))
@@ -138,24 +138,29 @@ func main() {
 	t = time.Now()
 	rows, err = client.Query([]byte(`
 		SELECT firstname, COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount)
-		// SELECT id, firstname, lastname
+		// SELECT id, firstname, lastname, amount
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 1000
+		WHERE_INDEX id id >= 1 AND id <= 1000000
+		// WHERE_INDEX firstname_lastname firstname = "Vahag"
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
 		id, cnt, avgId int
-		avgAmount, sumAmount, maxAmount, minAmount float64
+		amount, avgAmount, sumAmount, maxAmount, minAmount float64
 		firstname, lastname string
 	)
-	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
+	_, _, _, _, _, _, _, _, _, _ = id, cnt, amount, sumAmount, firstname, lastname, avgId, avgAmount, maxAmount, minAmount
 	for rows.Next() {
 		if err := rows.Scan(&firstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Printf("%s %v %f %f %f %f\n", firstname, cnt, sumAmount, avgAmount, maxAmount, minAmount)
+		fmt.Printf("%s %d %v %v %v %v\n", firstname, cnt, sumAmount, avgAmount, maxAmount, minAmount)
+		// if err := rows.Scan(&id, &firstname, &lastname, &amount); err != nil {
+		// 	exitIfErr(errors.Wrap(err, "scan failed"))
+		// }
+		// fmt.Printf("%d %s %s %v\n", id, firstname, lastname, amount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 
@@ -186,23 +191,4 @@ func exitIfErr(err error) {
 		fmt.Println("error: ", err)
 		os.Exit(1)
 	}
-}
-
-func setInterval(duration time.Duration, f func()) *time.Ticker {
-	t := time.NewTicker(duration)
-	go func() {
-		for range t.C {
-			f()
-		}
-	}()
-	return t
-}
-
-func setTimeout(duration time.Duration, f func()) *time.Ticker {
-	var t *time.Ticker
-	t = setInterval(duration, func() {
-		f()
-		t.Stop()
-	})
-	return t
 }

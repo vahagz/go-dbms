@@ -4,8 +4,10 @@ import (
 	"io"
 	"path/filepath"
 
+	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/table"
+	"go-dbms/services/executor/parent"
 	"go-dbms/services/parser/query/ddl/create"
 
 	"github.com/pkg/errors"
@@ -13,12 +15,20 @@ import (
 
 func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
 	tablePath := ddl.TablePath(q.Name)
-	t, err := table.Open(&table.Options{
+	opts := &table.Options{
 		Engine:       q.Engine,
 		Columns:      q.Columns,
 		DataPath:     tablePath,
 		MetaFilePath: filepath.Join(tablePath, table.MetadataFileName),
-	})
+	}
+	var t table.ITable
+	var err error
+	
+	switch q.Engine {
+		case table.InnoDB:    t, err = table.Open(opts)
+		case table.MergeTree: t, err = mergetree.Open(opts)
+		default:              panic(parent.ErrInvalidEngine)
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create table: '%s'", q.Name)
 	}

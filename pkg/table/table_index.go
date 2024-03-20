@@ -15,9 +15,6 @@ import (
 )
 
 func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	if !opts.Primary && t.Meta.PrimaryKey == "" {
 		return errors.New("first index must be primary")
 	}

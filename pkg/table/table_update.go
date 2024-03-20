@@ -16,9 +16,6 @@ import (
 )
 
 func (t *Table) Update(filter *statement.WhereStatement, updateValuesMap types.DataRow) stream.Reader[types.DataRow] {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
@@ -36,9 +33,6 @@ func (t *Table) UpdateByIndex(
 	filter *statement.WhereStatement,
 	updateValuesMap types.DataRow,
 ) (stream.Reader[types.DataRow], error) {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	updIndex, ok := t.Indexes[name]
 	if !ok {
 		return nil, fmt.Errorf("index not found => '%s'", name)

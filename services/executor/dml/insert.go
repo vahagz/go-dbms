@@ -24,7 +24,7 @@ func (dml *DML) Insert(q *dml.QueryInsert) (io.WriterTo, error) {
 	go func ()  {
 		pCols := t.PrimaryColumns()
 		record := make([]interface{}, len(pCols))
-		in := stream.New[types.DataRow](0)
+		in := stream.New[types.DataRow](1)
 		out, eg := t.Insert(in)
 
 		eg.Go(func() error {

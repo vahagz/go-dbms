@@ -14,9 +14,6 @@ import (
 )
 
 func (t *Table) Delete(filter *statement.WhereStatement) stream.Reader[types.DataRow] {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	s := stream.New[types.DataRow](0)
 	go func ()  {
 		defer s.Close()
@@ -33,9 +30,6 @@ func (t *Table) DeleteByIndex(
 	start, end *index.Filter,
 	filter *statement.WhereStatement,
 ) (stream.Reader[types.DataRow], error) {
-	t.Mu.Lock()
-	defer t.Mu.Unlock()
-
 	delIndex, ok := t.Indexes[name]
 	if !ok {
 		return nil, fmt.Errorf("index not found => '%s'", name)
