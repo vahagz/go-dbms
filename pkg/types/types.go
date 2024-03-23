@@ -54,11 +54,22 @@ type DataType interface {
 	Set(value interface{}) DataType
 	Fill() DataType
 	Zero() DataType
-	Compare(operator Operator, val DataType) bool
+	CompareOp(operator Operator, val DataType) bool
+	Compare(val DataType) int
 	Cast(meta DataTypeMeta) (DataType, error)
 }
 
 type DataRow map[string]DataType
+
+func (dr DataRow) Compare(dr2 DataRow, keys []string) int {
+	for _, col := range keys {
+		cmpVal := dr[col].Compare(dr2[col])
+		switch cmpVal {
+			case -1, 1: return cmpVal
+		}
+	}
+	return 0
+}
 
 func Type(meta DataTypeMeta) DataType {
 	return typesMap[meta.GetCode()].newInstance(meta)

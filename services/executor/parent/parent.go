@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"go-dbms/pkg/engine/aggregatingmergetree"
 	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/table"
 	"go-dbms/util/timer"
@@ -65,9 +66,12 @@ func New(dataPath string) (*ExecutorService, error) {
 		}
 
 		switch engineMeta.Engine {
-			case table.InnoDB:    es.Tables[tableName], err = table.Open(opts)
-			case table.MergeTree: es.Tables[tableName], err = mergetree.Open(opts)
-			default:              panic(ErrInvalidEngine)
+			case table.InnoDB:               es.Tables[tableName], err = table.Open(opts)
+			case table.MergeTree:            es.Tables[tableName], err = mergetree.Open(opts)
+			case table.AggregatingMergeTree: es.Tables[tableName], err = aggregatingmergetree.Open(&aggregatingmergetree.Options{
+				Options: opts,
+			})
+			default: panic(ErrInvalidEngine)
 		}
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to open table: '%s'", tableName)
@@ -79,7 +83,7 @@ func New(dataPath string) (*ExecutorService, error) {
 }
 
 func (es *ExecutorService) StartMerger() {
-	timer.SetInterval(time.Minute, func() {
+	timer.SetInterval(10*time.Second, func() {
 		for _, t := range es.Tables {
 			if t, ok := t.(mergetree.IMergeTree); ok {
 				t.Merge()

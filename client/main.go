@@ -106,6 +106,19 @@ func main() {
 	// fmt.Printf("[create] %v\n", time.Since(t))
 
 	// t = time.Now()
+	// rows, err = client.Query([]byte(`
+	// 	CREATE TABLE testtable (
+	// 		firstname VARCHAR(32),
+	// 		lastname  VARCHAR(32),
+	// 		amount    AggregateFunction(SUM, Float64),
+	// 	) ENGINE = AggregatingMergeTree
+	// 	PRIMARY KEY(firstname, lastname) firstname_lastname;
+	// `))
+	// exitIfErr(errors.Wrap(err, "query failed"))
+	// for rows.Next() {  }
+	// fmt.Printf("[create] %v\n", time.Since(t))
+
+	// t = time.Now()
 	// var insertId int
 	// firstnames := []string{"Vahag","Sergey","Bagrat","Mery"}
 	// lastnames := []string{"Zargaryan","Galstyan","Sargsyan","Voskanyan"}
@@ -116,7 +129,7 @@ func main() {
 	// for i := 0; i < 10; i++ {
 	// 	query.Reset()
 	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
-	// 	for i := 0; i < 1000; i++ {
+	// 	for i := 0; i < 10; i++ {
 	// 		query.WriteString(fmt.Sprintf(
 	// 			"\n(%q,%q,%f),",
 	// 			firstnames[rand.Intn(len(firstnames))],
@@ -137,11 +150,11 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT firstname, COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount)
-		// SELECT id, firstname, lastname, amount
+		// SELECT ANYFIRST(firstname), COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount), ANYLAST(firstname), ANYFIRST(lastname)
+		SELECT firstname, lastname, SUM(amount)
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 1000000
-		// WHERE_INDEX firstname_lastname firstname = "Vahag"
+		// WHERE_INDEX id id >= 1 AND id <= 10000
+		WHERE_INDEX firstname_lastname firstname >= ""
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
@@ -149,18 +162,18 @@ func main() {
 	var (
 		id, cnt, avgId int
 		amount, avgAmount, sumAmount, maxAmount, minAmount float64
-		firstname, lastname string
+		firstname, lastname, lastFirstname, firstLastname, firstFirstname string
 	)
-	_, _, _, _, _, _, _, _, _, _ = id, cnt, amount, sumAmount, firstname, lastname, avgId, avgAmount, maxAmount, minAmount
+	_, _, _, _, _, _, _, _, _, _, _, _, _ = id, cnt, amount, sumAmount, firstname, lastname, avgId, avgAmount, maxAmount, minAmount, lastFirstname, firstLastname, firstFirstname
 	for rows.Next() {
-		if err := rows.Scan(&firstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount); err != nil {
-			exitIfErr(errors.Wrap(err, "scan failed"))
-		}
-		fmt.Printf("%s %d %v %v %v %v\n", firstname, cnt, sumAmount, avgAmount, maxAmount, minAmount)
-		// if err := rows.Scan(&id, &firstname, &lastname, &amount); err != nil {
+		// if err := rows.Scan(&firstFirstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount, &lastFirstname, &firstLastname); err != nil {
 		// 	exitIfErr(errors.Wrap(err, "scan failed"))
 		// }
-		// fmt.Printf("%d %s %s %v\n", id, firstname, lastname, amount)
+		// fmt.Printf("%s %d %v %v %v %v %v %v\n", firstFirstname, cnt, sumAmount, avgAmount, maxAmount, minAmount, lastFirstname, firstLastname)
+		if err := rows.Scan(&firstname, &lastname, &amount); err != nil {
+			exitIfErr(errors.Wrap(err, "scan failed"))
+		}
+		fmt.Printf("%s %s %v\n", firstname, lastname, amount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

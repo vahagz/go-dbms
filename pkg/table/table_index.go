@@ -15,10 +15,10 @@ import (
 )
 
 func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
-	if !opts.Primary && t.Meta.PrimaryKey == "" {
+	if !opts.Primary && t.Meta.GetPrimaryKey() == "" {
 		return errors.New("first index must be primary")
 	}
-	if opts.Primary && t.Meta.PrimaryKey != "" {
+	if opts.Primary && t.Meta.GetPrimaryKey() != "" {
 		return errors.New("primary index already created")
 	}
 	if name != nil {
@@ -30,7 +30,7 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	keySize := 0
 	columnsList := make([]*column.Column, 0, len(opts.Columns))
 	for _, columnName := range opts.Columns {
-		if col, ok := t.Meta.ColumnsMap[columnName]; !ok {
+		if col, ok := t.Meta.GetColumnsMap()[columnName]; !ok {
 			return fmt.Errorf("unknown column:'%s'", columnName)
 		} else if !col.Meta.IsFixedSize() {
 			return fmt.Errorf("column must be of fixed size")
@@ -52,14 +52,10 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 		}
 	}
 
-	if opts.Primary {
-		opts.Uniq = true
-	}
-
 	suffixSize := 0
 	suffixCols := 0
 	if !opts.Primary {
-		opts := t.Indexes[t.Meta.PrimaryKey].Options()
+		opts := t.Indexes[t.Meta.GetPrimaryKey()].Options()
 		suffixSize = opts.MaxKeySize
 		suffixCols = opts.KeyCols
 	}
@@ -100,12 +96,12 @@ func (t *Table) CreateIndex(name *string, opts *index.IndexOptions) error {
 	}
 
 	if opts.Primary {
-		t.Meta.PrimaryKey = *name
+		t.Meta.SetPrimaryKey(*name)
 	} else {
-		i.SetPK(t.Indexes[t.Meta.PrimaryKey])
+		i.SetPK(t.Indexes[t.Meta.GetPrimaryKey()])
 	}
 
-	t.Meta.Indexes = append(t.Meta.Indexes, Meta)
+	t.Meta.SetIndexes(append(t.Meta.GetIndexes(), Meta))
 	t.writeMeta()
 	return nil
 }

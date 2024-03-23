@@ -77,26 +77,30 @@ func (dml *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
 
 	fs := wi.FilterStart
 	if fs != nil {
-		col := t.Column(fs.Left.Alias)
-		casted, err := eval.Eval(nil, fs.Right).Cast(col.Meta)
-		if err != nil {
-			panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
+		for _, cond := range fs.Conditions {
+			col := t.Column(cond.Left.Alias)
+			casted, err := eval.Eval(nil, cond.Right).Cast(col.Meta)
+			if err != nil {
+				panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
+			}
+	
+			cond.Right.Type = projection.LITERAL
+			cond.Right.Literal = casted
 		}
-
-		fs.Right.Type = projection.LITERAL
-		fs.Right.Literal = casted
 	}
 
 	fe := wi.FilterEnd
 	if fe != nil {
-		col := t.Column(fe.Left.Alias)
-		casted, err := eval.Eval(nil, fe.Right).Cast(col.Meta)
-		if err != nil {
-			panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
-		}
+		for _, cond := range fe.Conditions {
+			col := t.Column(cond.Left.Alias)
+			casted, err := eval.Eval(nil, cond.Right).Cast(col.Meta)
+			if err != nil {
+				panic(errors.Wrapf(err, "failed to cast %v to %v", col.Meta.GetCode(), col.Typ))
+			}
 
-		fe.Right.Type = projection.LITERAL
-		fe.Right.Literal = casted
+			cond.Right.Type = projection.LITERAL
+			cond.Right.Literal = casted
+		}
 	}
 }
 

@@ -66,17 +66,23 @@ type Table struct {
 
 	MetaMu  *sync.RWMutex
 	DF      *data.DataFile
-	Meta    *Metadata
+	Meta    IMetadata
+	NewMeta func() IMetadata
 	Indexes map[string]*index.Index
 }
 
 func Open(opts *Options) (ITable, error) {
+	if opts.NewMeta == nil {
+		opts.NewMeta = func() IMetadata { return &Metadata{} }
+	}
+
 	table := &Table{
 		MetaMu:       &sync.RWMutex{},
 		DataPath:     opts.DataPath,
 		MetaFilePath: opts.MetaFilePath,
 		Indexes:      map[string]*index.Index{},
 		DF:           &data.DataFile{},
+		NewMeta:      opts.NewMeta,
 	}
 
 	err := table.Init(opts)
@@ -85,7 +91,7 @@ func Open(opts *Options) (ITable, error) {
 	}
 
 	dataOptions := data.DefaultOptions
-	dataOptions.Columns = table.Meta.Columns
+	dataOptions.Columns = table.Meta.GetColumns()
 
 	DF, err := data.Open(
 		filepath.Join(table.DataPath, dataFileName),
@@ -105,23 +111,23 @@ func (t *Table) HasIndex(name string) bool {
 }
 
 func (t *Table) Columns() []*column.Column {
-	return t.Meta.Columns
+	return t.Meta.GetColumns()
 }
 
 func (t *Table) PrimaryKey() string {
-	return t.Meta.PrimaryKey
+	return t.Meta.GetPrimaryKey()
 }
 
 func (t *Table) PrimaryColumns() []*column.Column {
-	return t.Indexes[t.Meta.PrimaryKey].Columns()
+	return t.Indexes[t.Meta.GetPrimaryKey()].Columns()
 }
 
 func (t *Table) ColumnsMap() map[string]*column.Column {
-	return t.Meta.ColumnsMap
+	return t.Meta.GetColumnsMap()
 }
 
 func (t *Table) Column(name string) *column.Column {
-	return t.Meta.ColumnsMap[name]
+	return t.Meta.GetColumnsMap()[name]
 }
 
 func (t *Table) PrepareSpace(rows int) {
@@ -132,7 +138,7 @@ func (t *Table) PrepareSpace(rows int) {
 }
 
 func (t *Table) Engine() Engine {
-	return t.Meta.Engine
+	return t.Meta.GetEngine()
 }
 
 func (t *Table) Drop() {
@@ -164,8 +170,8 @@ func (t *Table) Init(opts *Options) error {
 
 func (t *Table) ReadMeta(opts *Options) error {
 	defer func ()  {
-		for _, c := range t.Meta.Columns {
-			t.Meta.ColumnsMap[c.Name] = c
+		for _, c := range t.Meta.GetColumns() {
+			t.Meta.GetColumnsMap()[c.Name] = c
 		}
 	}()
 
@@ -175,12 +181,11 @@ func (t *Table) ReadMeta(opts *Options) error {
 	}
 
 	if _, err := os.Stat(t.MetaFilePath); os.IsNotExist(err) {
-		t.Meta = &Metadata{
-			Engine:     opts.Engine,
-			Indexes:    []*index.Meta{},
-			Columns:    opts.Columns,
-			ColumnsMap: map[string]*column.Column{},
-		}
+		t.Meta = t.NewMeta()
+		t.Meta.SetEngine(opts.Engine)
+		t.Meta.SetIndexes([]*index.Meta{})
+		t.Meta.SetColumns(opts.Columns)
+		t.Meta.SetColumnsMap(map[string]*column.Column{})
 
 		t.writeMeta()
 		return nil
@@ -191,15 +196,14 @@ func (t *Table) ReadMeta(opts *Options) error {
 		return err
 	}
 
-	t.Meta = &Metadata{
-		ColumnsMap: map[string]*column.Column{},
-	}
+	t.Meta = t.NewMeta()
+	t.Meta.SetColumnsMap(map[string]*column.Column{})
 
 	return json.Unmarshal(metadataBytes, t.Meta)
 }
 
 func (t *Table) ReadIndexes() error {
-	for _, metaindex := range t.Meta.Indexes {	
+	for _, metaindex := range t.Meta.GetIndexes() {	
 		bpt, err := bptree.Open(
 			t.indexPath(metaindex.Name),
 			metaindex.Options,
@@ -210,7 +214,7 @@ func (t *Table) ReadIndexes() error {
 
 		columns := make([]*column.Column, 0, len(metaindex.Columns))
 		for _, colName := range metaindex.Columns {
-			columns = append(columns, t.Meta.ColumnsMap[colName])
+			columns = append(columns, t.Meta.GetColumnsMap()[colName])
 		}
 
 		t.Indexes[metaindex.Name] = index.New(
@@ -223,8 +227,8 @@ func (t *Table) ReadIndexes() error {
 	}
 
 	for k, i := range t.Indexes {
-		if k != t.Meta.PrimaryKey {
-			i.SetPK(t.Indexes[t.Meta.PrimaryKey])
+		if k != t.Meta.GetPrimaryKey() {
+			i.SetPK(t.Indexes[t.Meta.GetPrimaryKey()])
 		}
 	}
 
@@ -256,7 +260,7 @@ func (t *Table) CreateDirs() error {
 
 func (t *Table) map2row(rowMap types.DataRow) []types.DataType {
 	row := make([]types.DataType, 0, len(rowMap))
-	for _, c := range t.Meta.Columns {
+	for _, c := range t.Meta.GetColumns() {
 		if val, ok := rowMap[c.Name]; ok {
 			row = append(row, val)
 		}
@@ -267,13 +271,13 @@ func (t *Table) map2row(rowMap types.DataRow) []types.DataType {
 func (t *Table) Row2map(row []types.DataType) types.DataRow {
 	rowMap := types.DataRow{}
 	for i, data := range row {
-		rowMap[t.Meta.Columns[i].Name] = data
+		rowMap[t.Meta.GetColumns()[i].Name] = data
 	}
 	return rowMap
 }
 
 func (t *Table) row2pk(row types.DataRow) types.DataRow {
-	pkCols := t.Indexes[t.Meta.PrimaryKey].Columns()
+	pkCols := t.Indexes[t.Meta.GetPrimaryKey()].Columns()
 	pkRow := make(types.DataRow, 1)
 	for _, col := range pkCols {
 		pkRow[col.Name] = row[col.Name]
@@ -282,12 +286,12 @@ func (t *Table) row2pk(row types.DataRow) types.DataRow {
 }
 
 func (t *Table) validateMap(row types.DataRow) error {
-	if len(row) > len(t.Meta.Columns) {
+	if len(row) > len(t.Meta.GetColumns()) {
 		return fmt.Errorf("invalid columns count")
 	}
 
 	for columnName := range row {
-		if _, ok := t.Meta.ColumnsMap[columnName]; !ok {
+		if _, ok := t.Meta.GetColumnsMap()[columnName]; !ok {
 			return fmt.Errorf("unknown column while inserting => %s", columnName)
 		}
 	}
@@ -298,7 +302,7 @@ func (t *Table) setDefaults(row types.DataRow) {
 	t.MetaMu.Lock()
 	defer t.MetaMu.Unlock()
 
-	for _, column := range t.Meta.Columns {
+	for _, column := range t.Meta.GetColumns() {
 		if _, ok := row[column.Name]; !ok {
 			row[column.Name] = column.Meta.Default()
 		}
@@ -306,5 +310,5 @@ func (t *Table) setDefaults(row types.DataRow) {
 }
 
 func (t *Table) isPK(i *index.Index) bool {
-	return t.Meta.PrimaryKey == i.Meta().Name
+	return t.Meta.GetPrimaryKey() == i.Meta().Name
 }

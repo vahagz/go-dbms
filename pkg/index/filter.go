@@ -8,9 +8,13 @@ import (
 	"github.com/vahagz/bptree"
 )
 
-type Filter struct {
-	Operator    types.Operator
+type FilterCondition struct {
 	Left, Right *projection.Projection
+}
+
+type Filter struct {
+	Operator   types.Operator
+	Conditions []FilterCondition
 }
 
 type operator struct {

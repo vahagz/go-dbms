@@ -15,10 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	MasterTable = "master"
-	partsPath   = "./parts"
-)
+const partsPath = "./parts"
 
 type IMergeTree interface {
 	table.ITable
@@ -36,7 +33,7 @@ func Open(opts *table.Options) (table.ITable, error) {
 		Parts:     map[string]*table.Table{},
 		mergeLock: &sync.Mutex{},
 	}
-	tree.mergeFn = tree.MergeFn
+	tree.MergeFn = tree.MergeTreeFn
 
 	opts.MetaFilePath = ""
 	opts.Meta = tree.Table.Meta
@@ -47,7 +44,7 @@ func Open(opts *table.Options) (table.ITable, error) {
 type MergeTree struct {
 	*table.Table
 	Parts     map[string]*table.Table
-	mergeFn   func(main, part table.ITable)
+	MergeFn   func(main, part table.ITable)
 	mergeLock *sync.Mutex
 }
 
@@ -138,7 +135,7 @@ func Pipe(
 		if !ok {
 			delete(src, name)
 		} else {
-			heap.Push(hp, sorted.HeapItem[string]{
+			heap.Push(hp, &sorted.HeapItem[string]{
 				Key: row,
 				Val: name,
 			})
@@ -147,7 +144,7 @@ func Pipe(
 	}
 
 	for len(src) > 0 {
-		itm := heap.Pop(hp).(sorted.HeapItem[string])
+		itm := heap.Pop(hp).(*sorted.HeapItem[string])
 		dst.Push(itm.Key)
 		if !dst.ShouldContinue() {
 			for _, partStr := range src {
@@ -159,12 +156,13 @@ func Pipe(
 		row, ok := src[itm.Val].Pop()
 		if !ok {
 			delete(src, itm.Val)
-		} else {
-			heap.Push(hp, sorted.HeapItem[string]{
-				Key: row,
-				Val: itm.Val,
-			})
-			src[itm.Val].Continue(true)
+			continue
 		}
+
+		heap.Push(hp, &sorted.HeapItem[string]{
+			Key: row,
+			Val: itm.Val,
+		})
+		src[itm.Val].Continue(true)
 	}
 }

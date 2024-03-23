@@ -18,5 +18,6 @@ type Options struct {
 	MetaFilePath, DataPath string
 	Columns                []*column.Column
 	Engine                 Engine
-	Meta                   *Metadata
+	Meta                   IMetadata
+	NewMeta                func() IMetadata
 }

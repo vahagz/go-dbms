@@ -17,7 +17,7 @@ func (t *Table) Find(filter *statement.WhereStatement) stream.Reader[index.Entry
 	s := stream.New[index.Entry](1)
 	go func() {
 		defer s.Close()
-		helpers.Must(t.Indexes[t.Meta.PrimaryKey].Scan(index.ScanOptions{
+		helpers.Must(t.Indexes[t.Meta.GetPrimaryKey()].Scan(index.ScanOptions{
 			ScanOptions: bptree.ScanOptions{
 				Strict: true,
 			},

@@ -9,13 +9,14 @@ import (
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query/ddl/create/types"
+	"go-dbms/services/parser/query/dml/aggregator"
 )
 
 /*
 CREATE TABLE <tableName> (
 	<columnName> <type> [AUTO INCREMENT],
 	...
-)
+) ENGINE = (InnoDB | MergeTree | AggregatingMergeTree | ...)
 PRIMARY KEY (<...columns>) <primaryKeyName>
 [, INDEX(<...columns>) <indexName>]
 ...;
@@ -27,6 +28,7 @@ type QueryCreateTable struct {
 	Columns  []*column.Column
 	Indexes  []*QueryCreateTableIndex
 	Engine   table.Engine
+	AggrFunc map[string]aggregator.AggregatorType
 }
 
 func (qct *QueryCreateTable) Parse(s *scanner.Scanner) (err error) {
@@ -90,6 +92,31 @@ func (qct *QueryCreateTable) parseColumn(s *scanner.Scanner) {
 	tokens := []string{}
 	for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
 		word := s.TokenText()
+		if word == "AggregateFunction" {
+			if qct.AggrFunc == nil {
+				qct.AggrFunc = map[string]aggregator.AggregatorType{}
+			}
+
+			s.Scan()
+			if s.TokenText() != "(" {
+				panic(errors.ErrSyntax)
+			}
+			scope++
+
+			s.Scan()
+			aggr := s.TokenText()
+			if !aggregator.IsAggregator(aggr) {
+				panic(errors.ErrSyntax)
+			}
+
+			qct.AggrFunc[col.Name] = aggregator.AggregatorType(aggr)
+			s.Scan()
+			if s.TokenText() != "," {
+				panic(errors.ErrSyntax)
+			}
+			continue
+		}
+
 		if word == "(" {
 			scope++
 		}
@@ -145,11 +172,16 @@ func (qct *QueryCreateTable) parsePrimaryKey(s *scanner.Scanner) {
 		panic(errors.ErrSyntax)
 	}
 
+	isUniq := false
+	if qct.Engine == table.InnoDB {
+		isUniq = true
+	}
+
 	pk := &QueryCreateTableIndex{
 		IndexOptions: &index.IndexOptions{
 			Columns: []string{},
 			Primary: true,
-			Uniq:    true,
+			Uniq:    isUniq,
 		},
 	}
 	qct.Indexes = append(qct.Indexes, pk)

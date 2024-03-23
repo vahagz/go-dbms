@@ -27,14 +27,14 @@ func (t *MergeTree) Merge() {
 }
 
 func (t *MergeTree) merge(part *table.Table) {
-	t.mergeFn(t.Table, part)
+	t.MergeFn(t.Table, part)
 	part.Drop()
 }
 
-func (t *MergeTree) MergeFn(main table.ITable, part table.ITable) {
-	src := helpers.MustVal(part.FullScanByIndex(t.PrimaryKey(), false))
-	src.AutoContinue(true)
-	rs, eg := main.Insert(src)
+func (t *MergeTree) MergeTreeFn(dst table.ITable, src table.ITable) {
+	stream := helpers.MustVal(src.FullScanByIndex(t.PrimaryKey(), false))
+	stream.AutoContinue(true)
+	rs, eg := dst.Insert(stream)
 	eg.Go(func() error {
 		for _, ok := rs.Pop(); ok; _, ok = rs.Pop() {  }
 		return nil

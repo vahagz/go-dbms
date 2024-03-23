@@ -4,6 +4,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"go-dbms/pkg/engine/aggregatingmergetree"
 	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/table"
@@ -25,8 +26,12 @@ func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, erro
 	var err error
 	
 	switch q.Engine {
-		case table.InnoDB:    t, err = table.Open(opts)
-		case table.MergeTree: t, err = mergetree.Open(opts)
+		case table.InnoDB:               t, err = table.Open(opts)
+		case table.MergeTree:            t, err = mergetree.Open(opts)
+		case table.AggregatingMergeTree: t, err = aggregatingmergetree.Open(&aggregatingmergetree.Options{
+			Options:      opts,
+			Aggregations: q.AggrFunc,
+		})
 		default:              panic(parent.ErrInvalidEngine)
 	}
 	if err != nil {

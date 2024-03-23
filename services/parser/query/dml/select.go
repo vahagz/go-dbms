@@ -178,9 +178,11 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 	wi := &WhereIndex{
 		Name: word,
 		FilterStart: &index.Filter{
-			Operator: op,
-			Left:     left,
-			Right:    right,
+			Operator:  op,
+			Conditions: []index.FilterCondition{{
+				Left:  left,
+				Right: right,
+			}},
 		},
 	}
 
@@ -189,8 +191,10 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 		left, op, right := parseWhereFilter(s, false)
 		wi.FilterEnd = &index.Filter{
 			Operator: op,
-			Left:     left,
-			Right:    right,
+			Conditions: []index.FilterCondition{{
+				Left:  left,
+				Right: right,
+			}},
 		}
 	} else {
 		s.Scan()

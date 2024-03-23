@@ -9,6 +9,7 @@ func New[T any](size int) Stream[T] {
 
 type Reader[T any] interface {
 	Pop() (T, bool)
+	AutoPop(bool)
 	Slice() []T
 }
 
@@ -38,11 +39,16 @@ type stream[T any] struct {
 	next chan bool
 
 	autoContinue bool
+	autoPop      bool
 }
 
 func (s *stream[T]) Pop() (T, bool) {
 	val, ok := <-s.ch
 	return val, ok
+}
+
+func (s *stream[T]) AutoPop(v bool) {
+	s.autoPop = v
 }
 
 func (s *stream[T]) Slice() []T {
@@ -54,7 +60,10 @@ func (s *stream[T]) Slice() []T {
 }
 
 func (s *stream[T]) Continue(v bool) {
-	s.next<-v
+	defer func() {
+		recover()
+	}()
+	s.next <- v
 }
 
 func (s *stream[T]) AutoContinue(v bool) {
@@ -62,7 +71,9 @@ func (s *stream[T]) AutoContinue(v bool) {
 }
 
 func (s *stream[T]) Push(val T) {
-	s.ch<-val
+	if !s.autoPop {
+		s.ch <- val
+	}
 }
 
 func (s *stream[T]) ShouldContinue() bool {

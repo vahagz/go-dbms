@@ -44,7 +44,7 @@ func (t *Table) UpdateByIndex(
 		helpers.Must(t.update(
 			updIndex.ScanEntries(start, end, filter),
 			updateValuesMap,
-			t.getAffectedIndexes(updIndex, updateValuesMap),
+			t.getAffectedIndexes(updateValuesMap),
 			func(row types.DataRow) error {
 				s.Push(row)
 				return nil
@@ -131,27 +131,16 @@ func (t *Table) updateIndex(
 	return nil
 }
 
-func (t *Table) getAffectedIndexes(
-	targetIndex *index.Index,
-	row types.DataRow,
-) map[string]*index.Index {
+func (t *Table) getAffectedIndexes(row types.DataRow) map[string]*index.Index {
 	indexesToUpdate := make(map[string]*index.Index, len(t.Indexes))
 
 	for _, i := range t.Indexes {
 		for col := range row {
-			isPrimary := false
-			if targetIndex.Meta().Name == t.Meta.PrimaryKey {
-				isPrimary = true
-			}
+			colFound := -1 != slices.IndexFunc(i.Columns(), func(c *column.Column) bool {
+				return c.Name == col
+			})
 
-			colFound := false
-			if !isPrimary {
-				colFound = -1 != slices.IndexFunc(i.Columns(), func(c *column.Column) bool {
-					return c.Name == col
-				})
-			}
-
-			if isPrimary || colFound {
+			if colFound {
 				indexesToUpdate[i.Meta().Name] = i
 			}
 		}

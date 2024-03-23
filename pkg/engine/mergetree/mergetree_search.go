@@ -53,7 +53,10 @@ func (t *MergeTree) ScanByIndex(
 			return true
 		})
 
-		cols := append(t.Indexes[indexName].Meta().Columns, t.Indexes[t.PrimaryKey()].Meta().Columns...)
+		cols := t.Indexes[indexName].Meta().Columns
+		if indexName != t.PrimaryKey() {
+			cols = append(cols, t.Indexes[t.PrimaryKey()].Meta().Columns...)
+		}
 		Pipe(sMap, s, cols)
 	}()
 	return s, nil
