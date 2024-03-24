@@ -36,7 +36,8 @@ func New(projections *projection.Projections, groupList map[string]struct{}, dst
 func (g *Group) Add(row types.DataRow) {
 	gr := g.groups
 	groupItems := gr.groupItems
-	for gi := range g.groupList {
+	for gIdx := range g.projections.NonAggregators() {
+		gi := g.projections.GetByIndex(gIdx).Alias
 		if gr.next == nil {
 			gr.next = map[string]*subGroup{}
 		}
@@ -48,9 +49,15 @@ func (g *Group) Add(row types.DataRow) {
 			} else {
 				groupItems[gi] = row[gi]
 			}
-			sg := &subGroup{groupItems: groupItems}
+			sg := &subGroup{}
 			gr.next[key] = sg
 			gr = sg
+
+			cp := types.DataRow{}
+			for k, v := range groupItems {
+				cp[k] = v
+			}
+			sg.groupItems = cp
 		} else {
 			gr = next
 			groupItems = next.groupItems
