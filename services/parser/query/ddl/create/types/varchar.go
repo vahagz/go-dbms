@@ -1,9 +1,10 @@
 package types
 
 import (
+	"strconv"
+
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
-	"strconv"
 )
 
 func init() {

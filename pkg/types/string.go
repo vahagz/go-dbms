@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go-dbms/util/helpers"
 	"strconv"
 )
 
@@ -46,10 +47,6 @@ func (m *DataTypeSTRINGMeta) IsFixedSize() bool {
 	return false
 }
 
-func (m *DataTypeSTRINGMeta) IsNumeric() bool {
-	return false
-}
-
 type DataTypeSTRING struct {
 	value string
 	Code  TypeCode            `json:"code"`
@@ -88,7 +85,7 @@ func (t *DataTypeSTRING) Value() json.Token {
 func (t *DataTypeSTRING) Set(value interface{}) DataType {
 	v, ok := value.(string)
 	if !ok {
-		panic(fmt.Errorf("invalid set data type => %v", value))
+		panic(ErrInvalidDataType)
 	}
 
 	t.value = v
@@ -115,22 +112,22 @@ func (t *DataTypeSTRING) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeSTRING) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeSTRING) Size() int {
 	return len(t.value)
 }
 
-func (t *DataTypeSTRING) Compare(operator Operator, val DataType) bool {
+func (t *DataTypeSTRING) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeSTRING) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case Equal:          return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case GreaterOrEqual: return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case LessOrEqual:    return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case Greater:        return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case Less:           return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case NotEqual:       return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
@@ -162,6 +159,20 @@ func (t *DataTypeSTRING) Cast(meta DataTypeMeta) (DataType, error) {
 				}
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = &DataTypeFLOATMeta{
+					ByteSize: 8,
+				}
+			}
+			return Type(meta).Set(helpers.MustVal(strconv.ParseFloat(t.value, 64))), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(t.value), nil
 		}
 	}
 

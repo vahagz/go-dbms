@@ -7,7 +7,7 @@ import (
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (i *Index) Insert(dataPtr allocator.Pointable, values map[string]types.DataType) error {
+func (i *Index) Insert(dataPtr allocator.Pointable, values types.DataRow) error {
 	val, err := dataPtr.MarshalBinary()
 	if err != nil {
 		return err

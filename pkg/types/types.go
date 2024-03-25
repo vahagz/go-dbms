@@ -4,7 +4,10 @@ import (
 	"encoding"
 	"encoding/json"
 	"errors"
+	"fmt"
 )
+
+var ErrInvalidDataType = fmt.Errorf("invalid set data type")
 
 type TypeCode uint8
 
@@ -13,6 +16,7 @@ const (
 	TYPE_STRING                  // variable length string
 	TYPE_VARCHAR                 // fixed length string
 	TYPE_FLOAT                   // 32/64 bit floating point number
+	TYPE_DATETIME                // "2024-03-25 17:15:06" format datetime
 )
 
 type Operator string
@@ -32,14 +36,12 @@ type newable struct {
 }
 
 var typesMap = map[TypeCode]newable{}
-var numericTypes = map[TypeCode]struct{}{}
 
 type DataTypeMeta interface {
 	GetCode() TypeCode
 	Size() int
 	Default() DataType
 	IsFixedSize() bool
-	IsNumeric() bool
 }
 
 type DataType interface {
@@ -54,8 +56,21 @@ type DataType interface {
 	Set(value interface{}) DataType
 	Fill() DataType
 	Zero() DataType
-	Compare(operator Operator, val DataType) bool
+	CompareOp(operator Operator, val DataType) bool
+	Compare(val DataType) int
 	Cast(meta DataTypeMeta) (DataType, error)
+}
+
+type DataRow map[string]DataType
+
+func (dr DataRow) Compare(dr2 DataRow, keys []string) int {
+	for _, col := range keys {
+		cmpVal := dr[col].Compare(dr2[col])
+		switch cmpVal {
+			case -1, 1: return cmpVal
+		}
+	}
+	return 0
 }
 
 func Type(meta DataTypeMeta) DataType {
@@ -81,9 +96,4 @@ func ParseJSONValue(item interface{}) DataType {
 			panic(errors.New("invalid item type"))
 		}
 	}
-}
-
-func IsNumeric(code TypeCode) bool {
-	_, ok := numericTypes[code]
-	return ok
 }

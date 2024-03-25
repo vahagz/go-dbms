@@ -8,5 +8,5 @@ import (
 
 type Entry struct{
 	Ptr allocator.Pointable
-	Row map[string]types.DataType
+	Row types.DataRow
 }

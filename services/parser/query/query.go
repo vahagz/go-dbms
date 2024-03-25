@@ -19,6 +19,10 @@ const (
 
 type Querier interface {
 	GetType() QueryType
+}
+
+type QueryParser interface {
+	Querier
 	Parse(s *scanner.Scanner) error
 }
 

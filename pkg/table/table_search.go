@@ -6,105 +6,92 @@ import (
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
+	"go-dbms/util/helpers"
+	"go-dbms/util/stream"
 
-	"github.com/pkg/errors"
 	"github.com/vahagz/bptree"
 	allocator "github.com/vahagz/disk-allocator/heap"
 )
 
-func (t *Table) Find(filter *statement.WhereStatement) []index.Entry {
-	var err error
-	result := []index.Entry{}
-
-	err = t.indexes[t.meta.PrimaryKey].Scan(index.ScanOptions{
-		ScanOptions: bptree.ScanOptions{
-			Strict: true,
-		},
-	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
-		row := t.get(ptr)
-		if filter == nil || filter.Compare(row) {
-			result = append(result, index.Entry{
-				Ptr: ptr,
-				Row: row,
-			})
-		}
-		return false, nil
-	})
-
-	if err != nil {
-		panic(errors.Wrapf(err, "unexpected error while full scanning table"))
-	}
-	return result
+func (t *Table) Find(filter *statement.WhereStatement) stream.Reader[index.Entry] {
+	s := stream.New[index.Entry](1)
+	go func() {
+		defer s.Close()
+		helpers.Must(t.Indexes[t.Meta.GetPrimaryKey()].Scan(index.ScanOptions{
+			ScanOptions: bptree.ScanOptions{
+				Strict: true,
+			},
+		}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
+			row := t.get(ptr)
+			if filter == nil || filter.Compare(row) {
+				s.Push(index.Entry{
+					Ptr: ptr,
+					Row: row,
+				})
+			}
+			return false, nil
+		}))
+	}()
+	return s
 }
 
 func (t *Table) ScanByIndex(
 	name string,
 	start, end *index.Filter,
-	scanFn func(row map[string]types.DataType) (bool, error),
-) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	index, ok := t.indexes[name]
+) (stream.ReaderContinue[types.DataRow], error) {
+	index, ok := t.Indexes[name]
 	if !ok {
-		return fmt.Errorf("index not found => '%s'", name)
+		return nil, fmt.Errorf("index not found => '%s'", name)
 	}
 
-	return index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
-		return scanFn(t.get(ptr))
-	})
+	s := stream.New[types.DataRow](1)
+	go func() {
+		defer s.Close()
+		helpers.Must(index.ScanFilter(start, end, func(ptr allocator.Pointable) (stop bool, err error) {
+			s.Push(t.get(ptr))
+			return !s.ShouldContinue(), nil
+		}))
+	}()
+	return s, nil
 }
 
-func (t *Table) FindByIndex(name string, start, end *index.Filter, filter *statement.WhereStatement) (
-	[]map[string]types.DataType,
-	error,
-) {
-	result := []map[string]types.DataType{}
-	return result, t.ScanByIndex(
-		name,
-		start,
-		end,
-		func(row map[string]types.DataType) (stop bool, err error) {
-			if filter == nil || filter.Compare(row) {
-				result = append(result, row)
-			}
-			return false, nil
-		},
-	)
-}
-
-func (t *Table) FullScan(scanFn func(row map[string]types.DataType) (bool, error)) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return t.df.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
-		return scanFn(t.row2map(row))
-	})
+func (t *Table) FullScan() stream.ReaderContinue[types.DataRow] {
+	s := stream.New[types.DataRow](1)
+	go func ()  {
+		defer s.Close()
+		helpers.Must(t.DF.Scan(func(ptr allocator.Pointable, row []types.DataType) (bool, error) {
+			s.Push(t.Row2map(row))
+			return !s.ShouldContinue(), nil
+		}))
+	}()
+	return s
 }
 
 func (t *Table) FullScanByIndex(
 	indexName string,
 	reverse bool,
-	scanFn func(row map[string]types.DataType) (bool, error),
-) error {
-	idx, ok := t.indexes[indexName]
+) (stream.ReaderContinue[types.DataRow], error) {
+	idx, ok := t.Indexes[indexName]
 	if !ok {
-		return fmt.Errorf("index not found => %v", indexName)
+		return nil, fmt.Errorf("index not found => %v", indexName)
 	}
 
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return idx.Scan(index.ScanOptions{
-		ScanOptions: bptree.ScanOptions{
-			Reverse: reverse,
-			Strict:  true,
-		},
-	}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
-		return scanFn(t.get(ptr))
-	})
+	s := stream.New[types.DataRow](1)
+	go func ()  {
+		defer s.Close()
+		helpers.Must(idx.Scan(index.ScanOptions{
+			ScanOptions: bptree.ScanOptions{
+				Reverse: reverse,
+				Strict:  true,
+			},
+		}, func(key [][]byte, ptr allocator.Pointable) (bool, error) {
+			s.Push(t.get(ptr))
+			return !s.ShouldContinue(), nil
+		}))
+	}()
+	return s, nil
 }
 
-func (t *Table) get(ptr allocator.Pointable) map[string]types.DataType {
-	return t.df.GetMap(ptr)
+func (t *Table) get(ptr allocator.Pointable) types.DataRow {
+	return t.DF.GetMap(ptr)
 }

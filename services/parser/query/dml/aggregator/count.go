@@ -7,7 +7,7 @@ type AggregationCOUNT struct {
 	Val uint64
 }
 
-func (as *AggregationCOUNT) Apply(row map[string]types.DataType) {
+func (as *AggregationCOUNT) Apply(row types.DataRow) {
 	as.Val++
 }
 

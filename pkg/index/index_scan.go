@@ -22,18 +22,21 @@ func (i *Index) Scan(
 
 func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
 	opts := operatorMapping[start.Operator].scanOption
-	// prefixColsCount := len(start.Value)
-	prefixColsCount := 1
+	prefixColsCount := len(start.Conditions)
 	postfixColsCount := 0
 	var endKey [][]byte
 
-	startVal := map[string]types.DataType{
-		start.Left.Alias: eval.Eval(nil, start.Right),
+	startVal := types.DataRow{}
+	for _, cond := range start.Conditions {
+		startVal[cond.Left.Alias] = eval.Eval(nil, cond.Right)
 	}
+
 	if end != nil {
-		endKey = i.key(map[string]types.DataType{
-			end.Left.Alias: eval.Eval(nil, end.Right),
-		})
+		endVal := types.DataRow{}
+		for _, cond := range end.Conditions {
+			endVal[cond.Left.Alias] = eval.Eval(nil, cond.Right)
+		}
+		endKey = i.key(endVal)
 	}
 
 	for _, col := range i.columns {

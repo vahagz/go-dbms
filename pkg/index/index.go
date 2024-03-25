@@ -41,7 +41,7 @@ func (i *Index) Meta() *Meta {
 	return i.meta
 }
 
-func (i *Index) CanInsert(values map[string]types.DataType) bool {
+func (i *Index) CanInsert(values types.DataRow) bool {
 	return i.tree.CanInsert(i.key(values), i.primary.key(values))
 }
 
@@ -65,7 +65,7 @@ func (i *Index) Remove() {
 	i.tree.Remove()
 }
 
-func (i *Index) key(values map[string]types.DataType) [][]byte {
+func (i *Index) key(values types.DataRow) [][]byte {
 	if i == nil {
 		return nil
 	}

@@ -55,10 +55,6 @@ func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
 	return true
 }
 
-func (m *DataTypeVARCHARMeta) IsNumeric() bool {
-	return true
-}
-
 type DataTypeVARCHAR struct {
 	value []byte
 	Code  TypeCode             `json:"code"`
@@ -145,22 +141,22 @@ func (t *DataTypeVARCHAR) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeVARCHAR) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeVARCHAR) Size() int {
 	return 2 + int(t.Meta.Cap) // 2 for length size
 }
 
-func (t *DataTypeVARCHAR) Compare(operator Operator, val DataType) bool {
+func (t *DataTypeVARCHAR) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeVARCHAR) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case Equal:          return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case GreaterOrEqual: return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case LessOrEqual:    return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case Greater:        return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case Less:           return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case NotEqual:       return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
@@ -191,6 +187,20 @@ func (t *DataTypeVARCHAR) Cast(meta DataTypeMeta) (DataType, error) {
 				}
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = &DataTypeFLOATMeta{
+					ByteSize: 8,
+				}
+			}
+			return Type(meta).Set(helpers.MustVal(strconv.ParseFloat(string(t.value), 64))), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(string(t.value)), nil
 		}
 	}
 

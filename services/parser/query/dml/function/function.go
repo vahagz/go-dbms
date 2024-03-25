@@ -16,7 +16,7 @@ type comparable interface {
 
 type FunctionType string
 
-type Function func(row map[string]types.DataType, args []types.DataType) types.DataType
+type Function func(row types.DataRow, args []types.DataType) types.DataType
 
 var functions = map[FunctionType]Function{}
 
@@ -25,6 +25,6 @@ func IsFunction(fn string) bool {
 	return ok
 }
 
-func Eval(name FunctionType, row map[string]types.DataType, args []types.DataType) types.DataType {
+func Eval(name FunctionType, row types.DataRow, args []types.DataType) types.DataType {
 	return functions[name](row, args)
 }

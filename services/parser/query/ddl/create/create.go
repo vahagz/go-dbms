@@ -10,13 +10,12 @@ import (
 type QueryCreateTarget string
 
 const (
-	DATABASE QueryCreateTarget = "DATABASE"
 	TABLE    QueryCreateTarget = "TABLE"
 	INDEX    QueryCreateTarget = "INDEX"
 )
 
 type Creater interface {
-	query.Querier
+	query.QueryParser
 	GetTarget() QueryCreateTarget
 }
 
@@ -37,7 +36,7 @@ func Parse(s *scanner.Scanner) (Creater, error) {
 
 	switch target {
 		// case DATABASE: q = &QueryCreateDatabase{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
-		case TABLE:    q = &QueryCreateTable{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
+		case TABLE: q = &QueryCreateTable{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
 		// case INDEX:    q = &QueryCreateIndex{QueryCreate: &QueryCreate{Query: &query.Query{Type: query.CREATE}}}
 		default:       return nil, errors.New(fmt.Sprintf("unsupported create target: '%s'", target))
 	}

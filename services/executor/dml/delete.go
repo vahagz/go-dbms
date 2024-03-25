@@ -7,6 +7,8 @@ import (
 	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/util/helpers"
+	"go-dbms/util/stream"
 
 	"github.com/pkg/errors"
 )
@@ -21,39 +23,34 @@ func (dml *DML) Delete(q *dml.QueryDelete) (io.WriterTo, error) {
 
 	go func() {
 		columns := t.PrimaryColumns()
-		process := func(row map[string]types.DataType) error {
-			record := make([]interface{}, 0, len(columns))
-			for _, col := range columns {
-				record = append(record, row[col.Name].Value())
-			}
+		process := func(s stream.Reader[types.DataRow]) error {
+			for row, ok := s.Pop(); ok; row, ok = s.Pop() {
+				record := make([]interface{}, 0, len(columns))
+				for _, col := range columns {
+					record = append(record, row[col.Name].Value())
+				}
 
-			blob, err := json.Marshal(record)
-			if err != nil {
-				return errors.Wrap(err, "failed to marshal record")
+				if _, err := p.Write(helpers.MustVal(json.Marshal(record))); err != nil {
+					return errors.Wrap(err, "failed to push marshaled record")
+				}
 			}
-
-			_, err = p.Write(blob)
-			return errors.Wrap(err, "failed to push marshaled record")
+			return nil
 		}
 
-		var err error
+		var s stream.Reader[types.DataRow]
 		if q.WhereIndex != nil {
-			err = t.DeleteByIndex(
+			s = helpers.MustVal(t.DeleteByIndex(
 				q.WhereIndex.Name,
 				q.WhereIndex.FilterStart,
 				q.WhereIndex.FilterEnd,
 				q.Where,
-				process,
-			)
+			))
 		} else {
-			err = t.Delete(q.Where, process)
+			s = t.Delete(q.Where)
 		}
 
-		if err != nil {
-			panic(err)
-		} else if _, err := p.Write(pipe.EOS); err != nil {
-			panic(err)
-		}
+		helpers.Must(process(s))
+		helpers.MustVal(p.Write(pipe.EOS))
 	}()
 
 	return p, nil

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	r "math/rand"
 	"os"
 	"os/signal"
 	"path"
@@ -17,48 +16,15 @@ import (
 )
 
 var seed = time.Now().UnixMilli()
-var rand = r.New(r.NewSource(seed))
 
 func main() {
-	// f1 := types.Type(types.Meta(types.TYPE_FLOAT, 4)).Set(float64(-1.11))
-	// f2 := types.Type(types.Meta(types.TYPE_FLOAT, 8)).Set(float32(-1.11))
-	// fmt.Println(f1.Bytes(), f2.Bytes())
-	// fmt.Println(f1.Value(), f2.Value())
-	// fmt.Println(f2.Compare(types.Equal, f1))
-	// return
-
-	// pw, _ := os.Getwd()
-
-	// p := parser.New()
-	// e, err := executor.New(path.Join(pw, "test/tables"))
-	// fatalIfErr(err)
-
-	// q, err := p.ParseQuery([]byte(`
-	// 	SELECT RES(id, 2) AS res, SUM(amount), AVG(amount)
-	// 	FROM testtable
-	// 	WHERE_INDEX id id >= 1 AND id <= 5
-	// 	WHERE res = 0;
-	// `))
-	// fatalIfErr(err)
-	// fmt.Println(q)
-
-	// r, err := e.Exec(q)
-	// fatalIfErr(err)
-	// fmt.Println(r.WriteTo(os.Stdout))
-
-	// return
-
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()
 	es, err := executor.New(path.Join(pwd, "test/tables"))
 	fatalIfErr(err)
 
-	defer func() {
-		if err := es.Close(); err != nil {
-			fmt.Println("error on gracefully stopping:", err)
-		}
-	}()
+	defer es.Close()
 
 	configs := config.New()
 	s, err := server.New(configs.ServerConfig, as, ps, es)

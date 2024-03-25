@@ -84,6 +84,27 @@ func main() {
 	var rows *types.Rows
 	_, _ = rows, t
 
+	// // t = time.Now()
+	// // rows, err = client.Query([]byte(`PREPARE TABLE testtable ROWS 1000000;`))
+	// // exitIfErr(errors.Wrap(err, "query failed"))
+	// // for rows.Next() {  }
+	// // fmt.Printf("[prepare] %v\n", time.Since(t))
+
+	// t = time.Now()
+	// rows, err = client.Query([]byte(`
+	// 	CREATE TABLE testtable (
+	// 		firstname VARCHAR(32),
+	// 		lastname  VARCHAR(32),
+	// 		amount1   AggregateFunction(SUM, Float64),
+	// 		amount2   AggregateFunction(MAX, Float64),
+	// 		amount3   AggregateFunction(MIN, Float64),
+	// 	) ENGINE = AggregatingMergeTree
+	// 	PRIMARY KEY(firstname, lastname) firstname_lastname;
+	// `))
+	// exitIfErr(errors.Wrap(err, "query failed"))
+	// for rows.Next() {  }
+	// fmt.Printf("[create] %v\n", time.Since(t))
+
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	CREATE TABLE testtable (
@@ -91,19 +112,14 @@ func main() {
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
 	// 		amount    Float64,
-	// 	)
+	// 		birthday  DATETIME,
+	// 	) ENGINE = InnoDB
 	// 	PRIMARY KEY(id) id,
 	// 	INDEX(firstname, lastname) firstname_lastname;
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
 	// fmt.Printf("[create] %v\n", time.Since(t))
-
-	// t = time.Now()
-	// rows, err = client.Query([]byte(`PREPARE TABLE testtable ROWS 1000000;`))
-	// exitIfErr(errors.Wrap(err, "query failed"))
-	// for rows.Next() {  }
-	// fmt.Printf("[prepare] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// var insertId int
@@ -113,15 +129,16 @@ func main() {
 	// // setInterval(time.Second, func() {
 	// // 	fmt.Println("[interval]", insertId)
 	// // })
-	// for i := 0; i < 100; i++ {
+	// for i := 0; i < 10; i++ {
 	// 	query.Reset()
-	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
-	// 	for i := 0; i < 1000; i++ {
+	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount, birthday) VALUES")
+	// 	for i := 0; i < 10; i++ {
 	// 		query.WriteString(fmt.Sprintf(
-	// 			"\n(%q,%q,%f),",
+	// 			"\n(%q,%q,%f,%d),",
 	// 			firstnames[rand.Intn(len(firstnames))],
 	// 			lastnames[rand.Intn(len(lastnames))],
 	// 			100 * rand.Float64(),
+	// 			rand.Intn(int(60 * 60 * 24 * 30)) + int(time.Now().Unix()),
 	// 		))
 	// 	}
 	// 	query.Truncate(query.Len() - 1)
@@ -137,34 +154,35 @@ func main() {
 
 	t = time.Now()
 	rows, err = client.Query([]byte(`
-		SELECT firstname, COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount)
-		// SELECT id, firstname, lastname
+		// SELECT ANYFIRST(firstname), COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount), ANYLAST(firstname), ANYFIRST(lastname)
+		// SELECT firstname, lastname, SUM(amount1), MAX(amount2), MIN(amount3)
+		SELECT id, birthday, firstname, lastname, amount
 		FROM testtable
 		WHERE_INDEX id id >= 1 AND id <= 10000
+		// WHERE_INDEX firstname_lastname firstname >= ""
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
-		id, cnt, avgId int
-		avgAmount, sumAmount, maxAmount, minAmount float64
-		firstname, lastname string
+		id int
+		firstname, lastname, birthday string
+		amount float64
 	)
-	_, _, _, _, _, _, _ = id, cnt, sumAmount, firstname, lastname, avgId, avgAmount
 	for rows.Next() {
-		if err := rows.Scan(&firstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount); err != nil {
+		if err := rows.Scan(&id, &birthday, &firstname, &lastname, &amount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Printf("%s %v %f %f %f %f\n", firstname, cnt, sumAmount, avgAmount, maxAmount, minAmount)
+		fmt.Printf("%d %s %s %s %f\n", id, birthday, firstname, lastname, amount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	UPDATE testtable
-	// 	SET firstname = "dddddd"
-	// 	WHERE_INDEX id id >= 4 AND id <= 6
-	// 	WHERE firstname = "Arman" OR lastname = "Harutyunyan";
+	// 	SET firstname = "Bagrat"
+	// 	WHERE_INDEX id id >= 1 AND id <= 1000
+	// 	WHERE firstname = "Mery";
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
@@ -173,7 +191,8 @@ func main() {
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	DELETE FROM testtable
-	// 	WHERE_INDEX id id > 100000;
+	// 	WHERE_INDEX id id >= 1 AND id <= 1000
+	// 	WHERE firstname = "Vahag";
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
@@ -185,23 +204,4 @@ func exitIfErr(err error) {
 		fmt.Println("error: ", err)
 		os.Exit(1)
 	}
-}
-
-func setInterval(duration time.Duration, f func()) *time.Ticker {
-	t := time.NewTicker(duration)
-	go func() {
-		for range t.C {
-			f()
-		}
-	}()
-	return t
-}
-
-func setTimeout(duration time.Duration, f func()) *time.Ticker {
-	var t *time.Ticker
-	t = setInterval(duration, func() {
-		f()
-		t.Stop()
-	})
-	return t
 }

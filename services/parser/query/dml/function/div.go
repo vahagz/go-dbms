@@ -7,7 +7,7 @@ import (
 const DIV FunctionType = "DIV"
 
 func init() {
-	functions[DIV] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+	functions[DIV] = func(row types.DataRow, args []types.DataType) types.DataType {
 		var err error
 		var v1, v2 types.DataType
 		if args[0].GetCode() == types.TYPE_FLOAT || args[1].GetCode() == types.TYPE_FLOAT {

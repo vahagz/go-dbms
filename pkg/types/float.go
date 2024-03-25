@@ -13,9 +13,12 @@ import (
 
 var float64Meta = &DataTypeFLOATMeta{ByteSize: 8}
 
-func init() {
-	numericTypes[TYPE_FLOAT] = struct{}{}
+var int64Meta = &DataTypeINTEGERMeta{
+	Signed:   false,
+	ByteSize: 8,
+}
 
+func init() {
 	typesMap[TYPE_FLOAT] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
 			m := meta.(*DataTypeFLOATMeta)
@@ -56,10 +59,6 @@ func (m *DataTypeFLOATMeta) Default() DataType {
 }
 
 func (m *DataTypeFLOATMeta) IsFixedSize() bool {
-	return true
-}
-
-func (m *DataTypeFLOATMeta) IsNumeric() bool {
 	return true
 }
 
@@ -121,6 +120,7 @@ func (t *DataTypeFLOAT) Set(value interface{}) DataType {
 				t.value = helpers.Bytesof(math.Float64bits(value.(float64)))
 			}
 		}
+		default: panic(ErrInvalidDataType)
 	}
 	return t
 }
@@ -151,15 +151,11 @@ func (t *DataTypeFLOAT) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeFLOAT) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeFLOAT) Size() int {
 	return int(t.Meta.ByteSize)
 }
 
-func (t *DataTypeFLOAT) Compare(operator Operator, val DataType) bool {
+func (t *DataTypeFLOAT) Compare(val DataType) int {
 	t64, err := t.Cast(float64Meta)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to cast 't' to float64"))
@@ -170,16 +166,20 @@ func (t *DataTypeFLOAT) Compare(operator Operator, val DataType) bool {
 		panic(errors.Wrap(err, "failed to cast 'val' to float64"))
 	}
 
-	tv := t64.Value().(float64)
-	vv := v64.Value().(float64)
+	return helpers.CompareFloat(
+		t64.Value().(float64),
+		v64.Value().(float64),
+	)
+}
 
+func (t *DataTypeFLOAT) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case Equal:          return helpers.CompareFloat(tv, vv) == 0
-		case GreaterOrEqual: return helpers.CompareFloat(tv, vv) >= 0
-		case LessOrEqual:    return helpers.CompareFloat(tv, vv) <= 0
-		case Greater:        return helpers.CompareFloat(tv, vv) > 0
-		case Less:           return helpers.CompareFloat(tv, vv) < 0
-		case NotEqual:       return helpers.CompareFloat(tv, vv) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }

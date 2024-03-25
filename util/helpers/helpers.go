@@ -78,3 +78,20 @@ func CompareFloat(a, b float64) int {
 	}
 	return 1
 }
+
+func MustVal[T any](val T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func MarshalJSON(v any) []byte {
+	return MustVal(json.Marshal(v))
+}

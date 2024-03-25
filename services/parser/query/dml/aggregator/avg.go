@@ -13,7 +13,7 @@ type AggregationAVG struct {
 	Count uint64
 }
 
-func (as *AggregationAVG) Apply(row map[string]types.DataType) {
+func (as *AggregationAVG) Apply(row types.DataRow) {
 	val, err := eval.Eval(row, as.Arguments[0]).Cast(float64Meta)
 	if err != nil {
 		panic(err)

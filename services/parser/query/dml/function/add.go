@@ -7,7 +7,7 @@ import (
 const ADD FunctionType = "ADD"
 
 func init() {
-	functions[ADD] = func(row map[string]types.DataType, args []types.DataType) types.DataType {
+	functions[ADD] = func(row types.DataRow, args []types.DataType) types.DataType {
 		var valInt intType
 		var valFloat floatType
 		isInt := true

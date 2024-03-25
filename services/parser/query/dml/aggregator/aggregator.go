@@ -20,19 +20,23 @@ type comparable interface {
 type AggregatorType string
 
 const (
-	SUM AggregatorType = "SUM"
-	MAX AggregatorType = "MAX"
-	MIN AggregatorType = "MIN"
-	AVG AggregatorType = "AVG"
-	COUNT AggregatorType = "COUNT"
+	SUM      AggregatorType = "SUM"
+	MAX      AggregatorType = "MAX"
+	MIN      AggregatorType = "MIN"
+	AVG      AggregatorType = "AVG"
+	COUNT    AggregatorType = "COUNT"
+	ANYLAST  AggregatorType = "ANYLAST"
+	ANYFIRST AggregatorType = "ANYFIRST"
 )
 
 var aggregators = map[AggregatorType]struct{}{
-	SUM:   {},
-	MAX:   {},
-	MIN:   {},
-	AVG:   {},
-	COUNT: {},
+	SUM:      {},
+	MAX:      {},
+	MIN:      {},
+	AVG:      {},
+	COUNT:    {},
+	ANYLAST:  {},
+	ANYFIRST: {},
 }
 
 type AggregatorBase struct {
@@ -43,13 +47,13 @@ func (ab *AggregatorBase) Value() types.DataType {
 	panic(errors.New("unimplemented"))
 }
 
-func (ab *AggregatorBase) Apply(row map[string]types.DataType) {
+func (ab *AggregatorBase) Apply(row types.DataRow) {
 	panic(errors.New("unimplemented"))
 }
 
 type Aggregator interface {
 	Value() types.DataType
-	Apply(row map[string]types.DataType)
+	Apply(row types.DataRow)
 }
 
 func IsAggregator(fn string) bool {
@@ -60,11 +64,13 @@ func IsAggregator(fn string) bool {
 func New(name AggregatorType, args []*projection.Projection) Aggregator {
 	ab := &AggregatorBase{args}
 	switch name {
-		case AVG:   return &AggregationAVG{AggregatorBase: ab}
-		case COUNT: return &AggregationCOUNT{AggregatorBase: ab}
-		case MAX:   return &AggregationMAX{AggregatorBase: ab}
-		case MIN:   return &AggregationMIN{AggregatorBase: ab}
-		case SUM:   return &AggregationSUM{AggregatorBase: ab}
-		default:    panic(errors.New("unknown aggregate function"))
+		case AVG:      return &AggregationAVG{AggregatorBase: ab}
+		case COUNT:    return &AggregationCOUNT{AggregatorBase: ab}
+		case MAX:      return &AggregationMAX{AggregatorBase: ab}
+		case MIN:      return &AggregationMIN{AggregatorBase: ab}
+		case SUM:      return &AggregationSUM{AggregatorBase: ab}
+		case ANYLAST:  return &AggregationANYLAST{AggregatorBase: ab}
+		case ANYFIRST: return &AggregationANYFIRST{AggregatorBase: ab}
+		default:       panic(errors.New("unknown aggregate function"))
 	}
 }

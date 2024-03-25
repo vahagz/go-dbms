@@ -137,6 +137,7 @@ func (s *Server) handleConnection(c *connection.Connection) {
 		// p = time.Now()
 		r, err := s.executorService.Exec(q)
 		if err != nil {
+			fmt.Println("error while executing =>", err)
 			err = c.SendError(err)
 			if err != nil {
 				fmt.Println("[Exec] unexpected error while responding:", err)

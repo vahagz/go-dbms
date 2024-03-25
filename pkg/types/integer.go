@@ -10,14 +10,7 @@ import (
 	"go-dbms/util/helpers"
 )
 
-var int64Meta = &DataTypeINTEGERMeta{
-	Signed:   false,
-	ByteSize: 8,
-}
-
 func init() {
-	numericTypes[TYPE_INTEGER] = struct{}{}
-
 	typesMap[TYPE_INTEGER] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
 			m := meta.(*DataTypeINTEGERMeta)
@@ -70,10 +63,6 @@ func (m *DataTypeINTEGERMeta) Default() DataType {
 }
 
 func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
-	return true
-}
-
-func (m *DataTypeINTEGERMeta) IsNumeric() bool {
 	return true
 }
 
@@ -160,22 +149,22 @@ func (t *DataTypeINTEGER) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeINTEGER) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeINTEGER) Size() int {
 	return int(t.Meta.ByteSize)
 }
 
-func (t *DataTypeINTEGER) Compare(operator Operator, val DataType) bool {
+func (t *DataTypeINTEGER) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeINTEGER) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case Equal:          return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case GreaterOrEqual: return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case LessOrEqual:    return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case Greater:        return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case Less:           return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case NotEqual:       return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
@@ -204,6 +193,12 @@ func (t *DataTypeINTEGER) Cast(meta DataTypeMeta) (DataType, error) {
 				}
 			}
 			return Type(meta).Set(fmt.Sprint(t.Value())), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(helpers.Frombytes[int64](t.value)), nil
 		}
 	}
 
