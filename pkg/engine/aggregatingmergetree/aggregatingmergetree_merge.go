@@ -1,7 +1,6 @@
 package aggregatingmergetree
 
 import (
-	"fmt"
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/table"
 	"go-dbms/pkg/types"
@@ -21,7 +20,6 @@ func (t *AggregatingMergeTree) MergeTreeFn(dst table.ITable, src table.ITable) {
 
 	for row, ok := str.Pop(); ok; row, ok = str.Pop() {
 		str.Continue(true)
-		fmt.Println(row["firstname"].Value(), row["lastname"].Value(), row["amount"].Value())
 		for i, col := range pCols {
 			conds[i] = index.FilterCondition{
 				Left:  &projection.Projection{Alias: col.Name, Type: projection.IDENTIFIER},
@@ -60,13 +58,14 @@ func (t *AggregatingMergeTree) MergeTreeFn(dst table.ITable, src table.ITable) {
 			if err != nil {
 				panic(errors.Wrap(err, "failed to update data from main table on merge process"))
 			}
-			for _, ok := mainRes.Pop(); ok; _, ok = mainRes.Pop() {  }
+
+			mainRes.PopAll()
 		} else {
 			in := stream.New[types.DataRow](1)
 			in.Push(row)
 			in.Close()
 			mainRes, eg2 := dst.Insert(in)
-			for _, ok := mainRes.Pop(); ok; _, ok = mainRes.Pop() {  }
+			mainRes.PopAll()
 			if err := eg2.Wait(); err != nil {
 				panic(errors.Wrap(err, "failed to insert data into main table on merge process"))
 			}

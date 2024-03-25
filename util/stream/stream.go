@@ -9,7 +9,7 @@ func New[T any](size int) Stream[T] {
 
 type Reader[T any] interface {
 	Pop() (T, bool)
-	AutoPop(bool)
+	PopAll()
 	Slice() []T
 }
 
@@ -47,8 +47,9 @@ func (s *stream[T]) Pop() (T, bool) {
 	return val, ok
 }
 
-func (s *stream[T]) AutoPop(v bool) {
-	s.autoPop = v
+func (s *stream[T]) PopAll() {
+	for _, ok := s.Pop(); ok; _, ok = s.Pop() {
+	}
 }
 
 func (s *stream[T]) Slice() []T {

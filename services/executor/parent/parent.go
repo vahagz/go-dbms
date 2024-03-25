@@ -83,7 +83,7 @@ func New(dataPath string) (*ExecutorService, error) {
 }
 
 func (es *ExecutorService) StartMerger() {
-	timer.SetInterval(10*time.Second, func() {
+	timer.SetInterval(time.Minute, func() {
 		for _, t := range es.Tables {
 			if t, ok := t.(mergetree.IMergeTree); ok {
 				t.Merge()

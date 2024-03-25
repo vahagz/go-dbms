@@ -1,9 +1,10 @@
 package types
 
 import (
-	"go-dbms/pkg/types"
 	"strconv"
 	"strings"
+
+	"go-dbms/pkg/types"
 )
 
 func init() {

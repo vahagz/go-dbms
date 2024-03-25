@@ -93,13 +93,13 @@ func main() {
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	CREATE TABLE testtable (
-	// 		id        UInt32 AUTO INCREMENT,
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
-	// 		amount    Float64,
-	// 	) ENGINE = MergeTree
-	// 	PRIMARY KEY(id) id,
-	// 	INDEX(firstname, lastname) firstname_lastname;
+	// 		amount1   AggregateFunction(SUM, Float64),
+	// 		amount2   AggregateFunction(MAX, Float64),
+	// 		amount3   AggregateFunction(MIN, Float64),
+	// 	) ENGINE = AggregatingMergeTree
+	// 	PRIMARY KEY(firstname, lastname) firstname_lastname;
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
@@ -108,11 +108,14 @@ func main() {
 	// t = time.Now()
 	// rows, err = client.Query([]byte(`
 	// 	CREATE TABLE testtable (
+	// 		id        UInt32 AUTO INCREMENT,
 	// 		firstname VARCHAR(32),
 	// 		lastname  VARCHAR(32),
-	// 		amount    AggregateFunction(SUM, Float64),
-	// 	) ENGINE = AggregatingMergeTree
-	// 	PRIMARY KEY(firstname, lastname) firstname_lastname;
+	// 		amount    Float64,
+	// 		birthday  DATETIME,
+	// 	) ENGINE = InnoDB
+	// 	PRIMARY KEY(id) id,
+	// 	INDEX(firstname, lastname) firstname_lastname;
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
@@ -128,13 +131,14 @@ func main() {
 	// // })
 	// for i := 0; i < 10; i++ {
 	// 	query.Reset()
-	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount) VALUES")
+	// 	query.WriteString("INSERT INTO testtable (firstname, lastname, amount, birthday) VALUES")
 	// 	for i := 0; i < 10; i++ {
 	// 		query.WriteString(fmt.Sprintf(
-	// 			"\n(%q,%q,%f),",
+	// 			"\n(%q,%q,%f,%d),",
 	// 			firstnames[rand.Intn(len(firstnames))],
 	// 			lastnames[rand.Intn(len(lastnames))],
 	// 			100 * rand.Float64(),
+	// 			rand.Intn(int(60 * 60 * 24 * 30)) + int(time.Now().Unix()),
 	// 		))
 	// 	}
 	// 	query.Truncate(query.Len() - 1)
@@ -151,29 +155,25 @@ func main() {
 	t = time.Now()
 	rows, err = client.Query([]byte(`
 		// SELECT ANYFIRST(firstname), COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount), ANYLAST(firstname), ANYFIRST(lastname)
-		SELECT firstname, lastname, SUM(amount)
+		// SELECT firstname, lastname, SUM(amount1), MAX(amount2), MIN(amount3)
+		SELECT id, birthday, firstname, lastname, amount
 		FROM testtable
-		// WHERE_INDEX id id >= 1 AND id <= 10000
-		WHERE_INDEX firstname_lastname firstname >= ""
+		WHERE_INDEX id id >= 1 AND id <= 10000
+		// WHERE_INDEX firstname_lastname firstname >= ""
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
-		id, cnt, avgId int
-		amount, avgAmount, sumAmount, maxAmount, minAmount float64
-		firstname, lastname, lastFirstname, firstLastname, firstFirstname string
+		id int
+		firstname, lastname, birthday string
+		amount float64
 	)
-	_, _, _, _, _, _, _, _, _, _, _, _, _ = id, cnt, amount, sumAmount, firstname, lastname, avgId, avgAmount, maxAmount, minAmount, lastFirstname, firstLastname, firstFirstname
 	for rows.Next() {
-		// if err := rows.Scan(&firstFirstname, &cnt, &sumAmount, &avgAmount, &maxAmount, &minAmount, &lastFirstname, &firstLastname); err != nil {
-		// 	exitIfErr(errors.Wrap(err, "scan failed"))
-		// }
-		// fmt.Printf("%s %d %v %v %v %v %v %v\n", firstFirstname, cnt, sumAmount, avgAmount, maxAmount, minAmount, lastFirstname, firstLastname)
-		if err := rows.Scan(&firstname, &lastname, &amount); err != nil {
+		if err := rows.Scan(&id, &birthday, &firstname, &lastname, &amount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Printf("%s %s %v\n", firstname, lastname, amount)
+		fmt.Printf("%d %s %s %s %f\n", id, birthday, firstname, lastname, amount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

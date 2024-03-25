@@ -10,14 +10,7 @@ import (
 	"go-dbms/util/helpers"
 )
 
-var int64Meta = &DataTypeINTEGERMeta{
-	Signed:   false,
-	ByteSize: 8,
-}
-
 func init() {
-	numericTypes[TYPE_INTEGER] = struct{}{}
-
 	typesMap[TYPE_INTEGER] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
 			m := meta.(*DataTypeINTEGERMeta)
@@ -70,10 +63,6 @@ func (m *DataTypeINTEGERMeta) Default() DataType {
 }
 
 func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
-	return true
-}
-
-func (m *DataTypeINTEGERMeta) IsNumeric() bool {
 	return true
 }
 
@@ -160,10 +149,6 @@ func (t *DataTypeINTEGER) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeINTEGER) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeINTEGER) Size() int {
 	return int(t.Meta.ByteSize)
 }
@@ -208,6 +193,12 @@ func (t *DataTypeINTEGER) Cast(meta DataTypeMeta) (DataType, error) {
 				}
 			}
 			return Type(meta).Set(fmt.Sprint(t.Value())), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(helpers.Frombytes[int64](t.value)), nil
 		}
 	}
 

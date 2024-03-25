@@ -55,10 +55,6 @@ func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
 	return true
 }
 
-func (m *DataTypeVARCHARMeta) IsNumeric() bool {
-	return true
-}
-
 type DataTypeVARCHAR struct {
 	value []byte
 	Code  TypeCode             `json:"code"`
@@ -145,10 +141,6 @@ func (t *DataTypeVARCHAR) IsFixedSize() bool {
 	return t.Meta.IsFixedSize()
 }
 
-func (t *DataTypeVARCHAR) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeVARCHAR) Size() int {
 	return 2 + int(t.Meta.Cap) // 2 for length size
 }
@@ -195,6 +187,20 @@ func (t *DataTypeVARCHAR) Cast(meta DataTypeMeta) (DataType, error) {
 				}
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = &DataTypeFLOATMeta{
+					ByteSize: 8,
+				}
+			}
+			return Type(meta).Set(helpers.MustVal(strconv.ParseFloat(string(t.value), 64))), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(string(t.value)), nil
 		}
 	}
 
