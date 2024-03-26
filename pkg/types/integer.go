@@ -18,8 +18,10 @@ func init() {
 			m := meta.(*DataTypeINTEGERMeta)
 			return &DataTypeINTEGER{
 				value: make([]byte, m.ByteSize),
-				Code:  m.GetCode(),
-				Meta:  m,
+				DataTypeBASE: DataTypeBASE[*DataTypeINTEGERMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -93,8 +95,7 @@ func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
 
 type DataTypeINTEGER struct {
 	value []byte
-	Code  TypeCode             `json:"code"`
-	Meta  *DataTypeINTEGERMeta `json:"meta"`
+	DataTypeBASE[*DataTypeINTEGERMeta]
 }
 
 func (t *DataTypeINTEGER) MarshalBinary() (data []byte, err error) {
@@ -109,8 +110,10 @@ func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 func (t *DataTypeINTEGER) Copy() DataType {
 	return &DataTypeINTEGER{
 		value: slices.Clone(t.value),
-		Code:  t.Code,
-		Meta:  t.MetaCopy().(*DataTypeINTEGERMeta),
+		DataTypeBASE: DataTypeBASE[*DataTypeINTEGERMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeINTEGERMeta),
+		},
 	}
 }
 
@@ -161,20 +164,8 @@ func (t *DataTypeINTEGER) Zero() DataType {
 	return t
 }
 
-func (t *DataTypeINTEGER) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeINTEGER) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeINTEGER) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
-}
-
 func (t *DataTypeINTEGER) Size() int {
-	return int(t.Meta.ByteSize)
+	return t.Meta.Size()
 }
 
 func (t *DataTypeINTEGER) Compare(val DataType) int {

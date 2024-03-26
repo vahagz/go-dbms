@@ -19,8 +19,10 @@ func init() {
 			m := meta.(*DataTypeVARCHARMeta)
 			return &DataTypeVARCHAR{
 				value: make([]byte, m.Cap),
-				Code: m.GetCode(),
-				Meta: m,
+				DataTypeBASE: DataTypeBASE[*DataTypeVARCHARMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -70,9 +72,8 @@ func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
 
 type DataTypeVARCHAR struct {
 	value []byte
-	Code  TypeCode             `json:"code"`
-	Len   uint16               `json:"len"`
-	Meta  *DataTypeVARCHARMeta `json:"meta"`
+	Len   uint16 `json:"len"`
+	DataTypeBASE[*DataTypeVARCHARMeta]
 }
 
 func (t *DataTypeVARCHAR) MarshalBinary() (data []byte, err error) {
@@ -91,9 +92,11 @@ func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
 func (t *DataTypeVARCHAR) Copy() DataType {
 	return &DataTypeVARCHAR{
 		value: slices.Clone(t.value),
-		Code:  t.Code,
 		Len:   t.Len,
-		Meta:  t.MetaCopy().(*DataTypeVARCHARMeta),
+		DataTypeBASE: DataTypeBASE[*DataTypeVARCHARMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeVARCHARMeta),
+		},
 	}
 }
 
@@ -142,20 +145,8 @@ func (t *DataTypeVARCHAR) Zero() DataType {
 	return t
 }
 
-func (t *DataTypeVARCHAR) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeVARCHAR) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeVARCHAR) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
-}
-
 func (t *DataTypeVARCHAR) Size() int {
-	return 2 + int(t.Meta.Cap) // 2 for length size
+	return 2 + t.Meta.Size() // 2 for length size
 }
 
 func (t *DataTypeVARCHAR) Compare(val DataType) int {

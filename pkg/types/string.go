@@ -12,9 +12,12 @@ import (
 func init() {
 	typesMap[TYPE_STRING] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
+			m := meta.(*DataTypeSTRINGMeta)
 			return &DataTypeSTRING{
-				Code: meta.GetCode(),
-				Meta: meta.(*DataTypeSTRINGMeta),
+				DataTypeBASE: DataTypeBASE[*DataTypeSTRINGMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -53,8 +56,7 @@ func (m *DataTypeSTRINGMeta) IsFixedSize() bool {
 
 type DataTypeSTRING struct {
 	value string
-	Code  TypeCode            `json:"code"`
-	Meta  *DataTypeSTRINGMeta `json:"meta"`
+	DataTypeBASE[*DataTypeSTRINGMeta]
 }
 
 func (t *DataTypeSTRING) MarshalBinary() (data []byte, err error) {
@@ -69,8 +71,10 @@ func (t *DataTypeSTRING) UnmarshalBinary(data []byte) error {
 func (t *DataTypeSTRING) Copy() DataType {
 	return &DataTypeSTRING{
 		value: t.value,
-		Code:  t.Code,
-		Meta:  t.MetaCopy().(*DataTypeSTRINGMeta),
+		DataTypeBASE: DataTypeBASE[*DataTypeSTRINGMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeSTRINGMeta),
+		},
 	}
 }
 
@@ -102,18 +106,6 @@ func (t *DataTypeSTRING) Fill() DataType {
 
 func (t *DataTypeSTRING) Zero() DataType {
 	panic(errors.New("Zero not allowed for string type"))
-}
-
-func (t *DataTypeSTRING) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeSTRING) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeSTRING) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
 }
 
 func (t *DataTypeSTRING) Size() int {

@@ -18,8 +18,10 @@ func init() {
 			m := meta.(*DataTypeDATETIMEMeta)
 			return &DataTypeDATETIME{
 				value: 0,
-				Code:  m.GetCode(),
-				Meta:  m,
+				DataTypeBASE: DataTypeBASE[*DataTypeDATETIMEMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -58,8 +60,7 @@ func (m *DataTypeDATETIMEMeta) IsFixedSize() bool {
 
 type DataTypeDATETIME struct {
 	value uint64
-	Code  TypeCode             `json:"code"`
-	Meta  *DataTypeDATETIMEMeta `json:"meta"`
+	DataTypeBASE[*DataTypeDATETIMEMeta]
 }
 
 func (t *DataTypeDATETIME) MarshalBinary() (data []byte, err error) {
@@ -76,8 +77,10 @@ func (t *DataTypeDATETIME) UnmarshalBinary(data []byte) error {
 func (t *DataTypeDATETIME) Copy() DataType {
 	return &DataTypeDATETIME{
 		value: t.value,
-		Code:  t.Code,
-		Meta:  t.MetaCopy().(*DataTypeDATETIMEMeta),
+		DataTypeBASE: DataTypeBASE[*DataTypeDATETIMEMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeDATETIMEMeta),
+		},
 	}
 }
 
@@ -118,18 +121,6 @@ func (t *DataTypeDATETIME) Fill() DataType {
 func (t *DataTypeDATETIME) Zero() DataType {
 	t.value = 0
 	return t
-}
-
-func (t *DataTypeDATETIME) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeDATETIME) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeDATETIME) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
 }
 
 func (t *DataTypeDATETIME) Size() int {
