@@ -17,10 +17,11 @@ DELETE FROM <tableName>
 */
 type QueryDelete struct {
 	query.Query
-	DB         string                    `json:"db"`
-	Table      string                    `json:"table"`
-	Where      *statement.WhereStatement `json:"where"`
-	WhereIndex *WhereIndex               `json:"where_index"`
+	DB         string
+	Table      string
+	UseIndex   string
+	Where      *statement.WhereStatement
+	WhereIndex *WhereIndex
 }
 
 func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
@@ -29,6 +30,7 @@ func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
 	qd.Type = query.DELETE
 
 	qd.parseFrom(s)
+	qd.parseUseIndex(s)
 	qd.parseWhereIndex(s)
 	qd.parseWhere(s)
 
@@ -58,6 +60,21 @@ func (qd *QueryDelete) parseFrom(s *scanner.Scanner) {
 	if tok != scanner.EOF && !idKW {
 		panic(errors.ErrSyntax)
 	}
+}
+
+func (qs *QueryDelete) parseUseIndex(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word != "USE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	if tok == scanner.EOF {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.UseIndex = s.TokenText()
+	s.Scan()
 }
 
 func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {

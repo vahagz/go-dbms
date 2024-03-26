@@ -40,7 +40,7 @@ func (dml *DML) Update(q *dml.QueryUpdate) (io.WriterTo, error) {
 		var s stream.Reader[types.DataRow]
 		if q.WhereIndex != nil {
 			s = helpers.MustVal(t.UpdateByIndex(
-				q.WhereIndex.Name,
+				q.UseIndex,
 				q.WhereIndex.FilterStart,
 				q.WhereIndex.FilterEnd,
 				q.Where,

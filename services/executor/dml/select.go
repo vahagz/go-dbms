@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"cmp"
 	"encoding/json"
 	"io"
 
@@ -66,12 +67,12 @@ func (dml *DML) Select(q *dml.QuerySelect) (io.WriterTo, error) {
 		var s stream.ReaderContinue[types.DataRow]
 		if q.WhereIndex != nil {
 			s = helpers.MustVal(t.ScanByIndex(
-				q.WhereIndex.Name,
+				q.UseIndex,
 				q.WhereIndex.FilterStart,
 				q.WhereIndex.FilterEnd,
 			))
 		} else {
-			s = helpers.MustVal(t.FullScanByIndex(t.PrimaryKey(), false))
+			s = helpers.MustVal(t.FullScanByIndex(cmp.Or(q.UseIndex, t.PrimaryKey()), false))
 		}
 
 		helpers.Must(process(s))

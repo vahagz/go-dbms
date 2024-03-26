@@ -17,6 +17,7 @@ func (dml *DML) dmlSelectValidate(q *dml.QuerySelect) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	dml.validateFrom(q)
+	dml.validateUseIndex(dml.Tables[q.Table], q)
 	dml.validateProjections(q)
 	dml.validateWhereIndex(dml.Tables[q.Table], q.WhereIndex)
 	dml.validateWhere(q.Where)
@@ -27,6 +28,14 @@ func (dml *DML) dmlSelectValidate(q *dml.QuerySelect) (err error) {
 func (dml *DML) validateFrom(q *dml.QuerySelect) {
 	if _, ok := dml.Tables[q.Table]; !ok {
 		panic(fmt.Errorf("table not found: '%s'", q.Table))
+	}
+}
+
+func (dml *DML) validateUseIndex(t table.ITable, q *dml.QuerySelect) {
+	if q.UseIndex == "" {
+		return
+	} else if !t.HasIndex(q.UseIndex) {
+		panic(fmt.Errorf("index not found: '%s'", q.UseIndex))
 	}
 }
 
@@ -69,10 +78,6 @@ func (dml *DML) validateProjection(
 func (dml *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
 	if wi == nil {
 		return
-	}
-
-	if !t.HasIndex(wi.Name) {
-		panic(fmt.Errorf("index not found: '%s'", wi.Name))
 	}
 
 	fs := wi.FilterStart

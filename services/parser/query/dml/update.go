@@ -25,6 +25,7 @@ type QueryUpdate struct {
 	query.Query
 	DB         string
 	Table      string
+	UseIndex   string
 	Values     types.DataRow
 	Where      *statement.WhereStatement
 	WhereIndex *WhereIndex
@@ -36,6 +37,7 @@ func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
 	qu.Type = query.UPDATE
 
 	qu.parseFrom(s)
+	qu.parseUseIndex(s)
 	qu.parseValues(s)
 	qu.parseWhereIndex(s)
 	qu.parseWhere(s)
@@ -61,6 +63,21 @@ func (qu *QueryUpdate) parseFrom(s *scanner.Scanner) {
 	if tok != scanner.EOF && !idKW {
 		panic(errors.ErrSyntax)
 	}
+}
+
+func (qs *QueryUpdate) parseUseIndex(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word != "USE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	if tok == scanner.EOF {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.UseIndex = s.TokenText()
+	s.Scan()
 }
 
 func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {

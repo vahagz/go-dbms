@@ -2,9 +2,10 @@ package types
 
 import (
 	"fmt"
-	"go-dbms/pkg/types"
 	"regexp"
 	"strings"
+
+	"go-dbms/pkg/types"
 )
 
 var supportedIntSizes = []string{"8","16","32","64"}

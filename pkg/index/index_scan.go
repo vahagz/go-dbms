@@ -22,8 +22,10 @@ func (i *Index) Scan(
 
 func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
 	opts := operatorMapping[start.Operator].scanOption
-	prefixColsCount := len(start.Conditions)
-	postfixColsCount := 0
+	prefixColsCountStart := len(start.Conditions)
+	prefixColsCountEnd := len(end.Conditions)
+	postfixColsCountStart := 0
+	postfixColsCountEnd := 0
 	var endKey [][]byte
 
 	startVal := types.DataRow{}
@@ -36,12 +38,14 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 		for _, cond := range end.Conditions {
 			endVal[cond.Left.Alias] = eval.Eval(nil, cond.Right)
 		}
+
 		endKey = i.key(endVal)
+		postfixColsCountEnd = len(endKey) - len(endVal)
 	}
 
 	for _, col := range i.columns {
 		if _, ok := startVal[col.Name]; !ok {
-			postfixColsCount++
+			postfixColsCountStart++
 			if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
 				startVal[col.Name] = types.Type(col.Meta).Fill()
 			} else {
@@ -52,18 +56,26 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 
 	opts.Key = i.key(startVal)
 	searchingKey := opts.Key
-	if postfixColsCount > 0 {
-		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCount, postfixColsCount)
+	if postfixColsCountStart > 0 {
+		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCountStart, postfixColsCountStart)
+	}
+	if postfixColsCountEnd > 0 {
+		endKey = i.removeAutoSetCols(endKey, prefixColsCountEnd, postfixColsCountEnd)
 	}
 
 	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
+		kStart := k
+		kEnd := k
 		if !i.tree.IsUniq() {
 			k = i.tree.RemoveSuffix(k)
 		}
-		if postfixColsCount > 0 {
-			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
+		if postfixColsCountStart > 0 {
+			kStart = i.removeAutoSetCols(k, prefixColsCountStart, postfixColsCountStart)
 		}
-		if shouldStop(k, start.Operator, searchingKey) || (endKey != nil && shouldStop(k, end.Operator, endKey)) {
+		if postfixColsCountEnd > 0 {
+			kEnd = i.removeAutoSetCols(k, prefixColsCountEnd, postfixColsCountEnd)
+		}
+		if shouldStop(kStart, start.Operator, searchingKey) || (endKey != nil && shouldStop(kEnd, end.Operator, endKey)) {
 			return true, nil
 		}
 

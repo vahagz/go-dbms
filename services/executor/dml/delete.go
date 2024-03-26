@@ -40,7 +40,7 @@ func (dml *DML) Delete(q *dml.QueryDelete) (io.WriterTo, error) {
 		var s stream.Reader[types.DataRow]
 		if q.WhereIndex != nil {
 			s = helpers.MustVal(t.DeleteByIndex(
-				q.WhereIndex.Name,
+				q.UseIndex,
 				q.WhereIndex.FilterStart,
 				q.WhereIndex.FilterEnd,
 				q.Where,

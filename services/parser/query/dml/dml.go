@@ -25,7 +25,6 @@ func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error)
 }
 
 type WhereIndex struct {
-	Name        string        `json:"name"`
-	FilterStart *index.Filter `json:"filter_start"`
-	FilterEnd   *index.Filter `json:"filter_end"`
+	FilterStart *index.Filter
+	FilterEnd   *index.Filter
 }

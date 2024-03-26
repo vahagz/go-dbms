@@ -115,7 +115,8 @@ func main() {
 	// 		birthday  DATETIME,
 	// 	) ENGINE = InnoDB
 	// 	PRIMARY KEY(id) id,
-	// 	INDEX(firstname, lastname) firstname_lastname;
+	// 	INDEX(firstname, lastname) firstname_lastname,
+	// 	INDEX(birthday) bd;
 	// `))
 	// exitIfErr(errors.Wrap(err, "query failed"))
 	// for rows.Next() {  }
@@ -158,8 +159,9 @@ func main() {
 		// SELECT firstname, lastname, SUM(amount1), MAX(amount2), MIN(amount3)
 		SELECT id, birthday, firstname, lastname, amount
 		FROM testtable
-		WHERE_INDEX id id >= 1 AND id <= 10000
-		// WHERE_INDEX firstname_lastname firstname >= ""
+		USE_INDEX bd
+		WHERE_INDEX (birthday >= "2024-04-01 00:00:00") AND (birthday <= "2024-04-10 00:00:00")
+		// WHERE_INDEX (firstname > "Bagrat" AND lastname > "Voskanyan") AND (firstname < "Sergey" AND lastname < "Sargsyan")
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
@@ -173,7 +175,7 @@ func main() {
 		if err := rows.Scan(&id, &birthday, &firstname, &lastname, &amount); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Printf("%d %s %s %s %f\n", id, birthday, firstname, lastname, amount)
+		fmt.Printf("%s %d %s %s %f\n", birthday, id, firstname, lastname, amount)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

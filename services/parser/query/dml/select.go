@@ -33,6 +33,7 @@ type QuerySelect struct {
 	Projections *projection.Projections
 	DB          string
 	Table       string
+	UseIndex    string
 	Where       *statement.WhereStatement
 	WhereIndex  *WhereIndex
 	GroupBy     map[string]struct{}
@@ -45,6 +46,7 @@ func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
 
 	qs.parseProjections(s)
 	qs.parseFrom(s)
+	qs.parseUseIndex(s)
 	qs.parseWhereIndex(s)
 	qs.parseWhere(s)
 	qs.parseGroupBy(s)
@@ -157,6 +159,21 @@ func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
 	s.Scan()
 }
 
+func (qs *QuerySelect) parseUseIndex(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word != "USE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	if tok == scanner.EOF {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.UseIndex = s.TokenText()
+	s.Scan()
+}
+
 func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
 	qs.WhereIndex = parseWhereIndex(s)
 }
@@ -167,40 +184,56 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 		return nil
 	}
 
-	tok := s.Scan()
-	word = s.TokenText()
-	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
+	s.Scan()
+	if s.TokenText() != "(" {
 		panic(errors.ErrSyntax)
 	}
 
-	left, op, right := parseWhereFilter(s, false)
 	wi := &WhereIndex{
-		Name: word,
-		FilterStart: &index.Filter{
-			Operator:  op,
-			Conditions: []index.FilterCondition{{
-				Left:  left,
-				Right: right,
-			}},
-		},
+		FilterStart: parseWhereIndexSection(s),
 	}
 
 	word = s.TokenText()
 	if word == "AND" {
-		left, op, right := parseWhereFilter(s, false)
-		wi.FilterEnd = &index.Filter{
-			Operator: op,
-			Conditions: []index.FilterCondition{{
-				Left:  left,
-				Right: right,
-			}},
+		s.Scan()
+		if s.TokenText() != "(" {
+			panic(errors.ErrSyntax)
 		}
+
+		wi.FilterEnd = parseWhereIndexSection(s)
 	} else {
 		s.Scan()
 	}
 
 	return wi
+}
+
+func parseWhereIndexSection(s *scanner.Scanner) *index.Filter {
+	left, op, right := parseWhereFilter(s, false)
+	f := &index.Filter{
+		Operator: op,
+		Conditions: []index.FilterCondition{{
+			Left:  left,
+			Right: right,
+		}},
+	}
+
+	if s.TokenText() != ")" {
+		for s.TokenText() == "AND" {
+			left, _, right := parseWhereFilter(s, false)
+			f.Conditions = append(f.Conditions, index.FilterCondition{
+				Left:  left,
+				Right: right,
+			})
+		}
+	}
+
+	if s.TokenText() != ")" {
+		panic(errors.ErrSyntax)
+	}
+
+	s.Scan()
+	return f
 }
 
 func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
