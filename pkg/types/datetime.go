@@ -133,7 +133,7 @@ func (t *DataTypeDATETIME) Size() int {
 }
 
 func (t *DataTypeDATETIME) Compare(val DataType) int {
-	v2 := val.Value().(uint64)
+	v2 := val.(*DataTypeDATETIME).value
 	if t.value > v2 {
 		return 1
 	} else if t.value < v2 {
@@ -158,7 +158,7 @@ func (t *DataTypeDATETIME) Cast(meta DataTypeMeta) (DataType, error) {
 	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
-			return Type(meta).Set(t.Value()), nil
+			return Type(meta).Set(t.value), nil
 		}
 		case TYPE_STRING, TYPE_VARCHAR: {
 			if code == TYPE_VARCHAR {
