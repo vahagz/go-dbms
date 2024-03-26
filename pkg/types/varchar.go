@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 
+	"go-dbms/services/parser/errors"
 	"go-dbms/util/helpers"
 )
 
@@ -31,6 +32,18 @@ func init() {
 				Cap: helpers.Convert[uint16](args[0]),
 			}
 		},
+	}
+
+	parsers["VARCHAR"] = func(tokens []string) DataTypeMeta {
+		if tokens[1] != "(" || tokens[len(tokens)-1] != ")" {
+			panic(errors.ErrSyntax)
+		}
+
+		cap, err := strconv.Atoi(tokens[2])
+		if err != nil {
+			panic(err)
+		}
+		return Meta(TYPE_VARCHAR, cap)
 	}
 }
 

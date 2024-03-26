@@ -6,9 +6,9 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/index"
 	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
-	"go-dbms/services/parser/query/ddl/create/types"
 	"go-dbms/services/parser/query/dml/aggregator"
 )
 

@@ -25,6 +25,10 @@ func init() {
 			return &DataTypeSTRINGMeta{}
 		},
 	}
+
+	parsers["STRING"] = func(tokens []string) DataTypeMeta {
+		return Meta(TYPE_STRING)
+	}
 }
 
 type DataTypeSTRINGMeta struct {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
+	"strings"
 
 	"go-dbms/util/helpers"
 
@@ -37,6 +39,22 @@ func init() {
 				ByteSize: helpers.Convert[uint8](args[0]),
 			}
 		},
+	}
+
+	parsers["FLOAT"] = func(tokens []string) DataTypeMeta {
+		typeName := tokens[0]
+		var (
+			err error
+			size int
+		)
+
+		parts := strings.Split(typeName, "Float")
+		size, err = strconv.Atoi(parts[len(parts)-1])
+		if err != nil {
+			panic(err)
+		}
+
+		return Meta(TYPE_FLOAT, size/8)
 	}
 }
 

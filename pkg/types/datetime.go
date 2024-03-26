@@ -30,6 +30,10 @@ func init() {
 			return &DataTypeDATETIMEMeta{}
 		},
 	}
+
+	parsers["DATETIME"] = func(tokens []string) DataTypeMeta {
+		return Meta(TYPE_DATETIME)
+	}
 }
 
 type DataTypeDATETIMEMeta struct {
