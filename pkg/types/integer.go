@@ -46,7 +46,7 @@ func init() {
 		)
 
 		parts := strings.Split(typeName, "Int")
-		signed = parts[0] == "U"
+		signed = parts[0] != "U"
 		size, err = strconv.Atoi(parts[len(parts)-1])
 		if err != nil {
 			panic(err)
