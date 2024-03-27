@@ -71,7 +71,6 @@ func (c *Connection) Send(blob []byte) (int, error) {
 			fmt.Println("Error while sending data: ", err)
 			err = errors.New("Response error")
 		} else {
-			fmt.Printf("Server sent %v bytes\n", hn + bn)
 			return hn + bn, err
 		}
 	}
