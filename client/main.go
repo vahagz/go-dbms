@@ -157,7 +157,7 @@ func main() {
 	rows, err = client.Query([]byte(`
 		// SELECT ANYFIRST(firstname), COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount), ANYLAST(firstname), ANYFIRST(lastname)
 		// SELECT firstname, lastname, SUM(amount1), MAX(amount2), MIN(amount3)
-		SELECT id, birthday, firstname, lastname, amount
+		SELECT id, CONCAT("a",NOW(),"b"), firstname, lastname, amount
 		FROM testtable
 		USE_INDEX bd
 		WHERE_INDEX (birthday >= "2024-04-01 00:00:00") AND (birthday <= "2024-04-10 00:00:00")
