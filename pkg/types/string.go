@@ -90,6 +90,10 @@ func (t *DataTypeSTRING) Value() json.Token {
 	return t.value
 }
 
+func (t *DataTypeSTRING) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
+}
+
 func (t *DataTypeSTRING) Set(value interface{}) DataType {
 	v, ok := value.(string)
 	if !ok {

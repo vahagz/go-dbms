@@ -3,7 +3,9 @@ package projection
 import (
 	"fmt"
 
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query"
 )
 
 type ProjectionType uint8
@@ -13,7 +15,20 @@ const (
 	FUNCTION
 	IDENTIFIER
 	LITERAL
+	SUBQUERY
 )
+
+func FromCols(cols []*column.Column) *Projections {
+	p := New()
+	for _, col := range cols {
+		p.Add(&Projection{
+			Alias: col.Name,
+			Name:  col.Name,
+			Type:  IDENTIFIER,
+		})
+	}
+	return p
+}
 
 type Projection struct {
 	Alias     string
@@ -21,6 +36,7 @@ type Projection struct {
 	Type      ProjectionType
 	Arguments []*Projection
 	Literal   types.DataType
+	Subquery  query.Querier
 }
 
 func New() *Projections {

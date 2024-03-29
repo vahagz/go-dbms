@@ -2,6 +2,7 @@ package create
 
 import (
 	"go-dbms/pkg/index"
+	"go-dbms/services/parser/query"
 	"text/scanner"
 )
 
@@ -16,6 +17,6 @@ type QueryCreateIndex struct {
 	Table string `json:"table"`
 }
 
-func (qs *QueryCreateIndex) Parse(s *scanner.Scanner) (err error) {
+func (qs *QueryCreateIndex) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	return nil
 }

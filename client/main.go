@@ -157,25 +157,30 @@ func main() {
 	rows, err = client.Query([]byte(`
 		// SELECT ANYFIRST(firstname), COUNT(), SUM(amount), AVG(amount), MAX(amount), MIN(amount), ANYLAST(firstname), ANYFIRST(lastname)
 		// SELECT firstname, lastname, SUM(amount1), MAX(amount2), MIN(amount3)
-		SELECT id, CONCAT("a",NOW(),"b"), firstname, lastname, amount
-		FROM testtable
-		USE_INDEX bd
-		WHERE_INDEX (birthday >= "2024-04-01 00:00:00") AND (birthday <= "2024-04-10 00:00:00")
-		// WHERE_INDEX (firstname > "Bagrat" AND lastname > "Voskanyan") AND (firstname < "Sergey" AND lastname < "Sargsyan")
+		SELECT id, firstname, lastname
+		FROM (
+			SELECT id, birthday, (SELECT birthday FROM testtable USE_INDEX id WHERE_INDEX (id=48)) AS bd, firstname, lastname, amount
+			FROM testtable
+			USE_INDEX id
+		)
+		WHERE id < 50
+		// WHERE_INDEX (birthday >= "2024-04-01 00:00:00") AND (birthday <= "2024-04-10 00:00:00")
 		// WHERE RES(id, 1) = 0 OR (firstname = "Vahag" AND lastname = "Zargaryan")
 		;
 	`))
 	exitIfErr(errors.Wrap(err, "query failed"))
 	var (
 		id int
-		firstname, lastname, birthday string
-		amount float64
+		firstname, lastname string 
+		// birthday, birthday2 string
+		// amount float64
 	)
 	for rows.Next() {
-		if err := rows.Scan(&id, &birthday, &firstname, &lastname, &amount); err != nil {
+		if err := rows.Scan(&id/*, &birthday, &birthday2*/, &firstname, &lastname/*, &amount*/); err != nil {
 			exitIfErr(errors.Wrap(err, "scan failed"))
 		}
-		fmt.Printf("%s %d %s %s %f\n", birthday, id, firstname, lastname, amount)
+		// fmt.Printf("%s %s %d %s %s %f\n", birthday, birthday2, id, firstname, lastname, amount)
+		fmt.Println(id, firstname, lastname)
 	}
 	fmt.Printf("[select] %v\n", time.Since(t))
 

@@ -24,15 +24,15 @@ type QueryDelete struct {
 	WhereIndex *WhereIndex
 }
 
-func (qd *QueryDelete) Parse(s *scanner.Scanner) (err error) {
+func (qd *QueryDelete) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	qd.Type = query.DELETE
 
 	qd.parseFrom(s)
 	qd.parseUseIndex(s)
-	qd.parseWhereIndex(s)
-	qd.parseWhere(s)
+	qd.parseWhereIndex(s, ps)
+	qd.parseWhere(s, ps)
 
 	return nil
 }
@@ -77,15 +77,15 @@ func (qs *QueryDelete) parseUseIndex(s *scanner.Scanner) {
 	s.Scan()
 }
 
-func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner) {
-	qs.WhereIndex = parseWhereIndex(s)
+func (qs *QueryDelete) parseWhereIndex(s *scanner.Scanner, ps query.Parser) {
+	qs.WhereIndex = parseWhereIndex(s, ps)
 }
 
-func (qd *QueryDelete) parseWhere(s *scanner.Scanner) {
+func (qd *QueryDelete) parseWhere(s *scanner.Scanner, ps query.Parser) {
 	word := s.TokenText()
 	if word != "WHERE" {
 		return
 	}
 
-	qd.Where = parseWhere(s)
+	qd.Where = parseWhere(s, ps)
 }

@@ -23,7 +23,7 @@ func (i *Index) Scan(
 func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
 	opts := operatorMapping[start.Operator].scanOption
 	prefixColsCountStart := len(start.Conditions)
-	prefixColsCountEnd := len(end.Conditions)
+	prefixColsCountEnd := 0
 	postfixColsCountStart := 0
 	postfixColsCountEnd := 0
 	var endKey [][]byte
@@ -41,6 +41,7 @@ func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointab
 
 		endKey = i.key(endVal)
 		postfixColsCountEnd = len(endKey) - len(endVal)
+		prefixColsCountEnd = len(end.Conditions)
 	}
 
 	for _, col := range i.columns {

@@ -9,7 +9,7 @@ import (
 	"go-dbms/services/parser/query"
 )
 
-func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error) {
+func Parse(s *scanner.Scanner, queryType query.QueryType, ps query.Parser) (query.Querier, error) {
 	var q query.QueryParser
 
 	switch queryType {
@@ -21,7 +21,7 @@ func Parse(s *scanner.Scanner, queryType query.QueryType) (query.Querier, error)
 		default:            return nil, errors.New(fmt.Sprintf("unsupported query type: '%s'", queryType))
 	}
 
-	return q, q.Parse(s)
+	return q, q.Parse(s, ps)
 }
 
 type WhereIndex struct {

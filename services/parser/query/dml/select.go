@@ -21,6 +21,19 @@ import (
 
 var rand = r.NewSource(time.Now().UnixNano())
 
+type FromType int
+
+const (
+	FROM_SCHEMA FromType = iota
+	FROM_SUBQUERY
+)
+
+type From struct {
+	DB, Table string
+	SubQuery  query.Querier
+	Type      FromType
+}
+
 /*
 SELECT <...projection>
 FROM <tableName>
@@ -31,108 +44,123 @@ FROM <tableName>
 type QuerySelect struct {
 	query.Query
 	Projections *projection.Projections
-	DB          string
-	Table       string
+	From        From
 	UseIndex    string
 	Where       *statement.WhereStatement
 	WhereIndex  *WhereIndex
 	GroupBy     map[string]struct{}
 }
 
-func (qs *QuerySelect) Parse(s *scanner.Scanner) (err error) {
+func (qs *QuerySelect) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	qs.Type = query.SELECT
 
-	qs.parseProjections(s)
-	qs.parseFrom(s)
+	qs.parseProjections(s, ps)
+	qs.parseFrom(s, ps)
 	qs.parseUseIndex(s)
-	qs.parseWhereIndex(s)
-	qs.parseWhere(s)
+	qs.parseWhereIndex(s, ps)
+	qs.parseWhere(s, ps)
 	qs.parseGroupBy(s)
 
 	return nil
 }
 
-func (qs *QuerySelect) parseProjections(s *scanner.Scanner) {
+func (qs *QuerySelect) parseProjections(s *scanner.Scanner, ps query.Parser) {
 	qs.Projections = projection.New()
 	s.Scan()
 
-	p := parseProjection(s)
+	p := parseProjection(s, ps)
 	qs.Projections.Add(p)
 
 	for s.TokenText() != "FROM" {
 		s.Scan()
-		p = parseProjection(s)
+		p = parseProjection(s, ps)
 		qs.Projections.Add(p)
 	}
 }
 
-func parseProjection(s *scanner.Scanner) *projection.Projection {
+func parseProjection(s *scanner.Scanner, ps query.Parser) *projection.Projection {
 	word := s.TokenText()
 	_, isKW := kwords.KeyWords[word]
-	if isKW || word == "," || word == "(" || word == ")" {
+	if isKW || word == "," || word == ")" {
 		panic(errors.ErrSyntax)
 	}
 
 	p := &projection.Projection{}
-	p.Alias = word
-	p.Name = word
-	p.Type = projection.IDENTIFIER
 
-	jsonVal, isLiteral := helpers.ParseJSONToken([]byte(word))
+	if word == "(" {
+		s.Scan()
+		sq, err := ps.ParseQuery(s)
+		if err != nil {
+			panic(err)
+		}
 
-	s.Scan()
-	word = s.TokenText()
-	_, isOP := kwords.IndexOperators[types.Operator(word)]
-
-	if isLiteral {
-		p.Type = projection.LITERAL
-		p.Literal = types.ParseJSONValue(jsonVal)
+		p.Subquery = sq
+		p.Type = projection.SUBQUERY
 		p.Alias = fmt.Sprint(rand.Int63())
 		p.Name = p.Alias
-	} else if word == "FROM" || word == "," || word == ")" || isOP {
-		return p
-	} else if word == "(" {
-		buf := bytes.NewBuffer([]byte(p.Alias))
-		p.Arguments = []*projection.Projection{}
 
-		if aggregator.IsAggregator(p.Name) {
-			p.Type = projection.AGGREGATOR
-		} else if function.IsFunction(p.Name) {
-			p.Type = projection.FUNCTION
-		} else {
-			panic(fmt.Errorf("unknown aggregation/function: '%s'", p.Name))
-		}
+		word = s.TokenText()
+	} else {
+		p.Alias = word
+		p.Name = word
+		p.Type = projection.IDENTIFIER
 
-		buf.WriteByte('(')
-		for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
-			word = s.TokenText()
-			if word == "," {
-				continue
-			} else if word == ")" {
-				break
-			}
-
-			p.Arguments = append(p.Arguments, parseProjection(s))
-
-			buf.Write([]byte(word))
-			buf.WriteByte(',')
-
-			word := s.TokenText()
-			if word == ")" {
-				break
-			}
-		}
-
-		buf.Truncate(buf.Len() - 1)
-		buf.WriteByte(')')
-		p.Alias = buf.String()
+		jsonVal, isLiteral := helpers.ParseJSONToken([]byte(word))
 
 		s.Scan()
 		word = s.TokenText()
-	} else if word != "AS" {
-		panic(errors.ErrSyntax)
+		_, isOP := kwords.IndexOperators[types.Operator(word)]
+
+		if isLiteral {
+			p.Type = projection.LITERAL
+			p.Literal = types.ParseJSONValue(jsonVal)
+			p.Alias = fmt.Sprint(rand.Int63())
+			p.Name = p.Alias
+		} else if word == "FROM" || word == "," || word == ")" || isOP {
+			return p
+		} else if word == "(" {
+			buf := bytes.NewBuffer([]byte(p.Alias))
+			p.Arguments = []*projection.Projection{}
+
+			if aggregator.IsAggregator(p.Name) {
+				p.Type = projection.AGGREGATOR
+			} else if function.IsFunction(p.Name) {
+				p.Type = projection.FUNCTION
+			} else {
+				panic(fmt.Errorf("unknown aggregation/function: '%s'", p.Name))
+			}
+
+			buf.WriteByte('(')
+			for tok := s.Scan(); tok != scanner.EOF; tok = s.Scan() {
+				word = s.TokenText()
+				if word == "," {
+					continue
+				} else if word == ")" {
+					break
+				}
+
+				p.Arguments = append(p.Arguments, parseProjection(s, ps))
+
+				buf.Write([]byte(word))
+				buf.WriteByte(',')
+
+				word := s.TokenText()
+				if word == ")" {
+					break
+				}
+			}
+
+			buf.Truncate(buf.Len() - 1)
+			buf.WriteByte(')')
+			p.Alias = buf.String()
+
+			s.Scan()
+			word = s.TokenText()
+		} else if word != "AS" {
+			panic(errors.ErrSyntax)
+		}
 	}
 
 	if word == "AS" {
@@ -144,7 +172,7 @@ func parseProjection(s *scanner.Scanner) *projection.Projection {
 	return p
 }
 
-func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
+func (qs *QuerySelect) parseFrom(s *scanner.Scanner, ps query.Parser) {
 	word := s.TokenText()
 	if word != "FROM" {
 		panic(errors.ErrNoFrom)
@@ -155,7 +183,22 @@ func (qs *QuerySelect) parseFrom(s *scanner.Scanner) {
 		panic(errors.ErrSyntax)
 	}
 
-	qs.Table = s.TokenText()
+	qs.From = From{}
+	word = s.TokenText()
+	if word == "(" {
+		s.Scan()
+		sq, err := ps.ParseQuery(s)
+		if err != nil {
+			panic(err)
+		}
+
+		qs.From.SubQuery = sq
+		qs.From.Type = FROM_SUBQUERY
+	} else {
+		qs.From.Table = word
+		qs.From.Type = FROM_SCHEMA
+	}
+
 	s.Scan()
 }
 
@@ -174,11 +217,11 @@ func (qs *QuerySelect) parseUseIndex(s *scanner.Scanner) {
 	s.Scan()
 }
 
-func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner) {
-	qs.WhereIndex = parseWhereIndex(s)
+func (qs *QuerySelect) parseWhereIndex(s *scanner.Scanner, ps query.Parser) {
+	qs.WhereIndex = parseWhereIndex(s, ps)
 }
 
-func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
+func parseWhereIndex(s *scanner.Scanner, ps query.Parser) *WhereIndex {
 	word := s.TokenText()
 	if word != "WHERE_INDEX" {
 		return nil
@@ -190,7 +233,7 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 	}
 
 	wi := &WhereIndex{
-		FilterStart: parseWhereIndexSection(s),
+		FilterStart: parseWhereIndexSection(s, ps),
 	}
 
 	word = s.TokenText()
@@ -200,7 +243,7 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 			panic(errors.ErrSyntax)
 		}
 
-		wi.FilterEnd = parseWhereIndexSection(s)
+		wi.FilterEnd = parseWhereIndexSection(s, ps)
 	} else {
 		s.Scan()
 	}
@@ -208,8 +251,8 @@ func parseWhereIndex(s *scanner.Scanner) *WhereIndex {
 	return wi
 }
 
-func parseWhereIndexSection(s *scanner.Scanner) *index.Filter {
-	left, op, right := parseWhereFilter(s, false)
+func parseWhereIndexSection(s *scanner.Scanner, ps query.Parser) *index.Filter {
+	left, op, right := parseWhereFilter(s, false, ps)
 	f := &index.Filter{
 		Operator: op,
 		Conditions: []index.FilterCondition{{
@@ -220,7 +263,7 @@ func parseWhereIndexSection(s *scanner.Scanner) *index.Filter {
 
 	if s.TokenText() != ")" {
 		for s.TokenText() == "AND" {
-			left, _, right := parseWhereFilter(s, false)
+			left, _, right := parseWhereFilter(s, false, ps)
 			f.Conditions = append(f.Conditions, index.FilterCondition{
 				Left:  left,
 				Right: right,
@@ -236,7 +279,7 @@ func parseWhereIndexSection(s *scanner.Scanner) *index.Filter {
 	return f
 }
 
-func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
+func parseWhereFilter(s *scanner.Scanner, firstScanned bool, ps query.Parser) (
 	left *projection.Projection,
 	op types.Operator,
 	right *projection.Projection,
@@ -244,7 +287,7 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
 	if !firstScanned {
 		s.Scan()
 	}
-	left = parseProjection(s)
+	left = parseProjection(s, ps)
 
 	op = types.Operator(s.TokenText())
 	_, isOP := kwords.IndexOperators[op]
@@ -258,21 +301,21 @@ func parseWhereFilter(s *scanner.Scanner, firstScanned bool) (
 	}
 
 	s.Scan()
-	right = parseProjection(s)
+	right = parseProjection(s, ps)
 
 	return left, op, right
 }
 
-func (qs *QuerySelect) parseWhere(s *scanner.Scanner) {
+func (qs *QuerySelect) parseWhere(s *scanner.Scanner, ps query.Parser) {
 	word := s.TokenText()
 	if word != "WHERE" {
 		return
 	}
 
-	qs.Where = parseWhere(s)
+	qs.Where = parseWhere(s, ps)
 }
 
-func parseWhere(s *scanner.Scanner) *statement.WhereStatement {
+func parseWhere(s *scanner.Scanner, ps query.Parser) *statement.WhereStatement {
 	var logOp string
 	var tok rune
 	sttmnts := []*statement.WhereStatement{}
@@ -284,7 +327,7 @@ func parseWhere(s *scanner.Scanner) *statement.WhereStatement {
 		if tok == scanner.EOF {
 			panic(errors.ErrSyntax)
 		} else if word == "(" {
-			sttmnts = append(sttmnts, parseWhere(s))
+			sttmnts = append(sttmnts, parseWhere(s, ps))
 			tok = s.Scan()
 		} else if word == ")" || word == ";" || word == "GROUP" || isKW {
 			break
@@ -292,7 +335,7 @@ func parseWhere(s *scanner.Scanner) *statement.WhereStatement {
 			logOp = word
 			tok = s.Scan()
 		} else {
-			left, op, right := parseWhereFilter(s, true)
+			left, op, right := parseWhereFilter(s, true, ps)
 			sttmnts = append(sttmnts, &statement.WhereStatement{
 				Statement: &statement.Statement{
 					Left:  left,

@@ -98,6 +98,10 @@ func (t *DataTypeDATETIME) Value() json.Token {
 	return helpers.FormatTime(time.Unix(int64(t.value), 0))
 }
 
+func (t *DataTypeDATETIME) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
+}
+
 func (t *DataTypeDATETIME) Set(value interface{}) DataType {
 	if vs, ok := value.(string); ok {
 		value = helpers.MustVal(helpers.ParseTime(vs)).Unix()

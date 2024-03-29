@@ -114,6 +114,10 @@ func (t *DataTypeVARCHAR) Value() json.Token {
 	return string(t.value[:t.Len])
 }
 
+func (t *DataTypeVARCHAR) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
+}
+
 func (t *DataTypeVARCHAR) Set(value interface{}) DataType {
 	switch value.(type) {
 	case []byte:

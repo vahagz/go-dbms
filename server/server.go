@@ -1,17 +1,26 @@
 package server
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"text/scanner"
+	"time"
 
 	"go-dbms/config"
+	"go-dbms/pkg/pipe"
+	"go-dbms/pkg/types"
 	"go-dbms/server/connection"
 	"go-dbms/services/auth"
 	"go-dbms/services/executor"
 	"go-dbms/services/parser"
+	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 	"go-dbms/util/response"
+
+	"github.com/pkg/errors"
 )
 
 const PROTOCOL = "tcp"
@@ -19,7 +28,7 @@ const PROTOCOL = "tcp"
 type Server struct {
 	configs         *config.ServerConfig
 	authService     *auth.AuthServiceT
-	parserService   *parser.ParserServiceT
+	parserService   query.Parser
 	executorService *executor.ExecutorService
 
 	listen *net.TCPListener
@@ -92,9 +101,9 @@ func (s *Server) handleConnection(c *connection.Connection) {
 		c.Conn.Close()
 	}()
 
-	scanner := response.NewReader(c.Conn)
+	req := response.NewReader(c.Conn)
 
-	err := c.Auth(scanner, s.configs.AuthTimeout, s.authService.ValidateCredentials)
+	err := c.Auth(req, s.configs.AuthTimeout, s.authService.ValidateCredentials)
 	if err != nil {
 		fmt.Println("auth error: ", err)
 		err = c.SendAuthError()
@@ -108,7 +117,7 @@ func (s *Server) handleConnection(c *connection.Connection) {
 	c.SendAuthSuccess()
 
 	for {
-		buf, err := scanner.ReadLine()
+		buf, err := req.ReadLine()
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -121,7 +130,11 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			}
 		}
 
-		q, err := s.parserService.ParseQuery(buf)
+		start := time.Now()
+		sc := &scanner.Scanner{}
+		sc.Init(bytes.NewReader(buf))
+		sc.Scan()
+		q, err := s.parserService.ParseQuery(sc)
 		if err != nil {
 			err = c.SendSyntaxError(err)
 			if err != nil {
@@ -130,7 +143,7 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			break
 		}
 
-		r, err := s.executorService.Exec(q)
+		r, pr, err := s.executorService.Exec(q)
 		if err != nil {
 			fmt.Println("error while executing =>", err)
 			err = c.SendError(err)
@@ -140,12 +153,32 @@ func (s *Server) handleConnection(c *connection.Connection) {
 			break
 		}
 
-		totalBytes, err := r.WriteTo(c.Conn)
+		p := pipe.NewPipe(nil)
+		go func ()  {
+			if r != nil {
+				record := make(types.DataSeq, len(pr.Iterator()))
+				for row, ok := r.Pop(); ok; row, ok = r.Pop() {
+					r.Continue(true)
+
+					for i, p := range pr.Iterator() {
+						record[i] = row[p.Alias]
+					}
+
+					if _, err := p.Write(helpers.MustVal(json.Marshal(record))); err != nil {			
+						panic(errors.Wrap(err, "failed to push marshaled record"))
+					}
+				}
+			}
+			p.Write(pipe.EOS)
+		}()
+
+		totalBytes, err := p.WriteTo(c.Conn)
 		if err != nil {
 			fmt.Println("[Write] unexpected error while responding:", err)
 			break
 		}
 
 		fmt.Printf("Server sent %d bytes\n", totalBytes)
+		fmt.Printf("Duration %v\n", time.Since(start))
 	}
 }

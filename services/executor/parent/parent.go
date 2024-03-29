@@ -10,6 +10,10 @@ import (
 	"go-dbms/pkg/engine/aggregatingmergetree"
 	"go-dbms/pkg/engine/mergetree"
 	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query"
+	"go-dbms/services/parser/query/dml/projection"
+	"go-dbms/util/stream"
 	"go-dbms/util/timer"
 
 	"github.com/pkg/errors"
@@ -24,6 +28,10 @@ type tableMetaEngine struct {
 type ExecutorService struct {
 	dataPath string
 	Tables   map[string]table.ITable
+}
+
+type Executor interface {
+	Exec(q query.Querier) (stream.ReaderContinue[types.DataRow], *projection.Projections, error)
 }
 
 func New(dataPath string) (*ExecutorService, error) {

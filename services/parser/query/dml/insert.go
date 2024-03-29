@@ -26,7 +26,7 @@ type QueryInsert struct {
 	Values  [][]types.DataType
 }
 
-func (qi *QueryInsert) Parse(s *scanner.Scanner) (err error) {
+func (qi *QueryInsert) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	qi.Type = query.INSERT

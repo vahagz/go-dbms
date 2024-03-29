@@ -125,6 +125,10 @@ func (t *DataTypeFLOAT) Value() json.Token {
 	}
 }
 
+func (t *DataTypeFLOAT) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
+}
+
 func (t *DataTypeFLOAT) Set(value interface{}) DataType {
 	switch value.(type) {
 		case float32: {

@@ -1,38 +1,34 @@
 package dml
 
 import (
-	"encoding/json"
-	"io"
-
-	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/types"
+	"go-dbms/services/executor/parent"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/services/parser/query/dml/projection"
 	"go-dbms/util/helpers"
 	"go-dbms/util/stream"
 
 	"github.com/pkg/errors"
 )
 
-func (dml *DML) Delete(q *dml.QueryDelete) (io.WriterTo, error) {
+func (dml *DML) Delete(q *dml.QueryDelete, es parent.Executor) (
+	stream.ReaderContinue[types.DataRow],
+	*projection.Projections,
+	error,
+) {
 	if err := dml.dmlDeleteValidate(q); err != nil {
-		return nil, errors.Wrapf(err, "validation error")
+		return nil, nil, errors.Wrapf(err, "validation error")
 	}
 
 	t := dml.Tables[q.Table]
-	p := pipe.NewPipe(nil)
+	dst := stream.New[types.DataRow](1)
 
 	go func() {
-		columns := t.PrimaryColumns()
 		process := func(s stream.Reader[types.DataRow]) error {
+			defer dst.Close()
 			for row, ok := s.Pop(); ok; row, ok = s.Pop() {
-				record := make([]interface{}, 0, len(columns))
-				for _, col := range columns {
-					record = append(record, row[col.Name].Value())
-				}
-
-				if _, err := p.Write(helpers.MustVal(json.Marshal(record))); err != nil {
-					return errors.Wrap(err, "failed to push marshaled record")
-				}
+				dst.Push(row)
+				dst.ShouldContinue() // have no effect but must call because return type is stream.ReaderContinue
 			}
 			return nil
 		}
@@ -50,8 +46,7 @@ func (dml *DML) Delete(q *dml.QueryDelete) (io.WriterTo, error) {
 		}
 
 		helpers.Must(process(s))
-		helpers.MustVal(p.Write(pipe.EOS))
 	}()
 
-	return p, nil
+	return dst, projection.FromCols(t.PrimaryColumns()), nil
 }

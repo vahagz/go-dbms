@@ -46,15 +46,20 @@ type DataTypeMeta interface {
 	IsFixedSize() bool
 }
 
+type Valuer interface {
+	Value() json.Token
+}
+
 type DataType interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
+	json.Marshaler
+	Valuer
 	DataTypeMeta
 
 	Copy() DataType
 	MetaCopy() DataTypeMeta
 	Bytes() []byte
-	Value() json.Token
 	Set(value interface{}) DataType
 	Fill() DataType
 	Zero() DataType
@@ -63,7 +68,12 @@ type DataType interface {
 	Cast(meta DataTypeMeta) (DataType, error)
 }
 
+func MarshalJSON(itm Valuer) ([]byte, error) {
+	return json.Marshal(itm.Value())
+}
+
 type DataRow map[string]DataType
+type DataSeq []DataType
 
 func (dr DataRow) Compare(dr2 DataRow, keys []string) int {
 	for _, col := range keys {

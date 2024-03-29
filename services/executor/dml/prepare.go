@@ -1,26 +1,25 @@
 package dml
 
 import (
-	"io"
-
-	"go-dbms/pkg/pipe"
+	"go-dbms/pkg/types"
+	"go-dbms/services/executor/parent"
 	"go-dbms/services/parser/query/dml"
+	"go-dbms/services/parser/query/dml/projection"
+	"go-dbms/util/stream"
 
 	"github.com/pkg/errors"
 )
 
-func (dml *DML) Prepare(q *dml.QueryPrepare) (io.WriterTo, error) {
+func (dml *DML) Prepare(q *dml.QueryPrepare, es parent.Executor) (
+	stream.ReaderContinue[types.DataRow],
+	*projection.Projections,
+	error,
+) {
 	if err := dml.dmlPrepareValidate(q); err != nil {
-		return nil, errors.Wrapf(err, "validation error")
+		return nil, nil, errors.Wrapf(err, "validation error")
 	}
 
-	p := pipe.NewPipe(pipe.EOS)
-	go func() {
-		dml.Tables[q.Table].PrepareSpace(q.Rows)
-		if _, err := p.Write(pipe.EOS); err != nil {
-			panic(err)
-		}
-	}()
+	dml.Tables[q.Table].PrepareSpace(q.Rows)
 
-	return p, nil
+	return nil, nil, nil
 }

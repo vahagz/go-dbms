@@ -9,6 +9,7 @@ import (
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
+	"go-dbms/services/parser/query"
 	"go-dbms/services/parser/query/dml/aggregator"
 )
 
@@ -31,7 +32,7 @@ type QueryCreateTable struct {
 	AggrFunc map[string]aggregator.AggregatorType
 }
 
-func (qct *QueryCreateTable) Parse(s *scanner.Scanner) (err error) {
+func (qct *QueryCreateTable) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer func ()  {
 		if r := recover(); r != nil {
 			var ok bool

@@ -41,5 +41,5 @@ func Parse(s *scanner.Scanner) (Creater, error) {
 		default:       return nil, errors.New(fmt.Sprintf("unsupported create target: '%s'", target))
 	}
 
-	return q, q.Parse(s)
+	return q, q.Parse(s, nil)
 }

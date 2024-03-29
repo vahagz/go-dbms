@@ -31,7 +31,7 @@ type QueryUpdate struct {
 	WhereIndex *WhereIndex
 }
 
-func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
+func (qu *QueryUpdate) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	qu.Type = query.UPDATE
@@ -39,8 +39,8 @@ func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
 	qu.parseFrom(s)
 	qu.parseUseIndex(s)
 	qu.parseValues(s)
-	qu.parseWhereIndex(s)
-	qu.parseWhere(s)
+	qu.parseWhereIndex(s, ps)
+	qu.parseWhere(s, ps)
 
 	return nil
 }
@@ -125,15 +125,15 @@ func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
 	}
 }
 
-func (qs *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
-	qs.WhereIndex = parseWhereIndex(s)
+func (qs *QueryUpdate) parseWhereIndex(s *scanner.Scanner, ps query.Parser) {
+	qs.WhereIndex = parseWhereIndex(s, ps)
 }
 
-func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
+func (qu *QueryUpdate) parseWhere(s *scanner.Scanner, ps query.Parser) {
 	word := s.TokenText()
 	if word != "WHERE" {
 		return
 	}
 
-	qu.Where = parseWhere(s)
+	qu.Where = parseWhere(s, ps)
 }

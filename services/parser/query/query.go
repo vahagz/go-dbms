@@ -17,13 +17,17 @@ const (
 	PREPARE  QueryType = "PREPARE"
 )
 
+type Parser interface {
+	ParseQuery(s *scanner.Scanner) (Querier, error)
+}
+
 type Querier interface {
 	GetType() QueryType
 }
 
 type QueryParser interface {
 	Querier
-	Parse(s *scanner.Scanner) error
+	Parse(s *scanner.Scanner, ps Parser) error
 }
 
 type Query struct {

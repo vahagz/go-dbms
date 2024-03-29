@@ -3,6 +3,7 @@ package dml
 import (
 	"fmt"
 
+	"go-dbms/pkg/column"
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/table"
 	"go-dbms/services/parser/query/dml"
@@ -13,25 +14,33 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (dml *DML) dmlSelectValidate(q *dml.QuerySelect) (err error) {
+func (dmlt *DML) dmlSelectValidate(q *dml.QuerySelect) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
-	dml.validateFrom(q)
-	dml.validateUseIndex(dml.Tables[q.Table], q)
-	dml.validateProjections(q)
-	dml.validateWhereIndex(dml.Tables[q.Table], q.WhereIndex)
-	dml.validateWhere(q.Where)
-	dml.validateGroupBy(q)
+	dmlt.validateFrom(q)
+	if q.From.Type == dml.FROM_SCHEMA {
+		dmlt.validateUseIndex(dmlt.Tables[q.From.Table], q)
+		dmlt.validateWhereIndex(dmlt.Tables[q.From.Table], q.WhereIndex)
+	}
+	dmlt.validateProjections(q)
+	dmlt.validateWhere(q.Where)
+	dmlt.validateGroupBy(q)
 	return nil
 }
 
-func (dml *DML) validateFrom(q *dml.QuerySelect) {
-	if _, ok := dml.Tables[q.Table]; !ok {
-		panic(fmt.Errorf("table not found: '%s'", q.Table))
+func (dmlt *DML) validateFrom(q *dml.QuerySelect) {
+	if q.From.Type == dml.FROM_SCHEMA {
+		if _, ok := dmlt.Tables[q.From.Table]; !ok {
+			panic(fmt.Errorf("table not found: '%s'", q.From.Table))
+		}
+	} else if q.From.Type == dml.FROM_SUBQUERY {
+		if err := dmlt.dmlSelectValidate(q.From.SubQuery.(*dml.QuerySelect)); err != nil {
+			panic(err)
+		}
 	}
 }
 
-func (dml *DML) validateUseIndex(t table.ITable, q *dml.QuerySelect) {
+func (dmlt *DML) validateUseIndex(t table.ITable, q *dml.QuerySelect) {
 	if q.UseIndex == "" {
 		return
 	} else if !t.HasIndex(q.UseIndex) {
@@ -39,19 +48,23 @@ func (dml *DML) validateUseIndex(t table.ITable, q *dml.QuerySelect) {
 	}
 }
 
-func (dml *DML) validateProjections(q *dml.QuerySelect) {
+func (dmlt *DML) validateProjections(q *dml.QuerySelect) {
 	for i, pr := range q.Projections.Iterator() {
-		dml.validateProjection(q, pr, i)
+		dmlt.validateProjection(q, pr, i)
 	}
 }
 
-func (dml *DML) validateProjection(
+func (dmlt *DML) validateProjection(
 	q *dml.QuerySelect,
 	p *projection.Projection,
 	index int,
 ) {
-	t := dml.Tables[q.Table]
-	columns := t.ColumnsMap()
+	var t table.ITable
+	var columns map[string]*column.Column
+	if q.From.Type != dml.FROM_SUBQUERY {
+		t = dmlt.Tables[q.From.Table]
+		columns = t.ColumnsMap()
+	}
 	
 	switch p.Type {
 		case projection.IDENTIFIER:
@@ -70,12 +83,17 @@ func (dml *DML) validateProjection(
 				if !isColumn && found && index <= paIndex {
 					panic(fmt.Errorf("projection '%s' is defined after '%s'", pa.Alias, p.Alias))
 				}
-				dml.validateProjection(q, pa, paIndex)
+				dmlt.validateProjection(q, pa, paIndex)
+			}
+		
+		case projection.SUBQUERY:
+			if err := dmlt.dmlSelectValidate(p.Subquery.(*dml.QuerySelect)); err != nil {
+				panic(err)
 			}
 	}
 }
 
-func (dml *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
+func (dmlt *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
 	if wi == nil {
 		return
 	}
@@ -109,19 +127,19 @@ func (dml *DML) validateWhereIndex(t table.ITable, wi *dml.WhereIndex) {
 	}
 }
 
-func (dml *DML) validateWhere(w *statement.WhereStatement) {
+func (dmlt *DML) validateWhere(w *statement.WhereStatement) {
 	// if w == nil {
 	// 	return
 	// }
 
 	// if w.And != nil {
 	// 	for _, ws := range w.And {
-	// 		dml.validateWhere(ws)
+	// 		dmlt.validateWhere(ws)
 	// 	}
 	// }
 	// if w.Or != nil {
 	// 	for _, ws := range w.Or {
-	// 		dml.validateWhere(ws)
+	// 		dmlt.validateWhere(ws)
 	// 	}
 	// }
 	// if w.Statement != nil {
@@ -133,8 +151,12 @@ func (dml *DML) validateWhere(w *statement.WhereStatement) {
 	// }
 }
 
-func (dml *DML) validateGroupBy(q *dml.QuerySelect) {
-	t := dml.Tables[q.Table]
+func (dmlt *DML) validateGroupBy(q *dml.QuerySelect) {
+	if q.From.Type == dml.FROM_SUBQUERY {
+		return
+	}
+
+	t := dmlt.Tables[q.From.Table]
 	columns := t.ColumnsMap()
 
 	for groupItem := range q.GroupBy {

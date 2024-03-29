@@ -1,20 +1,25 @@
 package create
 
 import (
-	"io"
 	"path/filepath"
 
 	"go-dbms/pkg/engine/aggregatingmergetree"
 	"go-dbms/pkg/engine/mergetree"
-	"go-dbms/pkg/pipe"
 	"go-dbms/pkg/table"
+	"go-dbms/pkg/types"
 	"go-dbms/services/executor/parent"
 	"go-dbms/services/parser/query/ddl/create"
+	"go-dbms/services/parser/query/dml/projection"
+	"go-dbms/util/stream"
 
 	"github.com/pkg/errors"
 )
 
-func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, error) {
+func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (
+	stream.ReaderContinue[types.DataRow],
+	*projection.Projections,
+	error,
+) {
 	tablePath := ddl.TablePath(q.Name)
 	opts := &table.Options{
 		Engine:       q.Engine,
@@ -35,16 +40,16 @@ func (ddl *DDLCreate) CreateTable(q *create.QueryCreateTable) (io.WriterTo, erro
 		default:              panic(parent.ErrInvalidEngine)
 	}
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create table: '%s'", q.Name)
+		return nil, nil, errors.Wrapf(err, "failed to create table: '%s'", q.Name)
 	}
 
 	for _, idx := range q.Indexes {
 		if err = t.CreateIndex(&idx.Name, idx.IndexOptions); err != nil {
-			return nil, errors.Wrapf(err, "failed to create index: '%s'", idx.Name)
+			return nil, nil, errors.Wrapf(err, "failed to create index: '%s'", idx.Name)
 		}
 	}
 
 	ddl.Tables[q.Name] = t
 
-	return pipe.NewPipe(pipe.EOS), nil
+	return nil, nil, nil
 }

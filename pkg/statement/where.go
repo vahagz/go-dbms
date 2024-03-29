@@ -3,6 +3,7 @@ package statement
 import (
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml/eval"
+	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
 )
@@ -17,7 +18,7 @@ func (ws *WhereStatement) Compare(row types.DataRow) bool {
 	if ws.Statement != nil {
 		l := eval.Eval(row, ws.Statement.Left)
 		r := eval.Eval(row, ws.Statement.Right)
-		return l.CompareOp(ws.Statement.Op, r)
+		return l.CompareOp(ws.Statement.Op, helpers.MustVal(r.Cast(l.MetaCopy())))
 	}
 
 	if len(ws.And) != 0 {

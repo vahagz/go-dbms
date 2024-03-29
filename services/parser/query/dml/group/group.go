@@ -1,14 +1,10 @@
 package group
 
 import (
-	"encoding/json"
-	"io"
-
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/query/dml/aggregator"
 	"go-dbms/services/parser/query/dml/projection"
-
-	"github.com/pkg/errors"
+	"go-dbms/util/stream"
 )
 
 type subGroup struct {
@@ -21,10 +17,10 @@ type Group struct {
 	projections *projection.Projections
 	groupList   map[string]struct{}
 	groups      *subGroup
-	dst         io.Writer
+	dst         stream.Writer[types.DataRow]
 }
 
-func New(projections *projection.Projections, groupList map[string]struct{}, dst io.Writer) *Group {
+func New(projections *projection.Projections, groupList map[string]struct{}, dst stream.Writer[types.DataRow]) *Group {
 	return &Group{
 		projections: projections,
 		groupList:   groupList,
@@ -102,7 +98,7 @@ func (g *Group) flush(gr *subGroup) (n int, err error) {
 	}
 
 	prList := g.projections.Iterator()
-	record := make([]interface{}, 0, len(prList))
+	record := make(types.DataRow, len(prList))
 
 	for _, pr := range prList {
 		var val types.DataType
@@ -111,19 +107,9 @@ func (g *Group) flush(gr *subGroup) (n int, err error) {
 		} else {
 			val = gr.groupItems[pr.Alias]
 		}
-
-		record = append(record, val.Value())
+		record[pr.Alias] = val
 	}
 
-	blob, err := json.Marshal(record)
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to marshal record")
-	}
-
-	_, err = g.dst.Write(blob)
-	if err != nil {			
-		return 0, errors.Wrap(err, "failed to push marshaled record")
-	}
-
+	g.dst.Push(record)
 	return 0, nil
 }

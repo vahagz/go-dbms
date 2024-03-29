@@ -21,7 +21,7 @@ type QueryPrepare struct {
 }
 
 
-func (qp *QueryPrepare) Parse(s *scanner.Scanner) (err error) {
+func (qp *QueryPrepare) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
 	defer helpers.RecoverOnError(&err)()
 
 	qp.Type = query.PREPARE

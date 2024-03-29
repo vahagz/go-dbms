@@ -145,6 +145,10 @@ func (t *DataTypeINTEGER) Value() json.Token {
 	}
 }
 
+func (t *DataTypeINTEGER) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
+}
+
 func (t *DataTypeINTEGER) Set(value interface{}) DataType {
 	copy(t.value, helpers.Bytesof(value))
 	return t
