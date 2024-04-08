@@ -2,9 +2,12 @@ package types
 
 import (
 	"bytes"
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
+	"strconv"
+	"strings"
 
 	"go-dbms/util/helpers"
 )
@@ -15,8 +18,10 @@ func init() {
 			m := meta.(*DataTypeINTEGERMeta)
 			return &DataTypeINTEGER{
 				value: make([]byte, m.ByteSize),
-				Code:  m.GetCode(),
-				Meta:  m,
+				DataTypeBASE: DataTypeBASE[*DataTypeINTEGERMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -26,10 +31,32 @@ func init() {
 
 			return &DataTypeINTEGERMeta{
 				Signed:   args[0].(bool),
-				ByteSize: helpers.Convert(args[1], new(uint8)),
+				ByteSize: helpers.Convert[uint8](args[1]),
 				AI:       autoIncrement{ Enabled: args[2].(bool) },
 			}
 		},
+	}
+
+	parsers["INT"] = func(tokens []string) DataTypeMeta {
+		typeName := tokens[0]
+		var (
+			err error
+			signed, ai bool
+			size int
+		)
+
+		parts := strings.Split(typeName, "Int")
+		signed = parts[0] != "U"
+		size, err = strconv.Atoi(parts[len(parts)-1])
+		if err != nil {
+			panic(err)
+		}
+
+		if len(tokens) > 1 {
+			ai = tokens[1] == "AUTO" && tokens[2] == "INCREMENT"
+		}
+
+		return Meta(TYPE_INTEGER, signed, size/8, ai)
 	}
 }
 
@@ -65,15 +92,10 @@ func (m *DataTypeINTEGERMeta) IsFixedSize() bool {
 	return true
 }
 
-func (m *DataTypeINTEGERMeta) IsNumeric() bool {
-	return true
-}
-
 
 type DataTypeINTEGER struct {
 	value []byte
-	Code  TypeCode             `json:"code"`
-	Meta  *DataTypeINTEGERMeta `json:"meta"`
+	DataTypeBASE[*DataTypeINTEGERMeta]
 }
 
 func (t *DataTypeINTEGER) MarshalBinary() (data []byte, err error) {
@@ -85,64 +107,46 @@ func (t *DataTypeINTEGER) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (t *DataTypeINTEGER) Bytes() []byte {
-	cp := append(make([]byte, 0, 8), t.value...)
-	if len(cp) < 8 {
-		for i := len(cp); i < 8; i++ {
-			cp = append(cp, 0)
-		}
+func (t *DataTypeINTEGER) Copy() DataType {
+	return &DataTypeINTEGER{
+		value: slices.Clone(t.value),
+		DataTypeBASE: DataTypeBASE[*DataTypeINTEGERMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeINTEGERMeta),
+		},
 	}
-
-	b := make([]byte, len(cp))
-	binary.LittleEndian.PutUint64(b, binary.BigEndian.Uint64(cp))
-	return b[len(b)-len(t.value):]
 }
 
-func (t *DataTypeINTEGER) Value() interface{} {
-	switch t.Meta.ByteSize {
-	case 1:
-		if t.Meta.Signed {
-			v := new(int8)
-			helpers.Frombytes(t.value, v)
-			return *v
-		} else {
-			v := new(uint8)
-			helpers.Frombytes(t.value, v)
-			return *v
-		}
-	case 2:
-		if t.Meta.Signed {
-			v := new(int16)
-			helpers.Frombytes(t.value, v)
-			return *v
-		} else {
-			v := new(uint16)
-			helpers.Frombytes(t.value, v)
-			return *v
-		}
-	case 4:
-		if t.Meta.Signed {
-			v := new(int32)
-			helpers.Frombytes(t.value, v)
-			return *v
-		} else {
-			v := new(uint32)
-			helpers.Frombytes(t.value, v)
-			return *v
-		}
-	case 8:
-		if t.Meta.Signed {
-			v := new(int64)
-			helpers.Frombytes(t.value, v)
-			return *v
-		} else {
-			v := new(uint64)
-			helpers.Frombytes(t.value, v)
-			return *v
-		}
-	default:
-		panic(fmt.Errorf("invalid byte size => %v", t.Meta.ByteSize))
+func (t *DataTypeINTEGER) MetaCopy() DataTypeMeta {
+	return &DataTypeINTEGERMeta{
+		Signed:   t.Meta.Signed,
+		ByteSize: t.Meta.ByteSize,
+		AI:       t.Meta.AI,
 	}
+}
+
+func (t *DataTypeINTEGER) Bytes() []byte {
+	cp := slices.Clone(t.value)
+	slices.Reverse(cp)
+	return cp
+}
+
+func (t *DataTypeINTEGER) Value() json.Token {
+	switch size := t.Meta.ByteSize; {
+		case t.Meta.Signed  && size == 1: return helpers.Frombytes[int8](t.value)
+		case t.Meta.Signed  && size == 2: return helpers.Frombytes[int16](t.value)
+		case t.Meta.Signed  && size == 4: return helpers.Frombytes[int32](t.value)
+		case t.Meta.Signed  && size == 8: return helpers.Frombytes[int64](t.value)
+		case !t.Meta.Signed && size == 1: return helpers.Frombytes[uint8](t.value)
+		case !t.Meta.Signed && size == 2: return helpers.Frombytes[uint16](t.value)
+		case !t.Meta.Signed && size == 4: return helpers.Frombytes[uint32](t.value)
+		case !t.Meta.Signed && size == 8: return helpers.Frombytes[uint64](t.value)
+		default: panic(fmt.Errorf("invalid byte size => %v", t.Meta.ByteSize))
+	}
+}
+
+func (t *DataTypeINTEGER) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
 }
 
 func (t *DataTypeINTEGER) Set(value interface{}) DataType {
@@ -164,45 +168,40 @@ func (t *DataTypeINTEGER) Zero() DataType {
 	return t
 }
 
-func (t *DataTypeINTEGER) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeINTEGER) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeINTEGER) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
-}
-
-func (t *DataTypeINTEGER) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeINTEGER) Size() int {
-	return int(t.Meta.ByteSize)
+	return t.Meta.Size()
 }
 
-func (t *DataTypeINTEGER) Compare(operator string, val DataType) bool {
+func (t *DataTypeINTEGER) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeINTEGER) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeINTEGER) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeINTEGER) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {
 				meta = t.Meta
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = float64Meta
+			}
+			return Type(meta).Set(float64(helpers.Convert[int64](t.Value()))), nil
 		}
 		case TYPE_STRING, TYPE_VARCHAR: {
 			if meta == nil {
@@ -213,6 +212,12 @@ func (t *DataTypeINTEGER) Cast(code TypeCode, meta DataTypeMeta) (DataType, erro
 				}
 			}
 			return Type(meta).Set(fmt.Sprint(t.Value())), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(helpers.Frombytes[int64](t.value)), nil
 		}
 	}
 

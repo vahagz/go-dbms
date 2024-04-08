@@ -3,10 +3,14 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
-	"go-dbms/util/helpers"
 	"math"
+	"slices"
 	"strconv"
+
+	"go-dbms/services/parser/errors"
+	"go-dbms/util/helpers"
 )
 
 func init() {
@@ -15,8 +19,10 @@ func init() {
 			m := meta.(*DataTypeVARCHARMeta)
 			return &DataTypeVARCHAR{
 				value: make([]byte, m.Cap),
-				Code: m.GetCode(),
-				Meta: m,
+				DataTypeBASE: DataTypeBASE[*DataTypeVARCHARMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -25,9 +31,21 @@ func init() {
 			}
 
 			return &DataTypeVARCHARMeta{
-				Cap: helpers.Convert(args[0], new(uint16)),
+				Cap: helpers.Convert[uint16](args[0]),
 			}
 		},
+	}
+
+	parsers["VARCHAR"] = func(tokens []string) DataTypeMeta {
+		if tokens[1] != "(" || tokens[len(tokens)-1] != ")" {
+			panic(errors.ErrSyntax)
+		}
+
+		cap, err := strconv.Atoi(tokens[2])
+		if err != nil {
+			panic(err)
+		}
+		return Meta(TYPE_VARCHAR, cap)
 	}
 }
 
@@ -52,15 +70,10 @@ func (m *DataTypeVARCHARMeta) IsFixedSize() bool {
 	return true
 }
 
-func (m *DataTypeVARCHARMeta) IsNumeric() bool {
-	return true
-}
-
 type DataTypeVARCHAR struct {
 	value []byte
-	Code  TypeCode             `json:"code"`
-	Len   uint16               `json:"len"`
-	Meta  *DataTypeVARCHARMeta `json:"meta"`
+	Len   uint16 `json:"len"`
+	DataTypeBASE[*DataTypeVARCHARMeta]
 }
 
 func (t *DataTypeVARCHAR) MarshalBinary() (data []byte, err error) {
@@ -76,12 +89,33 @@ func (t *DataTypeVARCHAR) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeVARCHAR) Copy() DataType {
+	return &DataTypeVARCHAR{
+		value: slices.Clone(t.value),
+		Len:   t.Len,
+		DataTypeBASE: DataTypeBASE[*DataTypeVARCHARMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeVARCHARMeta),
+		},
+	}
+}
+
+func (t *DataTypeVARCHAR) MetaCopy() DataTypeMeta {
+	return &DataTypeVARCHARMeta{
+		Cap: t.Meta.Cap,
+	}
+}
+
 func (t *DataTypeVARCHAR) Bytes() []byte {
 	return t.value[:t.Len]
 }
 
-func (t *DataTypeVARCHAR) Value() interface{} {
+func (t *DataTypeVARCHAR) Value() json.Token {
 	return string(t.value[:t.Len])
+}
+
+func (t *DataTypeVARCHAR) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
 }
 
 func (t *DataTypeVARCHAR) Set(value interface{}) DataType {
@@ -115,39 +149,28 @@ func (t *DataTypeVARCHAR) Zero() DataType {
 	return t
 }
 
-func (t *DataTypeVARCHAR) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeVARCHAR) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeVARCHAR) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
-}
-
-func (t *DataTypeVARCHAR) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeVARCHAR) Size() int {
-	return 2 + int(t.Meta.Cap) // 2 for length size
+	return 2 + t.Meta.Size() // 2 for length size
 }
 
-func (t *DataTypeVARCHAR) Compare(operator string, val DataType) bool {
+func (t *DataTypeVARCHAR) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeVARCHAR) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeVARCHAR) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeVARCHAR) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {
@@ -172,6 +195,20 @@ func (t *DataTypeVARCHAR) Cast(code TypeCode, meta DataTypeMeta) (DataType, erro
 				}
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = &DataTypeFLOATMeta{
+					ByteSize: 8,
+				}
+			}
+			return Type(meta).Set(helpers.MustVal(strconv.ParseFloat(string(t.value), 64))), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(string(t.value)), nil
 		}
 	}
 

@@ -37,7 +37,7 @@ func (rr *Reader) read(n int) (err error) {
 	rr.len = 0
 
 	for rr.len < n {
-		rn, err := rr.src.Read(rr.buf[rr.len:n-rr.len])
+		rn, err := rr.src.Read(rr.buf[rr.len:n])
 		if err != nil {
 			return err
 		}

@@ -2,9 +2,13 @@ package helpers
 
 import (
 	"bytes"
+	"encoding/json"
+	"math"
 	"os"
 	"strings"
 )
+
+const float64EqualityThreshold = 1e-9
 
 func TrimSuffix(s, suffix string) string {
 	if strings.HasSuffix(s, suffix) {
@@ -38,4 +42,56 @@ func Copy(matrix [][]byte) [][]byte {
 		copy(cp[i], matrix[i])
 	}
 	return cp
+}
+
+func ParseJSONToken(word []byte) (emptyInterface interface{}, ok bool) {
+	if (word[0] == '"' && word[len(word)-1] == '"') ||
+		(word[0] >= '0' && word[0] <= '9') ||
+		bytes.Equal(word, []byte("true")) ||
+		bytes.Equal(word, []byte("false")) {
+			err := json.Unmarshal(word, &emptyInterface)
+			return emptyInterface, err == nil
+	}
+	return nil, false
+}
+
+func RecoverOnError(errPtr *error) func() {
+	return func ()  {
+		if r := recover(); r != nil {
+			var ok bool
+			err, ok := r.(error)
+			if !ok {
+				panic(r)
+			}
+
+			*errPtr = err
+		}
+	}
+}
+
+func CompareFloat(a, b float64) int {
+	eq := math.Abs(a - b) <= float64EqualityThreshold
+	if eq {
+		return 0
+	} else if a < b {
+		return -1
+	}
+	return 1
+}
+
+func MustVal[T any](val T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return val
+}
+
+func Must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func MarshalJSON(v any) []byte {
+	return MustVal(json.Marshal(v))
 }

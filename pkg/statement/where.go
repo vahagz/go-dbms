@@ -2,6 +2,8 @@ package statement
 
 import (
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/eval"
+	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
 )
@@ -12,10 +14,11 @@ type WhereStatement struct {
 	Statement *Statement        `json:"statement,omitempty"`
 }
 
-func (ws *WhereStatement) Compare(row map[string]types.DataType) bool {
+func (ws *WhereStatement) Compare(row types.DataRow) bool {
 	if ws.Statement != nil {
-		target := row[ws.Statement.Column()]
-		return target.Compare(ws.Statement.Operator(), ws.Statement.Value())
+		l := eval.Eval(row, ws.Statement.Left)
+		r := eval.Eval(row, ws.Statement.Right)
+		return l.CompareOp(ws.Statement.Op, helpers.MustVal(r.Cast(l.MetaCopy())))
 	}
 
 	if len(ws.And) != 0 {
@@ -37,14 +40,6 @@ func (ws *WhereStatement) Compare(row map[string]types.DataType) bool {
 	}
 
 	panic(errors.New("invalid where statement"))
-}
-
-func NewStatement(column, operator string, value types.DataType) *Statement {
-	return &Statement{column, operator, value}
-}
-
-func Where(column, operator string, value types.DataType) *WhereStatement {
-	return &WhereStatement{Statement: NewStatement(column, operator, value)}
 }
 
 func WhereS(s *Statement) *WhereStatement {

@@ -28,23 +28,22 @@ func Bytesof(v interface{}) []byte {
 	return unsafe.Slice((*byte)((*eface)(unsafe.Pointer(&v)).val), Sizeof(v))
 }
 
-func Frombytes[T any](srcBytes []byte, dst *T) {
-	dstBytes := make([]byte, Sizeof(*dst))
+func Frombytes[T any](srcBytes []byte) T {
+	var dst T
+	dstBytes := make([]byte, Sizeof(dst))
 	copy(dstBytes, srcBytes)
-	*dst = *(*T)(unsafe.Pointer(&dstBytes[0]))
+	return *(*T)(unsafe.Pointer(&dstBytes[0]))
 }
 
-func Convert[T integer](from interface{}, to *T) T {
+func Convert[T integer](from interface{}) T {
+	var to T
 	srcSize := Sizeof(from)
-	dstSize := Sizeof(*to)
+	dstSize := Sizeof(to)
 
 	if srcSize >= dstSize {
-		*to = *(*T)((*eface)(unsafe.Pointer(&from)).val)
-		return *to
+		return *(*T)((*eface)(unsafe.Pointer(&from)).val)
 	}
-
-	Frombytes(Bytesof(from), to)
-	return *to
+	return Frombytes[T](Bytesof(from))
 }
 
 func SetLen[T any](sl []T, len int) []T {

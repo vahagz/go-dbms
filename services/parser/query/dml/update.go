@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"text/scanner"
 
+	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
 	"go-dbms/services/parser/errors"
 	"go-dbms/services/parser/kwords"
 	"go-dbms/services/parser/query"
+	"go-dbms/util/helpers"
 )
 
 /*
@@ -21,38 +23,24 @@ SET
 */
 type QueryUpdate struct {
 	query.Query
-	DB         string      `json:"db"`
-	Table      string      `json:"table"`
-	Values     dataMap     `json:"values"`
-	Where      *where      `json:"where"`
-	WhereIndex *whereIndex `json:"where_index"`
+	DB         string
+	Table      string
+	UseIndex   string
+	Values     types.DataRow
+	Where      *statement.WhereStatement
+	WhereIndex *WhereIndex
 }
 
-func (qu *QueryUpdate) Parse(s *scanner.Scanner) (err error) {
-	defer func ()  {
-		if r := recover(); r != nil {
-			var ok bool
-			err, ok = r.(error)
-			if !ok {
-				panic(r)
-			}
-		}
-	}()
+func (qu *QueryUpdate) Parse(s *scanner.Scanner, ps query.Parser) (err error) {
+	defer helpers.RecoverOnError(&err)()
 
-	qu.Type = query.INSERT
+	qu.Type = query.UPDATE
 
 	qu.parseFrom(s)
+	qu.parseUseIndex(s)
 	qu.parseValues(s)
-
-	word := s.TokenText()
-	if word == "WHERE_INDEX" {
-		qu.parseWhereIndex(s)
-	}
-
-	word = s.TokenText()
-	if word == "WHERE" {
-		qu.parseWhere(s)
-	}
+	qu.parseWhereIndex(s, ps)
+	qu.parseWhere(s, ps)
 
 	return nil
 }
@@ -77,8 +65,23 @@ func (qu *QueryUpdate) parseFrom(s *scanner.Scanner) {
 	}
 }
 
+func (qs *QueryUpdate) parseUseIndex(s *scanner.Scanner) {
+	word := s.TokenText()
+	if word != "USE_INDEX" {
+		return
+	}
+
+	tok := s.Scan()
+	if tok == scanner.EOF {
+		panic(errors.ErrSyntax)
+	}
+
+	qs.UseIndex = s.TokenText()
+	s.Scan()
+}
+
 func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
-	qu.Values = dataMap{}
+	qu.Values = types.DataRow{}
 
 	if s.TokenText() != "SET" {
 		panic(errors.ErrSyntax)
@@ -122,50 +125,15 @@ func (qu *QueryUpdate) parseValues(s *scanner.Scanner) {
 	}
 }
 
-func (qu *QueryUpdate) parseWhereIndex(s *scanner.Scanner) {
-	tok := s.Scan()
-	word := s.TokenText()
-	_, isKW := kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	qu.WhereIndex = &whereIndex{}
-	qu.WhereIndex.Name = word
-	qu.WhereIndex.FilterStart = &indexFilter{}
-	col, op, val := parseWhereFilter(s, false)
-	var valInt interface{}
-	if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-		panic(err)
-	}
-	qu.WhereIndex.FilterStart.Operator = op
-	qu.WhereIndex.FilterStart.Value = map[string]types.DataType{
-		col: types.ParseJSONValue(valInt),
-	}
-
-	tok = s.Scan()
-	word = s.TokenText()
-	_, isKW = kwords.KeyWords[word]
-	if tok == scanner.EOF || isKW {
-		panic(errors.ErrSyntax)
-	}
-
-	if word == "AND" {
-		qu.WhereIndex.FilterEnd = &indexFilter{}
-		col, op, val := parseWhereFilter(s, false)
-		var valInt interface{}
-		if err := json.Unmarshal([]byte(val), &valInt); err != nil {
-			panic(err)
-		}
-		qu.WhereIndex.FilterEnd.Operator = op
-		qu.WhereIndex.FilterEnd.Value = map[string]types.DataType{
-			col: types.ParseJSONValue(valInt),
-		}
-	}
-
-	s.Scan()
+func (qs *QueryUpdate) parseWhereIndex(s *scanner.Scanner, ps query.Parser) {
+	qs.WhereIndex = parseWhereIndex(s, ps)
 }
 
-func (qu *QueryUpdate) parseWhere(s *scanner.Scanner) {
-	qu.Where = (*where)(parseWhere(s))
+func (qu *QueryUpdate) parseWhere(s *scanner.Scanner, ps query.Parser) {
+	word := s.TokenText()
+	if word != "WHERE" {
+		return
+	}
+
+	qu.Where = parseWhere(s, ps)
 }

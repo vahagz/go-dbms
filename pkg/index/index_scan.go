@@ -3,6 +3,7 @@ package index
 import (
 	"go-dbms/pkg/statement"
 	"go-dbms/pkg/types"
+	"go-dbms/services/parser/query/dml/eval"
 
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
@@ -20,41 +21,62 @@ func (i *Index) Scan(
 }
 
 func (i *Index) ScanFilter(start, end *Filter, scanFn func(ptr allocator.Pointable) (stop bool, err error)) error {
-	op := operatorMapping[start.Operator]
-	opts := op.scanOption
-	prefixColsCount := len(start.Value)
-	postfixColsCount := 0
+	opts := operatorMapping[start.Operator].scanOption
+	prefixColsCountStart := len(start.Conditions)
+	prefixColsCountEnd := 0
+	postfixColsCountStart := 0
+	postfixColsCountEnd := 0
+	var endKey [][]byte
+
+	startVal := types.DataRow{}
+	for _, cond := range start.Conditions {
+		startVal[cond.Left.Alias] = eval.Eval(nil, cond.Right)
+	}
+
+	if end != nil {
+		endVal := types.DataRow{}
+		for _, cond := range end.Conditions {
+			endVal[cond.Left.Alias] = eval.Eval(nil, cond.Right)
+		}
+
+		endKey = i.key(endVal)
+		postfixColsCountEnd = len(endKey) - len(endVal)
+		prefixColsCountEnd = len(end.Conditions)
+	}
 
 	for _, col := range i.columns {
-		if _, ok := start.Value[col.Name]; !ok {
-			postfixColsCount++
+		if _, ok := startVal[col.Name]; !ok {
+			postfixColsCountStart++
 			if (opts.Strict && opts.Reverse) || (!opts.Strict && !opts.Reverse) {
-				start.Value[col.Name] = types.Type(col.Meta).Fill()
+				startVal[col.Name] = types.Type(col.Meta).Fill()
 			} else {
-				start.Value[col.Name] = types.Type(col.Meta).Zero()
+				startVal[col.Name] = types.Type(col.Meta).Zero()
 			}
 		}
 	}
 
-	var endKey [][]byte
-	if end != nil {
-		endKey = i.key(end.Value)
-	}
-
-	opts.Key = i.key(start.Value)
+	opts.Key = i.key(startVal)
 	searchingKey := opts.Key
-	if postfixColsCount > 0 {
-		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCount, postfixColsCount)
+	if postfixColsCountStart > 0 {
+		searchingKey = i.removeAutoSetCols(searchingKey, prefixColsCountStart, postfixColsCountStart)
+	}
+	if postfixColsCountEnd > 0 {
+		endKey = i.removeAutoSetCols(endKey, prefixColsCountEnd, postfixColsCountEnd)
 	}
 
 	return i.tree.Scan(opts, func(k [][]byte, v []byte) (bool, error) {
+		kStart := k
+		kEnd := k
 		if !i.tree.IsUniq() {
 			k = i.tree.RemoveSuffix(k)
 		}
-		if postfixColsCount > 0 {
-			k = i.removeAutoSetCols(k, prefixColsCount, postfixColsCount)
+		if postfixColsCountStart > 0 {
+			kStart = i.removeAutoSetCols(k, prefixColsCountStart, postfixColsCountStart)
 		}
-		if shouldStop(k, start.Operator, searchingKey) || (endKey != nil && shouldStop(k, end.Operator, endKey)) {
+		if postfixColsCountEnd > 0 {
+			kEnd = i.removeAutoSetCols(k, prefixColsCountEnd, postfixColsCountEnd)
+		}
+		if shouldStop(kStart, start.Operator, searchingKey) || (endKey != nil && shouldStop(kEnd, end.Operator, endKey)) {
 			return true, nil
 		}
 

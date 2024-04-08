@@ -1,5 +1,7 @@
 package kwords
 
+import "go-dbms/pkg/types"
+
 var KeyWords = map[string]struct{}{
 	"SELECT":      {},
 	"FROM":        {},
@@ -23,7 +25,7 @@ var KeyWords = map[string]struct{}{
 	"ROWS":    {},
 }
 
-var IndexOperators = map[string]struct{}{
+var IndexOperators = map[types.Operator]struct{}{
 	">":  {},
 	">=": {},
 	"=":  {},

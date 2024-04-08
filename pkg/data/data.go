@@ -10,6 +10,7 @@ import (
 	"go-dbms/pkg/column"
 	"go-dbms/pkg/customerrors"
 	"go-dbms/pkg/types"
+	"go-dbms/util/helpers"
 
 	"github.com/pkg/errors"
 	allocator "github.com/vahagz/disk-allocator/heap"
@@ -53,7 +54,7 @@ func Open(fileName string, opts *Options) (*DataFile, error) {
 	df.cache = cache.NewCache[*record](10000, df.newEmptyRecord)
 
 	if err := df.open(opts); err != nil {
-		_ = df.Close()
+		df.Close()
 		return nil, err
 	}
 
@@ -81,19 +82,21 @@ func (df *DataFile) Get(ptr allocator.Pointable) []types.DataType {
 
 	r := df.fetchN(ptr).Get()
 	dataCopy := make([]types.DataType, len(r.data))
-	copy(dataCopy, r.data)
+	for i, dt := range r.data {
+		dataCopy[i] = dt.Copy()
+	}
 	return dataCopy
 }
 
 // Get fetches the record map from the given pointer. Returns error if record not found.
-func (df *DataFile) GetMap(ptr allocator.Pointable) map[string]types.DataType {
+func (df *DataFile) GetMap(ptr allocator.Pointable) types.DataRow {
 	df.mu.RLock()
 	defer df.mu.RUnlock()
 
 	r := df.fetchN(ptr).Get()
-	dataCopy := make(map[string]types.DataType, len(r.data))
+	dataCopy := make(types.DataRow, len(r.data))
 	for i, data := range r.data {
-		dataCopy[df.columns[i].Name] = data
+		dataCopy[df.columns[i].Name] = data.Copy()
 	}
 	return dataCopy
 }
@@ -117,14 +120,10 @@ func (df *DataFile) InsertMem(val []types.DataType) (allocator.Pointable, error)
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
-	ptr, err := df.insert(val)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to insert new record")
-	}
-
+	ptr := df.insert(val)
 	df.meta.dirty = true
 	df.meta.count++
-	return ptr, nil
+	return ptr.Ptr(), nil
 }
 
 // Update updates record value. If new value can't fit to current
@@ -137,7 +136,7 @@ func (df *DataFile) Update(ptr allocator.Pointable, values []types.DataType) (al
 func (df *DataFile) UpdateMem(ptr allocator.Pointable, values []types.DataType) allocator.Pointable {
 	df.mu.Lock()
 	defer df.mu.Unlock()
-	return df.update(ptr, values)
+	return df.update(ptr, values).Ptr()
 }
 
 // Delete marks pointer as 'free' for future reuse
@@ -150,6 +149,7 @@ func (df *DataFile) DeleteMem(ptr allocator.Pointable) {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
+	df.cache.Del(ptr)
 	df.free(ptr)
 	df.meta.dirty = true
 	df.meta.count--
@@ -160,13 +160,10 @@ func (df *DataFile) Scan(scanFn func(ptr allocator.Pointable, row []types.DataTy
 	df.mu.RLock()
 	defer df.mu.RUnlock()
 
-	r := df.newEmptyRecord()
 	return df.heap.Scan(df.metaPtr, func(ptr allocator.Pointable) (bool, error) {
 		if ptr.IsFree() {
 			return false, nil
-		} else if err := ptr.Get(r); err != nil {
-			return true, errors.Wrap(err, "failed to get pointer data")
-		} else if stop, err := scanFn(ptr, r.data); err != nil {
+		} else if stop, err := scanFn(ptr, df.fetchR(ptr).Get().data); err != nil {
 			return true, err
 		} else if stop {
 			return true, nil
@@ -187,18 +184,17 @@ func (df *DataFile) Count() uint64 { return df.meta.count }
 func (df *DataFile) HeapSize() uint64 { return df.heap.Size() }
 
 // Close flushes any writes and closes the underlying pager.
-func (df *DataFile) Close() error {
+func (df *DataFile) Close() {
 	df.mu.Lock()
 	defer df.mu.Unlock()
 
 	if df.heap == nil {
-		return nil
+		return
 	}
 
 	_ = df.writeAll() // write if any nodes are pending
-	err := df.heap.Close()
+	helpers.Must(df.heap.Close())
 	df.heap = nil
-	return err
 }
 
 // Pointer returns ptr with zero value attached to underlying pager
@@ -211,24 +207,22 @@ func (df *DataFile) Link(ptr allocator.Pointable) {
 	df.heap.Link(ptr)
 }
 
-func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) allocator.Pointable {
+func (df *DataFile) update(ptr allocator.Pointable, values []types.DataType) cache.Pointable[*record] {
 	newRecord := df.newRecord(values)
 	if newRecord.Size() <= ptr.Size() {
-		p := df.fetchW(ptr)
-		r := p.Get()
+		cachedPtr := df.fetchW(ptr)
+		r := cachedPtr.Get()
 		*r = *newRecord
-		p.Unlock()
-		return ptr
+		cachedPtr.Unlock()
+		return cachedPtr
 	}
 
 	df.free(ptr)
 	ptr = df.alloc(newRecord.Size())
+	cachedPtr := df.cache.Add(ptr)
+	cachedPtr.Set(newRecord)
 
-	if err := ptr.Set(newRecord); err != nil {
-		panic(err)
-	}
-
-	return ptr 
+	return cachedPtr 
 }
 
 func (df *DataFile) alloc(size uint32) allocator.Pointable {
@@ -259,10 +253,11 @@ func (df *DataFile) newEmptyRecord() *record {
 	}
 }
 
-func (df *DataFile) insert(val []types.DataType) (allocator.Pointable, error) {
+func (df *DataFile) insert(val []types.DataType) cache.Pointable[*record] {
 	r := df.newRecord(val)
 	ptr := df.heap.Alloc(r.Size())
-	return ptr, ptr.Set(r)
+	cachedPtr := df.cache.Add(ptr)
+	return cachedPtr.Set(r)
 }
 
 // fetch returns the record from given pointer. underlying file is accessed

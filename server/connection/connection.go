@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"go-dbms/services/executor"
+	"go-dbms/pkg/pipe"
 	"go-dbms/util/response"
 
 	"github.com/pkg/errors"
@@ -71,7 +71,6 @@ func (c *Connection) Send(blob []byte) (int, error) {
 			fmt.Println("Error while sending data: ", err)
 			err = errors.New("Response error")
 		} else {
-			fmt.Printf("Server sent %v bytes\n", hn + bn)
 			return hn + bn, err
 		}
 	}
@@ -80,7 +79,7 @@ func (c *Connection) Send(blob []byte) (int, error) {
 }
 
 func (c *Connection) EOS() error {
-	_, err := c.Send(executor.EOS)
+	_, err := c.Send(pipe.EOS)
 	return err
 }
 

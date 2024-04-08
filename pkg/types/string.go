@@ -2,17 +2,22 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"go-dbms/util/helpers"
 	"strconv"
 )
 
 func init() {
 	typesMap[TYPE_STRING] = newable{
 		newInstance: func(meta DataTypeMeta) DataType {
+			m := meta.(*DataTypeSTRINGMeta)
 			return &DataTypeSTRING{
-				Code: meta.GetCode(),
-				Meta: meta.(*DataTypeSTRINGMeta),
+				DataTypeBASE: DataTypeBASE[*DataTypeSTRINGMeta]{
+					Code: m.GetCode(),
+					Meta: m,
+				},
 			}
 		},
 		newMeta: func(args ...interface{}) DataTypeMeta {
@@ -22,6 +27,10 @@ func init() {
 
 			return &DataTypeSTRINGMeta{}
 		},
+	}
+
+	parsers["STRING"] = func(tokens []string) DataTypeMeta {
+		return Meta(TYPE_STRING)
 	}
 }
 
@@ -45,14 +54,9 @@ func (m *DataTypeSTRINGMeta) IsFixedSize() bool {
 	return false
 }
 
-func (m *DataTypeSTRINGMeta) IsNumeric() bool {
-	return false
-}
-
 type DataTypeSTRING struct {
 	value string
-	Code  TypeCode            `json:"code"`
-	Meta  *DataTypeSTRINGMeta `json:"meta"`
+	DataTypeBASE[*DataTypeSTRINGMeta]
 }
 
 func (t *DataTypeSTRING) MarshalBinary() (data []byte, err error) {
@@ -64,18 +68,36 @@ func (t *DataTypeSTRING) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+func (t *DataTypeSTRING) Copy() DataType {
+	return &DataTypeSTRING{
+		value: t.value,
+		DataTypeBASE: DataTypeBASE[*DataTypeSTRINGMeta]{
+			Code: t.GetCode(),
+			Meta: t.MetaCopy().(*DataTypeSTRINGMeta),
+		},
+	}
+}
+
+func (t *DataTypeSTRING) MetaCopy() DataTypeMeta {
+	return &DataTypeSTRINGMeta{}
+}
+
 func (t *DataTypeSTRING) Bytes() []byte {
 	return []byte(t.value)
 }
 
-func (t *DataTypeSTRING) Value() interface{} {
+func (t *DataTypeSTRING) Value() json.Token {
 	return t.value
+}
+
+func (t *DataTypeSTRING) MarshalJSON() ([]byte, error) {
+	return MarshalJSON(t)
 }
 
 func (t *DataTypeSTRING) Set(value interface{}) DataType {
 	v, ok := value.(string)
 	if !ok {
-		panic(fmt.Errorf("invalid set data type => %v", value))
+		panic(ErrInvalidDataType)
 	}
 
 	t.value = v
@@ -90,39 +112,28 @@ func (t *DataTypeSTRING) Zero() DataType {
 	panic(errors.New("Zero not allowed for string type"))
 }
 
-func (t *DataTypeSTRING) GetCode() TypeCode {
-	return t.Code
-}
-
-func (t *DataTypeSTRING) Default() DataType {
-	return t.Meta.Default()
-}
-
-func (t *DataTypeSTRING) IsFixedSize() bool {
-	return t.Meta.IsFixedSize()
-}
-
-func (t *DataTypeSTRING) IsNumeric() bool {
-	return t.Meta.IsNumeric()
-}
-
 func (t *DataTypeSTRING) Size() int {
 	return len(t.value)
 }
 
-func (t *DataTypeSTRING) Compare(operator string, val DataType) bool {
+func (t *DataTypeSTRING) Compare(val DataType) int {
+	return bytes.Compare(t.Bytes(), val.Bytes())
+}
+
+func (t *DataTypeSTRING) CompareOp(operator Operator, val DataType) bool {
 	switch operator {
-		case "=": return bytes.Compare(t.Bytes(), val.Bytes()) == 0
-		case ">=": return bytes.Compare(t.Bytes(), val.Bytes()) >= 0
-		case "<=": return bytes.Compare(t.Bytes(), val.Bytes()) <= 0
-		case ">": return bytes.Compare(t.Bytes(), val.Bytes()) > 0
-		case "<": return bytes.Compare(t.Bytes(), val.Bytes()) < 0
-		case "!=": return bytes.Compare(t.Bytes(), val.Bytes()) != 0
+		case Equal:          return t.Compare(val) == 0
+		case GreaterOrEqual: return t.Compare(val) >= 0
+		case LessOrEqual:    return t.Compare(val) <= 0
+		case Greater:        return t.Compare(val) > 0
+		case Less:           return t.Compare(val) < 0
+		case NotEqual:       return t.Compare(val) != 0
 	}
 	panic(fmt.Errorf("invalid operator:'%s'", operator))
 }
 
-func (t *DataTypeSTRING) Cast(code TypeCode, meta DataTypeMeta) (DataType, error) {
+func (t *DataTypeSTRING) Cast(meta DataTypeMeta) (DataType, error) {
+	code := meta.GetCode()
 	switch code {
 		case TYPE_INTEGER: {
 			if meta == nil {
@@ -148,6 +159,20 @@ func (t *DataTypeSTRING) Cast(code TypeCode, meta DataTypeMeta) (DataType, error
 				}
 			}
 			return Type(meta).Set(t.Value()), nil
+		}
+		case TYPE_FLOAT: {
+			if meta == nil {
+				meta = &DataTypeFLOATMeta{
+					ByteSize: 8,
+				}
+			}
+			return Type(meta).Set(helpers.MustVal(strconv.ParseFloat(t.value, 64))), nil
+		}
+		case TYPE_DATETIME: {
+			if meta == nil {
+				meta = &DataTypeDATETIMEMeta{}
+			}
+			return Type(meta).Set(t.value), nil
 		}
 	}
 

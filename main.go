@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	r "math/rand"
 	"os"
 	"os/signal"
 	"path"
@@ -17,22 +16,15 @@ import (
 )
 
 var seed = time.Now().UnixMilli()
-var rand = r.New(r.NewSource(seed))
 
 func main() {
 	pwd, _ := os.Getwd()
 	as := auth.New()
 	ps := parser.New()
 	es, err := executor.New(path.Join(pwd, "test/tables"))
-	if err != nil {
-		fatal(err)
-	}
+	fatalIfErr(err)
 
-	defer func() {
-		if err := es.Close(); err != nil {
-			fmt.Println("error on gracefully stopping:", err)
-		}
-	}()
+	defer es.Close()
 
 	configs := config.New()
 	s, err := server.New(configs.ServerConfig, as, ps, es)
@@ -51,7 +43,10 @@ func main() {
 	}
 }
 
-func fatal(val interface{}) {
+func fatalIfErr(val interface{}) {
+	if val == nil {
+		return
+	}
 	fmt.Println(val)
 	os.Exit(1)
 }
