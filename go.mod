@@ -6,7 +6,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
-	github.com/vahagz/bptree v0.0.5-0.20240323102840-21f7e324b615
+	github.com/vahagz/bptree v0.0.5-0.20240408062937-15c4b6e0473c
 	github.com/vahagz/disk-allocator/heap v0.0.0-20240323102808-e6fad920d810
 	golang.org/x/exp v0.0.0-20240205201215-2c58cdc269a3
 	golang.org/x/sync v0.6.0
